@@ -8,6 +8,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import Deck from "./Deck.js";
+const div = document.createElement('div');
+div.id = 'game';
+document.body.appendChild(div);
 class Dutch {
     constructor(deck_id) {
         this.deck = new Deck(deck_id);
@@ -16,14 +19,40 @@ class Dutch {
         this.nbCardsPerPlayer = 4;
     }
     startGame() {
-        this.deal();
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.deal();
+            yield this.render();
+            const players = this.getPlayers();
+            for (let player of players) {
+                player.game = this;
+            }
+            this.play();
+        });
     }
     deal() {
-        this.players.forEach((player) => __awaiter(this, void 0, void 0, function* () {
-            yield this.deck.draw(this.nbCardsPerPlayer).then((cards) => __awaiter(this, void 0, void 0, function* () {
-                yield player.setHand(cards, this.deck.deck_id);
-            }));
-        }));
+        return __awaiter(this, void 0, void 0, function* () {
+            for (let player of this.players) {
+                let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
+                yield player.setHand(cards);
+            }
+        });
+    }
+    render() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const game = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
+            game.innerHTML = '';
+            const players = this.getPlayers();
+            for (let player of players) {
+                const playerDiv = player.render();
+                game.appendChild(playerDiv);
+            }
+            yield this.deck.renderDeck();
+            yield this.deck.discard();
+            this.deck.renderDiscardPile();
+        });
+    }
+    updatePlayer(player) {
     }
     addPlayer(player) {
         this.players.push(player);
@@ -57,6 +86,11 @@ class Dutch {
     }
     static fromJSON(json) {
         return Object.assign(new Dutch(json.deck_id), json);
+    }
+    play() {
+        const players = this.getPlayers();
+        const currentPlayer = this.getCurrentPlayer();
+        currentPlayer.play();
     }
 }
 export default Dutch;

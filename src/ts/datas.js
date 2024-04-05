@@ -9,14 +9,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import Deck from "./Deck.js";
 import Player from "./Player.js";
-export const data = fetchDeck().then(data => {
+let data = fetchDeck().then((data) => {
     let deck = new Deck(data.deck_id);
     let player1 = new Player(1, "Eddy");
     let player2 = new Player(2, "Hugo");
     let player3 = new Player(3, "Axel");
+    let player4 = new Player(3, "Léa");
     return {
         deck: deck,
-        players: [player1, player2, player3]
+        players: [player1, player2, player3, player4]
     };
 });
 function fetchDeck() {
@@ -25,3 +26,4 @@ function fetchDeck() {
         return yield response.json();
     });
 }
+export default data;

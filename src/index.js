@@ -8,12 +8,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import Dutch from "./ts/Dutch.js";
-import { data } from "./ts/datas.js";
-data.then((data) => __awaiter(void 0, void 0, void 0, function* () {
+import fetchData from "./ts/datas.js";
+fetchData.then((data) => __awaiter(void 0, void 0, void 0, function* () {
     let dutch = new Dutch(data.deck.deck_id);
     data.players.forEach(player => {
         dutch.addPlayer(player);
     });
-    dutch.startGame();
-    console.log(dutch);
+    yield dutch.startGame();
+    let remaining = yield dutch.deck.getRemaining();
+    console.log(remaining);
+    console.log(dutch.players);
+    console.log(dutch.deck);
 }));

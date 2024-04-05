@@ -1,5 +1,11 @@
 import Deck from "./Deck.js";
 import Player from "./Player.js";
+import Card from "./Card";
+
+const div = document.createElement('div');
+div.id = 'game';
+document.body.appendChild(div);
+
 
 class Dutch {
     deck: Deck;
@@ -14,16 +20,42 @@ class Dutch {
         this.nbCardsPerPlayer = 4;
     }
 
-    startGame() {
-        this.deal();
+    public async startGame() {
+        await this.deal();
+        await this.render();
+
+        const players = this.getPlayers();
+        for(let player of players) {
+            player.game = this;
+        }
+
+        this.play();
     }
 
-    private deal() {
-        this.players.forEach(async player => {
-            await this.deck.draw(this.nbCardsPerPlayer).then(async cards => {
-                await player.setHand(cards, this.deck.deck_id);
-            });
-        });
+    private async deal() {
+        for(let player of this.players) {
+            let [cards] = await Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
+
+            await player.setHand(cards);
+        }
+    }
+
+    public async render() {
+        const game = document.getElementById('game') ?? document.createElement('div');
+        game.innerHTML = '';
+        const players = this.getPlayers();
+        for(let player of players) {
+            const playerDiv = player.render()
+            game.appendChild(playerDiv);
+        }
+        await this.deck.renderDeck();
+        await this.deck.discard();
+        this.deck.renderDiscardPile();
+    }
+
+    public updatePlayer(player: Player) {
+
+
     }
 
     addPlayer(player: Player) {
@@ -70,6 +102,14 @@ class Dutch {
     static fromJSON(json: any) {
         return Object.assign(new Dutch(json.deck_id), json);
     }
+
+    private play() {
+        const players = this.getPlayers();
+        const currentPlayer = this.getCurrentPlayer();
+        currentPlayer.play();
+
+    }
+
 }
 
 export default Dutch;

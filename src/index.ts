@@ -1,14 +1,17 @@
 import Dutch from "./ts/Dutch.js";
-import { data } from "./ts/datas.js";
-import Deck from "./ts/Deck";
+import fetchData from "./ts/datas.js";
 
-data.then( async (data) => {
+fetchData.then(async(data) => {
     let dutch = new Dutch(data.deck.deck_id);
     data.players.forEach(player => {
         dutch.addPlayer(player);
     });
-    dutch.startGame();
-    console.log(dutch)
+    await dutch.startGame();
+
+    let remaining = await dutch.deck.getRemaining()
+    console.log(remaining);
+    console.log(dutch.players);
+    console.log(dutch.deck);
 });
 
 

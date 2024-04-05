@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Custom Styles */
+body {
+    font-family: 'Roboto', sans-serif;
+    /* green play board background*/
+    background-color: #2E8B57;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+/* Play Card */
+.card {
+    position: relative;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.5s;
+    transform-style: preserve-3d;
+
+    /*border: 1px solid #f1f1f1;*/
+
+
+    cursor: pointer;
+    transform-origin: center right;
+    height: fit-content;
+
+    ul {
+        /*list-style-type: circle;*/
+        margin: auto;
+        overflow: hidden;
+        padding: 0;
+        text-overflow: fade;
+        white-space: nowrap;
+        width: 250px;
+        max-height: 100px;
+    }
+
+    li {
+        /*display: inline;*/
+        margin-right: 10px
+    }
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+
+}
+@media (width >= 750px) {
+    .card {
+        width: 125px;
+    }
+}
+
+
+.card h2 {
+    font-size: 1.5rem;
+}
+
+.card p {
+    font-size: 1rem;
+}
+
+.card button {
+    margin: 10px;
+    padding: 10px;
+    background-color: #f1f1f1;
+    border: none;
+    cursor: pointer;
+}
+
+.card button:hover {
+    background-color: #e1e1e1;
+}
+
+/* Card Flip */
+
+.card-inner {
+    /*position: absolute;*/
+    width: 100%;
+    height: 100%;
+    /*border-radius: 30px;*/
+    text-align: center;
+    transition: transform 0.5s;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+}
+
+
+.card.is-flipped {
+    transform: translateX(-100%) rotateY(180deg);
+}
+
+.card-front {
+    /*transform: rotateY(180deg);*/
+    transform: rotateY(180deg);
+    /*border-radius: 30px;*/
+
+    position: absolute;
+}
+
+.card-back {
+    /*transform: rotateY(180deg);*/
+    /*border-radius: 30px;*/
+    color: black;
+}
+
+.player {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px;
+}
+
+.hand {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
