@@ -1,0 +1,32 @@
+{
+  "name": "dutch",
+  "version": "0.0.1",
+  "description": "Dutch is real",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc -w",
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vodianoi/Dutch.git"
+  },
+  "keywords": [
+    "card-game",
+    "cards",
+    "dutch",
+    "game",
+    "js"
+  ],
+  "author": "Atopy",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vodianoi/Dutch/issues"
+  },
+  "homepage": "https://github.com/Vodianoi/Dutch#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.4"
+  }
+}
