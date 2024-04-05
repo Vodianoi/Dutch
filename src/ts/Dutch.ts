@@ -22,14 +22,27 @@ class Dutch {
 
     public async startGame() {
         await this.deal();
-        await this.render();
+
+        setTimeout(async()=> {
+            await this.render();
+        }, 1000);
 
         const players = this.getPlayers();
-        for(let player of players) {
-            player.game = this;
-        }
+        setTimeout(()=> {
 
-        this.play();
+            for(let player of players) {
+                player.game = this;
+                player.showLastTwoCards(true);
+
+
+            }
+        }, 2000);
+        for(let player of players) {
+
+            player.showLastTwoCards(false);
+
+        }
+        await this.play();
     }
 
     private async deal() {
@@ -42,15 +55,16 @@ class Dutch {
 
     public async render() {
         const game = document.getElementById('game') ?? document.createElement('div');
+        game.id = 'game';
         game.innerHTML = '';
         const players = this.getPlayers();
         for(let player of players) {
             const playerDiv = player.render()
             game.appendChild(playerDiv);
         }
-        await this.deck.renderDeck();
         await this.deck.discard();
-        this.deck.renderDiscardPile();
+        await this.deck.renderDeck();
+        // this.deck.renderDiscardPile();
     }
 
     public updatePlayer(player: Player) {
@@ -95,7 +109,7 @@ class Dutch {
     }
 
     getPlayersHands() {
-        return this.players.map(player => player.getHand(this.deck.deck_id));
+        return this.players.map(player => player.getHand());
     }
 
 
@@ -103,10 +117,11 @@ class Dutch {
         return Object.assign(new Dutch(json.deck_id), json);
     }
 
-    private play() {
+    private async  play() {
         const players = this.getPlayers();
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
+        await this.render();
 
     }
 

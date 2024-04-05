@@ -12,7 +12,9 @@ class Deck {
     constructor(id) {
         this.pile = 'discard';
         this.cards = [];
+        this.div = document.createElement('div');
         this.deck_id = id;
+        this.div.id = 'deck';
     }
     getId() {
         return this.deck_id;
@@ -39,21 +41,6 @@ class Deck {
         fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`)
             .then(response => response.json())
             .then(data => {
-            var _a;
-            let deckDiv = (_a = document.getElementById('deck')) !== null && _a !== void 0 ? _a : document.createElement('deck');
-            deckDiv.id = 'deck';
-            deckDiv.style.display = 'flex';
-            deckDiv.style.justifyContent = 'center';
-            deckDiv.style.alignItems = 'center';
-            deckDiv.style.flexDirection = 'row';
-            let card = data.piles[this.pile].cards[0];
-            let img = document.createElement('img');
-            img.src = card.image;
-            img.style.width = '100px';
-            img.style.height = '150px';
-            deckDiv.appendChild(img);
-            if (!document.getElementById('div'))
-                document.body.appendChild(deckDiv);
         });
     }
     /**
@@ -64,37 +51,40 @@ class Deck {
             return yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`)
                 .then(response => response.json())
                 .then((data) => __awaiter(this, void 0, void 0, function* () {
-                var _a;
-                let deckDiv = (_a = document.getElementById('deck')) !== null && _a !== void 0 ? _a : document.createElement('deck');
-                deckDiv.id = 'deck';
-                deckDiv.style.display = 'flex';
-                deckDiv.style.justifyContent = 'center';
-                deckDiv.style.alignItems = 'center';
-                deckDiv.style.flexDirection = 'row';
+                // DISCARD
+                fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`)
+                    .then(response => response.json())
+                    .then(data => {
+                    this.div.innerHTML = '';
+                    this.div.style.display = 'flex';
+                    this.div.style.justifyContent = 'center';
+                    this.div.style.alignItems = 'center';
+                    this.div.style.flexDirection = 'row';
+                    let card = data.piles[this.pile].cards[0];
+                    let img = document.createElement('img');
+                    img.src = card.image;
+                    img.style.width = '100px';
+                    img.style.height = '150px';
+                    this.div.appendChild(img);
+                });
+                // DECK
                 let card = data.cards[0];
                 let img = document.createElement('img');
                 card = new Card(card.code, card.image, card.value, card.suit);
                 img.src = yield card.getBackImage();
-                // img.style.position = 'absolute';
-                // img.style.bottom = '50px';
-                // img.style.left = '50%';
-                // img.style.transform = 'translate(-50%, 0)';
                 img.style.width = '100px';
                 img.style.height = '150px';
                 const remaining = yield this.getRemaining();
                 let remainingText = document.createElement('p');
-                remainingText.innerText = `Remaining: ${remaining}`;
-                // remainingText.style.position = 'absolute';
-                // remainingText.style.bottom = '50px';
-                // remainingText.style.left = '50%';
-                // remainingText.style.transform = 'translate(50%, 0)';
-                remainingText.style.color = 'white';
-                remainingText.style.fontFamily = 'Arial';
                 remainingText.style.fontSize = '20px';
-                deckDiv.appendChild(img);
-                document.body.appendChild(remainingText);
-                if (!document.getElementById('div'))
-                    document.body.appendChild(deckDiv);
+                remainingText.style.fontWeight = 'bold';
+                remainingText.style.color = 'white';
+                remainingText.innerHTML = `Remaining: ${remaining}`;
+                this.div.appendChild(img);
+                this.div.appendChild(remainingText);
+                this.div.style.transform = 'translateX(35%)';
+                if (!document.getElementById('deck'))
+                    document.body.appendChild(this.div);
             }));
         });
     }

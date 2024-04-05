@@ -20,6 +20,7 @@ class Card{
      */
     public render(){
         this.div.classList.add('card');
+        this.div.innerHTML = '';
         let cardFront = document.createElement('div');
         cardFront.classList.add('card-inner');
         cardFront.classList.add('card-front');
@@ -65,13 +66,21 @@ class Card{
         this.div.classList.toggle('is-flipped');
     }
 
+    public show(){
+        this.div.classList.remove('is-flipped');
+    }
+
+    public hide(){
+        this.div.classList.add('is-flipped');
+    }
+
     public addClickEvent(callback:Function){
         this.div.addEventListener('click', () => {
             callback(this);
         });
     }
 
-    public addFlipEvent(callback:Function){
+    public addFlipEvent(){
         this.div.addEventListener('click', () => this.flip());
     }
 

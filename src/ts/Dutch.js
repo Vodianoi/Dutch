@@ -21,12 +21,20 @@ class Dutch {
     startGame() {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.deal();
-            yield this.render();
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                yield this.render();
+            }), 1000);
             const players = this.getPlayers();
+            setTimeout(() => {
+                for (let player of players) {
+                    player.game = this;
+                    player.showLastTwoCards(true);
+                }
+            }, 2000);
             for (let player of players) {
-                player.game = this;
+                player.showLastTwoCards(false);
             }
-            this.play();
+            yield this.play();
         });
     }
     deal() {
@@ -41,15 +49,16 @@ class Dutch {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             const game = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
+            game.id = 'game';
             game.innerHTML = '';
             const players = this.getPlayers();
             for (let player of players) {
                 const playerDiv = player.render();
                 game.appendChild(playerDiv);
             }
-            yield this.deck.renderDeck();
             yield this.deck.discard();
-            this.deck.renderDiscardPile();
+            yield this.deck.renderDeck();
+            // this.deck.renderDiscardPile();
         });
     }
     updatePlayer(player) {
@@ -82,15 +91,18 @@ class Dutch {
         return this.players.map(player => player.getId());
     }
     getPlayersHands() {
-        return this.players.map(player => player.getHand(this.deck.deck_id));
+        return this.players.map(player => player.getHand());
     }
     static fromJSON(json) {
         return Object.assign(new Dutch(json.deck_id), json);
     }
     play() {
-        const players = this.getPlayers();
-        const currentPlayer = this.getCurrentPlayer();
-        currentPlayer.play();
+        return __awaiter(this, void 0, void 0, function* () {
+            const players = this.getPlayers();
+            const currentPlayer = this.getCurrentPlayer();
+            currentPlayer.play();
+            yield this.render();
+        });
     }
 }
 export default Dutch;

@@ -49,7 +49,7 @@ class Player {
         return playerDiv;
     }
 
-    public async getHand(deck_id: string){
+    public async getHand(){
         return this.hand;
     }
 
@@ -59,11 +59,25 @@ class Player {
         }
     }
 
+    public showLastTwoCards(on: boolean){
+        if (on){
+            this.hand[this.hand.length - 1].show();
+            this.hand[this.hand.length - 2].show();
+        } else {
+            this.hand[this.hand.length - 1].hide();
+            this.hand[this.hand.length - 2].hide();
+        }
+    }
+
     /**
      * Play logic for the player
      */
     play() {
         this.isTurn = true;
+        this.hand.forEach((card) => {
+            // Add event listener to each card
+            card.addFlipEvent();
+        })
     }
 }
 
