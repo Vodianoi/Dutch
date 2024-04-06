@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 class Card {
     constructor(code, image, value, suit) {
         this.code = code;
@@ -20,7 +11,10 @@ class Card {
      * Use card with 2 divs card-back, card-front as css classes and img tag for the image
      */
     render() {
+        this.div.remove();
+        this.div = document.createElement('div');
         this.div.classList.add('card');
+        this.div.id = this.code;
         this.div.innerHTML = '';
         let cardFront = document.createElement('div');
         cardFront.classList.add('card-inner');
@@ -31,33 +25,12 @@ class Card {
         let frontImage = document.createElement('img');
         frontImage.src = this.image;
         let backImage = document.createElement('img');
-        this.getBackImage().then((url) => {
-            backImage.src = url;
-        });
+        backImage.src = Card.backImage;
         cardBack.appendChild(backImage);
         cardFront.appendChild(frontImage);
         this.div.appendChild(cardFront);
         this.div.appendChild(cardBack);
         return this.div;
-    }
-    getCode() {
-        return this.code;
-    }
-    getImage() {
-        return this.image;
-    }
-    getValue() {
-        return this.value;
-    }
-    getSuit() {
-        return this.suit;
-    }
-    getBackImage() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const response = yield fetch('https://www.deckofcardsapi.com/static/img/back.png');
-            const blob = yield response.blob();
-            return URL.createObjectURL(blob);
-        });
     }
     flip() {
         this.div.classList.toggle('is-flipped');
@@ -80,7 +53,9 @@ class Card {
         this.div.removeEventListener('click', () => this.flip());
     }
     removeClickEvent() {
-        this.div.removeEventListener('click', () => { });
+        this.div.removeEventListener('click', () => {
+        });
     }
 }
+Card.backImage = 'https://www.deckofcardsapi.com/static/img/back.png';
 export default Card;

@@ -14,7 +14,7 @@ fetchData.then((data) => __awaiter(void 0, void 0, void 0, function* () {
     data.players.forEach(player => {
         dutch.addPlayer(player);
     });
-    yield dutch.startGame();
+    yield dutch.init();
     let remaining = yield dutch.deck.getRemaining();
     console.log(remaining);
     console.log(dutch.players);

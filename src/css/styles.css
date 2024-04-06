@@ -22,7 +22,7 @@ body {
     position: relative;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.5s;
+    transition: all 0.5s;
     transform-style: preserve-3d;
 
     /*border: 1px solid #f1f1f1;*/

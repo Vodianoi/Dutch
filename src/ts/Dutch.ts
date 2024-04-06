@@ -12,6 +12,7 @@ class Dutch {
     players: Player[];
     currentPlayer: number;
     nbCardsPerPlayer: number;
+    dutched: boolean = false;
 
     constructor(deck_id: string) {
         this.deck = new Deck(deck_id)
@@ -20,33 +21,37 @@ class Dutch {
         this.nbCardsPerPlayer = 4;
     }
 
-    public async startGame() {
+    public async init() {
         await this.deal();
+        await this.render();
 
-        setTimeout(async()=> {
-            await this.render();
-        }, 1000);
+        for (let player of this.players) {
+            player.renderAction("ready");
+            player.game = this;
+        }
+    }
+
+    public async startGame() {
 
         const players = this.getPlayers();
-        setTimeout(()=> {
 
-            for(let player of players) {
-                player.game = this;
-                player.showLastTwoCards(true);
-
-
+        setTimeout(() => {
+            for (let player of players) {
+                player.toggleLastTwoCards(true);
             }
         }, 2000);
-        for(let player of players) {
+        for (let player of players) {
 
-            player.showLastTwoCards(false);
+            player.toggleLastTwoCards(false);
 
         }
         await this.play();
     }
 
     private async deal() {
-        for(let player of this.players) {
+        for (let player of this.players) {
+
+            player.game = this;
             let [cards] = await Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
 
             await player.setHand(cards);
@@ -58,11 +63,11 @@ class Dutch {
         game.id = 'game';
         game.innerHTML = '';
         const players = this.getPlayers();
-        for(let player of players) {
+        for (let player of players) {
             const playerDiv = player.render()
             game.appendChild(playerDiv);
         }
-        await this.deck.discard();
+        await this.deck.discardOneFromDraw();
         await this.deck.renderDeck();
         // this.deck.renderDiscardPile();
     }
@@ -70,6 +75,36 @@ class Dutch {
     public updatePlayer(player: Player) {
 
 
+    }
+
+    public ready(player: Player) {
+        player.ready = true;
+        player.changePlayerNameColor('green')
+        console.log('player ready', player.getName());
+        if (this.getPlayers().every(player => player.ready)) {
+            this.startGame().then(r => {
+                this.players.forEach((player) => player.changePlayerNameColor('black'))
+                console.log('game started');
+            });
+        }
+    }
+
+    public dutch(player: Player) {
+        const currentPlayer = this.getCurrentPlayer();
+        if (player.getId() === currentPlayer.getId()) {
+            this.dutched = true;
+            this.nextPlayer();
+            this.play();
+        }
+    }
+
+    public endTurn(player: Player) {
+        const currentPlayer = this.getCurrentPlayer();
+        if (player.getId() === currentPlayer.getId()) {
+            currentPlayer.endTurn();
+            this.nextPlayer();
+            this.play();
+        }
     }
 
     addPlayer(player: Player) {
@@ -117,11 +152,10 @@ class Dutch {
         return Object.assign(new Dutch(json.deck_id), json);
     }
 
-    private async  play() {
+    private async play() {
         const players = this.getPlayers();
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
-        await this.render();
 
     }
 

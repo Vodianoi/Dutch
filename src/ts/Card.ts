@@ -1,12 +1,12 @@
-class Card{
+class Card {
+    static readonly backImage = 'https://www.deckofcardsapi.com/static/img/back.png';
+    readonly code: string;
+    readonly image: string;
+    readonly value: string;
+    readonly suit: string;
+    div: HTMLDivElement;
 
-    readonly code:string;
-    readonly image:string;
-    readonly value:string;
-    readonly suit:string;
-    div:HTMLDivElement;
-
-    constructor(code:string, image:string, value:string, suit:string){
+    constructor(code: string, image: string, value: string, suit: string) {
         this.code = code;
         this.image = image;
         this.value = value;
@@ -18,8 +18,11 @@ class Card{
      * Render the card to the screen
      * Use card with 2 divs card-back, card-front as css classes and img tag for the image
      */
-    public render(){
+    public render() {
+        this.div.remove();
+        this.div = document.createElement('div');
         this.div.classList.add('card');
+        this.div.id = this.code;
         this.div.innerHTML = '';
         let cardFront = document.createElement('div');
         cardFront.classList.add('card-inner');
@@ -30,9 +33,7 @@ class Card{
         let frontImage = document.createElement('img');
         frontImage.src = this.image;
         let backImage = document.createElement('img');
-        this.getBackImage().then((url) => {
-            backImage.src = url;
-        });
+        backImage.src = Card.backImage;
         cardBack.appendChild(backImage);
         cardFront.appendChild(frontImage);
         this.div.appendChild(cardFront);
@@ -40,58 +41,37 @@ class Card{
         return this.div;
     }
 
-    public getCode(){
-        return this.code;
-    }
 
-    public getImage(){
-        return this.image;
-    }
-
-    public getValue(){
-        return this.value;
-    }
-
-    public getSuit(){
-        return this.suit;
-    }
-
-    public async getBackImage() {
-        const response = await fetch('https://www.deckofcardsapi.com/static/img/back.png');
-        const blob = await response.blob();
-        return URL.createObjectURL(blob);
-    }
-
-    public flip(){
+    public flip() {
         this.div.classList.toggle('is-flipped');
     }
 
-    public show(){
+    public show() {
         this.div.classList.remove('is-flipped');
     }
 
-    public hide(){
+    public hide() {
         this.div.classList.add('is-flipped');
     }
 
-    public addClickEvent(callback:Function){
+    public addClickEvent(callback: Function) {
         this.div.addEventListener('click', () => {
             callback(this);
         });
     }
 
-    public addFlipEvent(){
+    public addFlipEvent() {
         this.div.addEventListener('click', () => this.flip());
     }
 
-    public removeFlipEvent(){
+    public removeFlipEvent() {
         this.div.removeEventListener('click', () => this.flip());
     }
 
-    public removeClickEvent(){
-        this.div.removeEventListener('click', () => {});
+    public removeClickEvent() {
+        this.div.removeEventListener('click', () => {
+        });
     }
-
 
 
 }

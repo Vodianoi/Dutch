@@ -13,26 +13,32 @@ div.id = 'game';
 document.body.appendChild(div);
 class Dutch {
     constructor(deck_id) {
+        this.dutched = false;
         this.deck = new Deck(deck_id);
         this.players = [];
         this.currentPlayer = 0;
         this.nbCardsPerPlayer = 4;
     }
-    startGame() {
+    init() {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.deal();
-            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                yield this.render();
-            }), 1000);
+            yield this.render();
+            for (let player of this.players) {
+                player.renderAction("ready");
+                player.game = this;
+            }
+        });
+    }
+    startGame() {
+        return __awaiter(this, void 0, void 0, function* () {
             const players = this.getPlayers();
             setTimeout(() => {
                 for (let player of players) {
-                    player.game = this;
-                    player.showLastTwoCards(true);
+                    player.toggleLastTwoCards(true);
                 }
             }, 2000);
             for (let player of players) {
-                player.showLastTwoCards(false);
+                player.toggleLastTwoCards(false);
             }
             yield this.play();
         });
@@ -40,6 +46,7 @@ class Dutch {
     deal() {
         return __awaiter(this, void 0, void 0, function* () {
             for (let player of this.players) {
+                player.game = this;
                 let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
                 yield player.setHand(cards);
             }
@@ -56,12 +63,39 @@ class Dutch {
                 const playerDiv = player.render();
                 game.appendChild(playerDiv);
             }
-            yield this.deck.discard();
+            yield this.deck.discardOneFromDraw();
             yield this.deck.renderDeck();
             // this.deck.renderDiscardPile();
         });
     }
     updatePlayer(player) {
+    }
+    ready(player) {
+        player.ready = true;
+        player.changePlayerNameColor('green');
+        console.log('player ready', player.getName());
+        if (this.getPlayers().every(player => player.ready)) {
+            this.startGame().then(r => {
+                this.players.forEach((player) => player.changePlayerNameColor('black'));
+                console.log('game started');
+            });
+        }
+    }
+    dutch(player) {
+        const currentPlayer = this.getCurrentPlayer();
+        if (player.getId() === currentPlayer.getId()) {
+            this.dutched = true;
+            this.nextPlayer();
+            this.play();
+        }
+    }
+    endTurn(player) {
+        const currentPlayer = this.getCurrentPlayer();
+        if (player.getId() === currentPlayer.getId()) {
+            currentPlayer.endTurn();
+            this.nextPlayer();
+            this.play();
+        }
     }
     addPlayer(player) {
         this.players.push(player);
@@ -101,7 +135,6 @@ class Dutch {
             const players = this.getPlayers();
             const currentPlayer = this.getCurrentPlayer();
             currentPlayer.play();
-            yield this.render();
         });
     }
 }

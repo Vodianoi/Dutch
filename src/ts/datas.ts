@@ -8,7 +8,7 @@ let data = fetchDeck().then((data) => {
     let player1 = new Player(1, "Eddy");
     let player2 = new Player(2, "Hugo");
     let player3 = new Player(3, "Axel");
-    let player4 = new Player(3, "Léa");
+    let player4 = new Player(4, "Léa");
 
     return {
         deck: deck
