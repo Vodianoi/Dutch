@@ -8,19 +8,41 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import Card from './Card.js';
+/**
+ *  Deck class
+ */
 class Deck {
-    get deck_id() {
-        return this._deck_id;
-    }
+    /**
+     *  Create a new deck
+     *   - Set the deck id
+     *   - Set the discard pile
+     *   - Set the div id
+     *   - Set the draw and discard event listener to the default event
+     * @param id
+     */
     constructor(id) {
+        /**
+         *  Discard pile
+         * @private
+         */
         this.pile = 'discard';
-        this.div = document.createElement('div');
+        /**
+         *  Container for the deck
+         * @private
+         */
+        this.container = document.createElement('div');
+        /**
+         * Draw clicked event
+         */
         this._onDraw = () => {
         };
+        /**
+         *  Draw discard clicked event
+         */
         this._onDrawDiscard = () => {
         };
-        this._deck_id = id;
-        this.div.id = 'deck';
+        this.deck_id = id;
+        this.container.id = 'deck';
         this._onDraw = () => {
             console.log('Draw event not set');
         };
@@ -28,6 +50,9 @@ class Deck {
             console.log('Draw discard event not set');
         };
     }
+    /**
+     *  Get the remaining cards in the deck
+     */
     getRemaining() {
         return __awaiter(this, void 0, void 0, function* () {
             return yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/`)
@@ -38,6 +63,10 @@ class Deck {
         });
     }
     /**
+     *  Render the deck
+     *   - Draw pile
+     *   - Remaining cards
+     *   - Discard pile
      * @returns
      */
     renderDeck() {
@@ -48,7 +77,7 @@ class Deck {
                 // DRAW
                 const deckImg = yield this.renderDraw();
                 if (!document.getElementById('deck'))
-                    document.body.appendChild(this.div);
+                    document.body.appendChild(this.container);
                 discardImg.onclick = (ev) => {
                     this._onDrawDiscard(ev);
                 };
@@ -61,6 +90,10 @@ class Deck {
             }
         });
     }
+    /**
+     *  Render the draw pile
+     * @private
+     */
     renderDraw() {
         return __awaiter(this, void 0, void 0, function* () {
             let deckImg = document.createElement('img');
@@ -74,22 +107,26 @@ class Deck {
             remainingText.style.fontWeight = 'bold';
             remainingText.style.color = 'white';
             remainingText.innerHTML = `Remaining: ${remaining}`;
-            this.div.appendChild(deckImg);
-            this.div.appendChild(remainingText);
-            this.div.style.transform = 'translateX(35%)';
+            this.container.appendChild(deckImg);
+            this.container.appendChild(remainingText);
+            this.container.style.transform = 'translateX(35%)';
             return deckImg;
         });
     }
+    /**
+     *  Update remaining cards displayed on the deck
+     * @private
+     */
     updateRemaining() {
         this.getRemaining().then(remaining => {
-            let remainingText = this.div.querySelector('p');
+            let remainingText = this.container.querySelector('p');
             if (remainingText) {
                 remainingText.innerHTML = `Remaining: ${remaining}`;
             }
         });
     }
     /**
-     *
+     * Render the discard pile
      * @private
      */
     renderDiscard() {
@@ -100,11 +137,11 @@ class Deck {
             }
             const discardData = yield this.getDiscard();
             console.log('DISCARD', discardData);
-            this.div.innerHTML = '';
-            this.div.style.display = 'flex';
-            this.div.style.justifyContent = 'center';
-            this.div.style.alignItems = 'center';
-            this.div.style.flexDirection = 'row';
+            this.container.innerHTML = '';
+            this.container.style.display = 'flex';
+            this.container.style.justifyContent = 'center';
+            this.container.style.alignItems = 'center';
+            this.container.style.flexDirection = 'row';
             if (!discardData) {
                 throw new Error('No discard data found');
             }
@@ -115,7 +152,7 @@ class Deck {
             discardImg.src = card.image;
             discardImg.style.width = '100px';
             discardImg.style.height = '150px';
-            this.div.appendChild(discardImg);
+            this.container.appendChild(discardImg);
             return discardImg;
         });
     }
@@ -137,10 +174,17 @@ class Deck {
         img.id = 'drawnCard';
         document.body.appendChild(img);
     }
+    /**
+     *  Add the draw event listeners to the deck
+     * @param player Player that will draw the card
+     */
     addDrawEvent(player) {
         this._onDraw = (e) => this.drawEvent(e, player);
         this._onDrawDiscard = (e) => this.drawEvent(e, player);
     }
+    /**
+     *  Remove the draw event listeners from the deck and set the default event
+     */
     removeDrawEvent() {
         this._onDraw = () => {
             console.log('Draw event not set');
@@ -160,25 +204,25 @@ class Deck {
         let cardDiv = e.target;
         switch (cardDiv.id) {
             case 'discard':
-                this.div.removeChild(cardDiv);
+                this.container.removeChild(cardDiv);
                 this.drawFromDiscard().then((discardCard) => __awaiter(this, void 0, void 0, function* () {
                     if (!discardCard) {
                         throw new Error('No card to draw from discard');
                     }
                     this.renderCardAtMiddle(discardCard);
-                    player.onClick = (card) => {
-                        this.replaceCardEvent(card, player, discardCard);
+                    player.onClick = (handCard) => {
+                        this.replaceCardEvent(handCard, player, discardCard);
                     };
                     player.drawnCard = discardCard;
                 }));
                 break;
             case 'draw':
-                this.drawCard().then((card) => __awaiter(this, void 0, void 0, function* () {
-                    this.renderCardAtMiddle(card);
+                this.drawCard().then((drawnCard) => __awaiter(this, void 0, void 0, function* () {
+                    this.renderCardAtMiddle(drawnCard);
                     player.onClick = (handCard) => {
-                        this.replaceCardEvent(handCard, player, card);
+                        this.replaceCardEvent(handCard, player, drawnCard);
                     };
-                    player.drawnCard = card;
+                    player.drawnCard = drawnCard;
                 }));
                 break;
         }
@@ -201,7 +245,6 @@ class Deck {
             let cards = player.getHand();
             //discard the selected card in hand
             yield this.discard(card);
-            yield this.renderDeck();
             //add the drawn card to the hand
             let index = cards.indexOf(card);
             cards.splice(index, 1, discardCard);
@@ -209,7 +252,7 @@ class Deck {
             player.renderHand();
             player.renderAction(player.isTurn ? 'dutch' : '');
             (_a = document.getElementById('drawnCard')) === null || _a === void 0 ? void 0 : _a.remove();
-            player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
+            player.addListenerToHand((card) => __awaiter(this, void 0, void 0, function* () {
                 setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                     var _c;
                     card.show();
@@ -220,6 +263,14 @@ class Deck {
             (_b = player.game) === null || _b === void 0 ? void 0 : _b.allowPlayCard();
         });
     }
+    /**
+     *  Discard a card
+     *   - Add the card to the discard pile
+     *   - Render the deck
+     *   - Log the discarded card
+     *
+     * @param card Card to discard
+     */
     discard(card) {
         return __awaiter(this, void 0, void 0, function* () {
             let discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
@@ -231,6 +282,13 @@ class Deck {
             console.log('DISCARDED CARD', discardData);
         });
     }
+    /**
+     *  Discard one card from the draw pile
+     *  - Get the last card in the deck
+     *  - Add the card to the discard pile
+     *  - Return the discarded card
+     */
+    // @ts-ignore
     discardOneFromDraw() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -238,6 +296,7 @@ class Deck {
                 let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
                 let data = yield response.json();
                 let card = data["cards"][0];
+                card = new Card(card.code, card.image, card.value, card.suit);
                 //add the card to the discard pile
                 yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
                 return card;
@@ -247,6 +306,9 @@ class Deck {
             }
         });
     }
+    /**
+     *  Draw a card from the deck
+     */
     drawCard() {
         return __awaiter(this, void 0, void 0, function* () {
             const response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
@@ -257,6 +319,10 @@ class Deck {
             return card;
         });
     }
+    /**
+     *  Draw multiple cards from the deck
+     * @param count
+     */
     draw(count) {
         return __awaiter(this, void 0, void 0, function* () {
             let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`);
@@ -270,6 +336,9 @@ class Deck {
             return res;
         });
     }
+    /**
+     *  Draw a card from the discard pile
+     */
     drawFromDiscard() {
         return __awaiter(this, void 0, void 0, function* () {
             let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
@@ -286,6 +355,9 @@ class Deck {
             return card;
         });
     }
+    /**
+     *  Get the discard pile
+     */
     getDiscard() {
         return __awaiter(this, void 0, void 0, function* () {
             let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);

@@ -12,13 +12,30 @@ const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
 document.body.appendChild(gameContainer);
 class Dutch {
+    /**
+     *  Initialize the game
+     *  - Set the deck
+     *  - Set the players
+     *  - Set the current player
+     *  - Set the number of cards per player
+     * @param deck_id
+     */
     constructor(deck_id) {
+        /**
+         *  Verify if one player has already said dutch
+         */
         this.oneDutch = false;
         this.deck = new Deck(deck_id);
         this.players = [];
         this.currentPlayer = 0;
         this.nbCardsPerPlayer = 4;
     }
+    /**
+     *  Initialize the game
+     *  - Deal the cards
+     *  - Render the game
+     *  - Set the game for all players
+     */
     init() {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.deal();
@@ -29,9 +46,14 @@ class Dutch {
             }
         });
     }
+    /**
+     *  Start the game
+     *  Change the action of all players to play
+     *  Toggle the last two cards for all players for 2 seconds
+     */
     startGame() {
         return __awaiter(this, void 0, void 0, function* () {
-            const players = this.getPlayers();
+            const players = this.players;
             for (let player of players) {
                 player.renderAction("play");
             }
@@ -48,11 +70,19 @@ class Dutch {
             }, 3000);
         });
     }
+    /**
+     *  Flip all cards for all players
+     *  DEBUGGING PURPOSE
+     */
     flipAllCards() {
         for (let player of this.players) {
             player.flipAllCards();
         }
     }
+    /**
+     *  Deal the cards to the players and discard one card from the draw pile
+     * @private
+     */
     deal() {
         return __awaiter(this, void 0, void 0, function* () {
             for (let player of this.players) {
@@ -63,13 +93,19 @@ class Dutch {
             yield this.deck.discardOneFromDraw();
         });
     }
+    /**
+     *  Render the game
+     *  - Get the game container
+     *  - Render the players
+     *  - Render the deck
+     */
     render() {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
             const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
             gameContainer.id = 'game';
             gameContainer.innerHTML = '';
-            const players = this.getPlayers();
+            const players = this.players;
             for (let player of players) {
                 const playerDiv = player.render();
                 gameContainer.appendChild(playerDiv);
@@ -77,49 +113,82 @@ class Dutch {
             yield this.deck.renderDeck();
         });
     }
+    /**
+     *  Ready the player
+     *  - Set the player to ready
+     *  - Change the player name color to green
+     *  - Start the game if all players are ready
+     * @param player
+     */
     ready(player) {
         if (player.ready)
             return;
         player.ready = true;
         player.changePlayerNameColor('green');
-        console.log('player ready', player.getName());
-        if (this.getPlayers().every(player => player.ready)) {
+        console.log('player ready', player.name);
+        if (this.players.every(player => player.ready)) {
             this.startGame().then(() => {
                 this.players.forEach((player) => player.changePlayerNameColor('black'));
                 console.log('game started');
             });
         }
     }
+    /**
+     * TODO: Implement the dutch function
+     * @param player
+     */
     dutch(player) {
         const currentPlayer = this.getCurrentPlayer();
-        if (player.getId() === currentPlayer.getId()) {
+        if (player.id === currentPlayer.id) {
             this.oneDutch = true;
             this.nextPlayer();
             this.play();
         }
     }
+    /**
+     * End the turn for the current player
+     * @param player
+     */
     endTurn(player) {
         const currentPlayer = this.getCurrentPlayer();
-        if (player.getId() === currentPlayer.getId()) {
+        if (player.id === currentPlayer.id) {
             currentPlayer.endTurn();
             this.nextPlayer();
             this.play();
         }
     }
+    /**
+     *  Add a player to the game
+     * @param player
+     */
     addPlayer(player) {
         this.players.push(player);
     }
+    /**
+     *  Get the next player to play
+     */
     nextPlayer() {
         this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
     }
-    getPlayers() {
-        return this.players;
-    }
+    /**
+     *  Get the current player
+     */
     getCurrentPlayer() {
         return this.players[this.currentPlayer];
     }
+    /**
+     *  - Show the card
+     *  - Get the discard pile
+     *  - Check if the card correspond to the top card of the discard pile
+     *  - If yes, discard the card and end the turn
+     *  - If no, draw a card and end the turn
+     *  - Allow playing a card again for all players
+     * @param card
+     * @param player
+     */
     checkCard(card, player) {
         return __awaiter(this, void 0, void 0, function* () {
+            console.log("CHECK CARD", card);
             setTimeout(() => __awaiter(this, void 0, void 0, function* () {
                 card.show();
                 const discardPile = yield this.deck.getDiscard();
@@ -129,8 +198,7 @@ class Dutch {
                     const topCard = discardPile[discardPile.length - 1];
                     if (card.value === topCard.value) {
                         player.discard(card);
-                        yield this.deck.discard(card);
-                        yield this.deck.renderDeck();
+                        // await this.deck.discard(card);
                         // this.endTurn(player);
                     }
                     else {
@@ -144,6 +212,14 @@ class Dutch {
             card.hide();
         });
     }
+    /**
+     *  Play a card for the current player
+     *  - Get the current player
+     *  - Set the current player to play
+     *  - Allow playing a card for all players
+     *  - Allow currentPlayer to draw
+     * @private
+     */
     play() {
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
@@ -153,7 +229,10 @@ class Dutch {
         });
     }
     /**
-     * allow playing a card for all players
+     * Allow playing a card for all players
+     * - Check if one player is drawing a card
+     *  - If yes, set onClick to empty function for all players and return
+     *  - If no, set onClick to checkCard for all players
      */
     allowPlayCard() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -172,7 +251,7 @@ class Dutch {
             });
             for (const player of this.players) {
                 // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
-                player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
+                player.addListenerToHand((card) => __awaiter(this, void 0, void 0, function* () {
                     yield this.checkCard(card, player);
                 }));
             }

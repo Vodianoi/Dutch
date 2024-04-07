@@ -7,49 +7,76 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+/**
+ *  Player class
+ *  - Represents a player in the game
+ *  - Has a hand of cards
+ *  - Can play cards
+ *  - Can draw cards
+ *  - Can discard cards
+ *  - Can dutch
+ */
 class Player {
-    get game() {
-        return this._game;
-    }
-    set game(value) {
-        this._game = value;
-    }
-    get ready() {
-        return this._ready;
-    }
-    set ready(value) {
-        this._ready = value;
-    }
+    /**
+     *  Get the player's onClick event
+     */
     get onClick() {
         return this._onClick;
     }
+    /**
+     *  Set the player's onClick event
+     *   - Default is an empty function
+     *   - Can be set to a function that takes an event as an argument
+     *   - This function will be called when a card in player's hand is clicked
+     * @param value
+     */
     set onClick(value) {
         this._onClick = value;
-        this._hand.forEach((card) => {
+        this.hand.forEach((card) => {
             card.onClick = (e) => {
                 value(e);
             };
         });
     }
-    get currentAction() {
-        return this._currentAction;
-    }
-    set currentAction(value) {
-        this._currentAction = value;
-    }
-    get isTurn() {
-        return this._isTurn;
-    }
-    set isTurn(value) {
-        this._isTurn = value;
-    }
+    /**
+     *  Player constructor
+     * @param id
+     * @param name
+     */
     constructor(id, name) {
-        this._hand = [];
-        this._isTurn = false;
-        this._game = undefined;
-        this._ready = false;
+        /**
+         *  Player's hand
+         */
+        this.hand = [];
+        /**
+         *  Player's turn status
+         */
+        this.isTurn = false;
+        /**
+         *
+         * @public
+         */
+        this.game = undefined;
+        /**
+         *  Player's ready status
+         * @private
+         */
+        this.ready = false;
+        /**
+         *  The card that the player has drawn (if any)
+         */
         this.drawnCard = undefined;
-        this._currentAction = '';
+        /**
+         *  Player's current action
+         * @private
+         */
+        this.currentAction = '';
+        /**
+         *  Player's onClick event
+         *   - Default is an empty function
+         *   - Can be set to a function that takes an event as an argument
+         *   - This function will be called when a card in player's hand is clicked
+         */
         this._onClick = () => {
         };
         this.id = id;
@@ -61,12 +88,6 @@ class Player {
         this.handDiv = document.createElement('div');
         this.handDiv.id = `player-${this.id}-hand`;
         this.handDiv.classList.add('hand');
-    }
-    getId() {
-        return this.id;
-    }
-    getName() {
-        return this.name;
     }
     /**
      * Draw Player's hand
@@ -80,7 +101,7 @@ class Player {
         this.playerDiv.classList.add('player');
         this.playerDiv.innerHTML = this.isTurn ? `<h2 style="color: rebeccapurple">${this.name}</h2>` : `<h1>${this.name}</h1>`;
         this.playerDiv.appendChild(this.handDiv);
-        this._hand.forEach(card => {
+        this.hand.forEach(card => {
             this.handDiv.appendChild(card.render());
             card.onClick = (e) => {
                 this.onClick(e);
@@ -88,9 +109,12 @@ class Player {
         });
         return this.playerDiv;
     }
+    /**
+     *  Render the player's hand
+     */
     renderHand() {
         this.handDiv.innerHTML = '';
-        this._hand.forEach(card => {
+        this.hand.forEach(card => {
             this.handDiv.appendChild(card.render());
             card.onClick = (e) => {
                 this.onClick(e);
@@ -165,19 +189,24 @@ class Player {
                 break;
         }
     }
+    /**
+     *  Change the player's name color
+     * @param color
+     */
     changePlayerNameColor(color) {
         var _a, _b;
         (_b = (_a = this.playerDiv) === null || _a === void 0 ? void 0 : _a.querySelector('h1')) === null || _b === void 0 ? void 0 : _b.setAttribute('style', `color: ${color}`);
     }
+    /**
+     *  Get the player's hand
+     */
     getHand() {
-        // const response = await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/list/`);
-        // const data = await response.json();
-        // const cards: Card[] = []
-        // for (let card of data.piles[`player-${this.id}`].cards) {
-        //     cards.push(new Card(card.code, card.image, card.value, card.suit));
-        // }
-        return this._hand;
+        return this.hand;
     }
+    /**
+     *  Set the player's hand
+     * @param hand
+     */
     setHand(hand) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
@@ -185,17 +214,21 @@ class Player {
             if (!response.ok) {
                 throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
             }
-            this._hand = hand;
+            this.hand = hand;
         });
     }
+    /**
+     *  Toggle the last two cards in the player's hand
+     * @param on
+     */
     toggleLastTwoCards(on) {
         if (on) {
-            this._hand[this._hand.length - 1].show();
-            this._hand[this._hand.length - 2].show();
+            this.hand[this.hand.length - 1].show();
+            this.hand[this.hand.length - 2].show();
         }
         else {
-            this._hand[this._hand.length - 1].hide();
-            this._hand[this._hand.length - 2].hide();
+            this.hand[this.hand.length - 1].hide();
+            this.hand[this.hand.length - 2].hide();
         }
     }
     /**
@@ -206,33 +239,52 @@ class Player {
         this.changePlayerNameColor('rebeccapurple');
         this.renderAction('dutch');
     }
-    addListener(callback) {
-        this._hand.forEach((card) => {
+    /**
+     *  Add event listener to each card in the player's hand
+     * @param callback
+     */
+    addListenerToHand(callback) {
+        this.hand.forEach((card) => {
             // Add event listener to each card
             card.addClickEvent(callback);
         });
     }
+    /**
+     *  End the player's turn
+     */
     endTurn() {
         this.isTurn = false;
         this.changePlayerNameColor('black');
         this.renderAction('');
     }
+    /**
+     *  Discard a card from the player's hand
+     * @param card
+     */
     discard(card) {
         var _a;
-        this._hand = this._hand.filter(c => c.code !== card.code);
+        this.hand = this.hand.filter(c => c.code !== card.code);
         this.renderHand();
         (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(card);
     }
+    /**
+     *  Add a card to the player's hand
+     * @param card
+     */
     addCard(card) {
-        this._hand.push(card);
+        this.hand.push(card);
         this.renderHand();
     }
+    /**
+     *  Flip all cards in the player's hand
+     *  DEBUGGING PURPOSES
+     */
     flipAllCards() {
-        this._hand.forEach(card => {
+        this.hand.forEach(card => {
             card.show();
         });
         setTimeout(() => {
-            this._hand.forEach(card => {
+            this.hand.forEach(card => {
                 card.hide();
             });
         }, 2000);

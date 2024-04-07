@@ -212,6 +212,7 @@ class Dutch {
      * @param player
      */
     async checkCard(card: Card, player: Player) {
+        console.log("CHECK CARD", card)
         setTimeout(async () => {
             card.show();
             const discardPile = await this.deck.getDiscard();
@@ -222,8 +223,7 @@ class Dutch {
 
                 if (card.value === topCard.value) {
                     player.discard(card);
-                    await this.deck.discard(card);
-                    await this.deck.renderDeck()
+                    // await this.deck.discard(card);
                     // this.endTurn(player);
                 } else {
                     const card = await this.deck.drawCard()
