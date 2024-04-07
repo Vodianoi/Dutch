@@ -5,15 +5,22 @@ import Player from "./Player";
  *  Deck class
  */
 class Deck {
+
+    // region Public Properties
+
     /**
      *  Deck id from the API
      */
     public readonly deck_id: string;
+    // endregion
+
+    // region Private Properties
     /**
      *  Discard pile
      * @private
      */
     private pile: string = 'discard';
+
     /**
      *  Container for the deck
      * @private
@@ -31,7 +38,9 @@ class Deck {
      */
     private _onDrawDiscard: Function = () => {
     };
+    // endregion
 
+    // region Constructor
     /**
      *  Create a new deck
      *   - Set the deck id
@@ -50,7 +59,9 @@ class Deck {
             console.log('Draw discard event not set');
         }
     }
+    // endregion
 
+    // region Public Methods
     /**
      *  Get the remaining cards in the deck
      */
@@ -94,6 +105,97 @@ class Deck {
         }
     }
 
+    /**
+     *  Discard a card
+     *   - Add the card to the discard pile
+     *   - Render the deck
+     *   - Log the discarded card
+     *
+     * @param card Card to discard
+     */
+    public async discard(card: Card) {
+        let discardResponse = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
+        if (!discardResponse.ok) {
+            throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
+        }
+        let discardData = await discardResponse.json();
+        let discardDiv = this.container.querySelector('#discard') as HTMLImageElement;
+        if (discardDiv) {
+            discardDiv.src = card.image;
+        }
+
+        console.log('DISCARDED CARD', discardData);
+    }
+
+
+    /**
+     *  Discard one card from the draw pile
+     *  - Get the last card in the deck
+     *  - Add the card to the discard pile
+     *  - Return the discarded card
+     */
+    // @ts-ignore
+    public async discardOneFromDraw(): Promise<Card>{
+        try {
+            //get the last card in the deck
+            let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`)
+            let data = await response.json();
+            let card = data["cards"][0];
+            card = new Card(card.code, card.image, card.value, card.suit);
+            //add the card to the discard pile
+            await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`)
+            return card;
+        } catch (e) {
+            console.log("Error while discarding: " + e);
+        }
+    }
+
+    /**
+     *  Draw a card from the deck
+     */
+    public async drawCard(): Promise<Card> {
+        const response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
+        const data = await response.json();
+        let card = data.cards[0];
+        card = new Card(card.code, card.image, card.value, card.suit);
+        this.updateRemaining();
+        return card;
+    }
+
+    /**
+     *  Draw multiple cards from the deck
+     * @param count
+     */
+    public async draw(count: number): Promise<Card[]> {
+        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`)
+        let data = await response.json();
+        let cards = data["cards"];
+        let res: Card[] = []
+        for (let card of cards) {
+            res.push(new Card(card.code, card.image, card.value, card.suit));
+        }
+        this.updateRemaining();
+        return res;
+    }
+
+    /**
+     *  Get the discard pile
+     */
+    public async getDiscard(): Promise<Card[]>{
+        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
+        if (!response.ok) {
+            throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
+        }
+        let data = await response.json();
+        let cards: Card[] = []
+        for (let card of data.piles[this.pile].cards) {
+            cards.push(new Card(card.code, card.image, card.value, card.suit));
+        }
+        return cards;
+    }
+    // endregion
+
+    // region Private Methods
     /**
      *  Render the draw pile
      * @private
@@ -165,7 +267,7 @@ class Deck {
      * Render the card in the middle of the screen
      * @param card Card to render
      */
-    public renderCardAtMiddle(card: Card) {
+    private renderCardAtMiddle(card: Card) {
         let img = document.createElement('img');
         img.src = card.image;
         img.style.width = '100px';
@@ -180,6 +282,26 @@ class Deck {
         document.body.appendChild(img);
     }
 
+    /**
+     *  Draw a card from the discard pile
+     */
+    private async drawFromDiscard(): Promise<Card>{
+        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
+        if (!response.ok) {
+            throw new Error(`Failed to draw from discard: ${response.status} ${response.statusText}`);
+        }
+        let data = await response.json();
+        if (!data || !data.cards || data.cards.length === 0) {
+            throw new Error('No card data found in the response');
+        }
+        let card = data.cards[data.cards.length - 1];
+        card = new Card(card.code, card.image, card.value, card.suit);
+        console.log('DRAW DISCARD', data);
+        return card;
+    }
+    // endregion
+
+    // region Event Handlers
     /**
      *  Add the draw event listeners to the deck
      * @param player Player that will draw the card
@@ -205,7 +327,6 @@ class Deck {
      * Draw event, place the clicked card in the middle of the screen to let the player choose where he wants to put it
      */
     public drawEvent(e: Event, player: Player) {
-        player.renderAction('draw');
         player.game?.allowPlayCard()
         console.log('DRAW EVENT', e);
         let cardDiv = e.target as HTMLImageElement;
@@ -224,6 +345,7 @@ class Deck {
                 });
                 break;
             case 'draw':
+                player.renderAction('draw');
                 this.drawCard().then(async drawnCard => {
                     this.renderCardAtMiddle(drawnCard);
                     player.onClick = (handCard: Card) => {
@@ -250,7 +372,7 @@ class Deck {
         let selectedCardCode = card.code;
         let selectedCardDiv = document.getElementById(selectedCardCode);
         selectedCardDiv?.remove();
-        let cards = player.getHand();
+        let cards = player.hand;
         //discard the selected card in hand
         await this.discard(card)
         //add the drawn card to the hand
@@ -270,116 +392,7 @@ class Deck {
 
         player.game?.allowPlayCard()
     }
-
-
-    /**
-     *  Discard a card
-     *   - Add the card to the discard pile
-     *   - Render the deck
-     *   - Log the discarded card
-     *
-     * @param card Card to discard
-     */
-    public async discard(card: Card) {
-        let discardResponse = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
-        if (!discardResponse.ok) {
-            throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
-        }
-        let discardData = await discardResponse.json();
-        let discardDiv = this.container.querySelector('#discard') as HTMLImageElement;
-        if (discardDiv) {
-            discardDiv.src = card.image;
-        }
-
-        console.log('DISCARDED CARD', discardData);
-    }
-
-
-    /**
-     *  Discard one card from the draw pile
-     *  - Get the last card in the deck
-     *  - Add the card to the discard pile
-     *  - Return the discarded card
-     */
-    // @ts-ignore
-    public async discardOneFromDraw(): Promise<Card>{
-        try {
-            //get the last card in the deck
-            let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`)
-            let data = await response.json();
-            let card = data["cards"][0];
-            card = new Card(card.code, card.image, card.value, card.suit);
-            //add the card to the discard pile
-            await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`)
-            return card;
-        } catch (e) {
-            console.log("Error while discarding: " + e);
-        }
-    }
-
-
-    /**
-     *  Draw a card from the deck
-     */
-    public async drawCard(): Promise<Card> {
-        const response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
-        const data = await response.json();
-        let card = data.cards[0];
-        card = new Card(card.code, card.image, card.value, card.suit);
-        this.updateRemaining();
-        return card;
-    }
-
-    /**
-     *  Draw multiple cards from the deck
-     * @param count
-     */
-    public async draw(count: number): Promise<Card[]> {
-        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`)
-        let data = await response.json();
-        let cards = data["cards"];
-        let res: Card[] = []
-        for (let card of cards) {
-            res.push(new Card(card.code, card.image, card.value, card.suit));
-        }
-        this.updateRemaining();
-        return res;
-    }
-
-    /**
-     *  Draw a card from the discard pile
-     */
-    public async drawFromDiscard(): Promise<Card>{
-        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
-        if (!response.ok) {
-            throw new Error(`Failed to draw from discard: ${response.status} ${response.statusText}`);
-        }
-        let data = await response.json();
-        if (!data || !data.cards || data.cards.length === 0) {
-            throw new Error('No card data found in the response');
-        }
-        let card = data.cards[data.cards.length - 1];
-        card = new Card(card.code, card.image, card.value, card.suit);
-        console.log('DRAW DISCARD', data);
-        return card;
-    }
-
-    /**
-     *  Get the discard pile
-     */
-    public async getDiscard(): Promise<Card[]>{
-        let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
-        if (!response.ok) {
-            throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
-        }
-        let data = await response.json();
-        let cards: Card[] = []
-        for (let card of data.piles[this.pile].cards) {
-            cards.push(new Card(card.code, card.image, card.value, card.suit));
-        }
-        return cards;
-    }
-
+    // endregion
 }
 
 export default Deck;

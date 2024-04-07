@@ -12,6 +12,8 @@ import Card from './Card.js';
  *  Deck class
  */
 class Deck {
+    // endregion
+    // region Constructor
     /**
      *  Create a new deck
      *   - Set the deck id
@@ -21,6 +23,8 @@ class Deck {
      * @param id
      */
     constructor(id) {
+        // endregion
+        // region Private Properties
         /**
          *  Discard pile
          * @private
@@ -50,6 +54,8 @@ class Deck {
             console.log('Draw discard event not set');
         };
     }
+    // endregion
+    // region Public Methods
     /**
      *  Get the remaining cards in the deck
      */
@@ -90,6 +96,101 @@ class Deck {
             }
         });
     }
+    /**
+     *  Discard a card
+     *   - Add the card to the discard pile
+     *   - Render the deck
+     *   - Log the discarded card
+     *
+     * @param card Card to discard
+     */
+    discard(card) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
+            if (!discardResponse.ok) {
+                throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
+            }
+            let discardData = yield discardResponse.json();
+            let discardDiv = this.container.querySelector('#discard');
+            if (discardDiv) {
+                discardDiv.src = card.image;
+            }
+            console.log('DISCARDED CARD', discardData);
+        });
+    }
+    /**
+     *  Discard one card from the draw pile
+     *  - Get the last card in the deck
+     *  - Add the card to the discard pile
+     *  - Return the discarded card
+     */
+    // @ts-ignore
+    discardOneFromDraw() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                //get the last card in the deck
+                let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
+                let data = yield response.json();
+                let card = data["cards"][0];
+                card = new Card(card.code, card.image, card.value, card.suit);
+                //add the card to the discard pile
+                yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
+                return card;
+            }
+            catch (e) {
+                console.log("Error while discarding: " + e);
+            }
+        });
+    }
+    /**
+     *  Draw a card from the deck
+     */
+    drawCard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
+            const data = yield response.json();
+            let card = data.cards[0];
+            card = new Card(card.code, card.image, card.value, card.suit);
+            this.updateRemaining();
+            return card;
+        });
+    }
+    /**
+     *  Draw multiple cards from the deck
+     * @param count
+     */
+    draw(count) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`);
+            let data = yield response.json();
+            let cards = data["cards"];
+            let res = [];
+            for (let card of cards) {
+                res.push(new Card(card.code, card.image, card.value, card.suit));
+            }
+            this.updateRemaining();
+            return res;
+        });
+    }
+    /**
+     *  Get the discard pile
+     */
+    getDiscard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
+            if (!response.ok) {
+                throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
+            }
+            let data = yield response.json();
+            let cards = [];
+            for (let card of data.piles[this.pile].cards) {
+                cards.push(new Card(card.code, card.image, card.value, card.suit));
+            }
+            return cards;
+        });
+    }
+    // endregion
+    // region Private Methods
     /**
      *  Render the draw pile
      * @private
@@ -175,6 +276,27 @@ class Deck {
         document.body.appendChild(img);
     }
     /**
+     *  Draw a card from the discard pile
+     */
+    drawFromDiscard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
+            if (!response.ok) {
+                throw new Error(`Failed to draw from discard: ${response.status} ${response.statusText}`);
+            }
+            let data = yield response.json();
+            if (!data || !data.cards || data.cards.length === 0) {
+                throw new Error('No card data found in the response');
+            }
+            let card = data.cards[data.cards.length - 1];
+            card = new Card(card.code, card.image, card.value, card.suit);
+            console.log('DRAW DISCARD', data);
+            return card;
+        });
+    }
+    // endregion
+    // region Event Handlers
+    /**
      *  Add the draw event listeners to the deck
      * @param player Player that will draw the card
      */
@@ -198,7 +320,6 @@ class Deck {
      */
     drawEvent(e, player) {
         var _a;
-        player.renderAction('draw');
         (_a = player.game) === null || _a === void 0 ? void 0 : _a.allowPlayCard();
         console.log('DRAW EVENT', e);
         let cardDiv = e.target;
@@ -217,6 +338,7 @@ class Deck {
                 }));
                 break;
             case 'draw':
+                player.renderAction('draw');
                 this.drawCard().then((drawnCard) => __awaiter(this, void 0, void 0, function* () {
                     this.renderCardAtMiddle(drawnCard);
                     player.onClick = (handCard) => {
@@ -242,7 +364,7 @@ class Deck {
             let selectedCardCode = card.code;
             let selectedCardDiv = document.getElementById(selectedCardCode);
             selectedCardDiv === null || selectedCardDiv === void 0 ? void 0 : selectedCardDiv.remove();
-            let cards = player.getHand();
+            let cards = player.hand;
             //discard the selected card in hand
             yield this.discard(card);
             //add the drawn card to the hand
@@ -261,118 +383,6 @@ class Deck {
                 card.hide();
             }));
             (_b = player.game) === null || _b === void 0 ? void 0 : _b.allowPlayCard();
-        });
-    }
-    /**
-     *  Discard a card
-     *   - Add the card to the discard pile
-     *   - Render the deck
-     *   - Log the discarded card
-     *
-     * @param card Card to discard
-     */
-    discard(card) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
-            if (!discardResponse.ok) {
-                throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
-            }
-            let discardData = yield discardResponse.json();
-            let discardDiv = this.container.querySelector('#discard');
-            if (discardDiv) {
-                discardDiv.src = card.image;
-            }
-            console.log('DISCARDED CARD', discardData);
-        });
-    }
-    /**
-     *  Discard one card from the draw pile
-     *  - Get the last card in the deck
-     *  - Add the card to the discard pile
-     *  - Return the discarded card
-     */
-    // @ts-ignore
-    discardOneFromDraw() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                //get the last card in the deck
-                let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
-                let data = yield response.json();
-                let card = data["cards"][0];
-                card = new Card(card.code, card.image, card.value, card.suit);
-                //add the card to the discard pile
-                yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
-                return card;
-            }
-            catch (e) {
-                console.log("Error while discarding: " + e);
-            }
-        });
-    }
-    /**
-     *  Draw a card from the deck
-     */
-    drawCard() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
-            const data = yield response.json();
-            let card = data.cards[0];
-            card = new Card(card.code, card.image, card.value, card.suit);
-            this.updateRemaining();
-            return card;
-        });
-    }
-    /**
-     *  Draw multiple cards from the deck
-     * @param count
-     */
-    draw(count) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`);
-            let data = yield response.json();
-            let cards = data["cards"];
-            let res = [];
-            for (let card of cards) {
-                res.push(new Card(card.code, card.image, card.value, card.suit));
-            }
-            this.updateRemaining();
-            return res;
-        });
-    }
-    /**
-     *  Draw a card from the discard pile
-     */
-    drawFromDiscard() {
-        return __awaiter(this, void 0, void 0, function* () {
-            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
-            if (!response.ok) {
-                throw new Error(`Failed to draw from discard: ${response.status} ${response.statusText}`);
-            }
-            let data = yield response.json();
-            if (!data || !data.cards || data.cards.length === 0) {
-                throw new Error('No card data found in the response');
-            }
-            let card = data.cards[data.cards.length - 1];
-            card = new Card(card.code, card.image, card.value, card.suit);
-            console.log('DRAW DISCARD', data);
-            return card;
-        });
-    }
-    /**
-     *  Get the discard pile
-     */
-    getDiscard() {
-        return __awaiter(this, void 0, void 0, function* () {
-            let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
-            if (!response.ok) {
-                throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
-            }
-            let data = yield response.json();
-            let cards = [];
-            for (let card of data.piles[this.pile].cards) {
-                cards.push(new Card(card.code, card.image, card.value, card.suit));
-            }
-            return cards;
         });
     }
 }

@@ -11,42 +11,34 @@ import Dutch from "./Dutch";
  *  - Can dutch
  */
 class Player {
+
+    // region Public Properties
     /**
      *  Player's id
      */
-    readonly id: number;
+    public readonly id: number;
+
     /**
      *  Player's name
      */
-    readonly name: string;
+    public readonly name: string;
+
     /**
      *  Player's hand
      */
     public hand: Card[] = [];
+
     /**
      *  Player's turn status
      */
     public isTurn: boolean = false;
+
     /**
-     *
+     * Player's game
      * @public
      */
     public game: Dutch | undefined = undefined;
-    /**
-     *  Player's main div
-     * @public
-     */
-    private playerDiv: HTMLElement;
-    /**
-     *  Player's hand div
-     * @private
-     */
-    private readonly handDiv: HTMLElement;
-    /**
-     *  Player's action div
-     * @private
-     */
-    private actionDiv: HTMLElement;
+
     /**
      *  Player's ready status
      * @private
@@ -58,12 +50,17 @@ class Player {
      */
     public drawnCard: Card | undefined = undefined;
 
+
     /**
      *  Player's current action
-     * @private
+     * @public
      */
-    currentAction: string = '';
+    public currentAction: string = '';
 
+
+    // endregion
+
+    // region Event Handlers
     /**
      *  Player's onClick event
      *   - Default is an empty function
@@ -77,7 +74,7 @@ class Player {
     /**
      *  Get the player's onClick event
      */
-    get onClick(): Function {
+    public get onClick(): Function {
         return this._onClick;
     }
 
@@ -88,7 +85,7 @@ class Player {
      *   - This function will be called when a card in player's hand is clicked
      * @param value
      */
-    set onClick(value: Function) {
+    public set onClick(value: Function) {
         this._onClick = value;
         this.hand.forEach((card) => {
             card.onClick = (e: Event) => {
@@ -96,7 +93,30 @@ class Player {
             }
         })
     }
+    // endregion
 
+    // region Private Properties
+    /**
+     *  Player's main div
+     * @public
+     */
+    private playerDiv: HTMLElement;
+
+    /**
+     *  Player's hand div
+     * @private
+     */
+    private readonly handDiv: HTMLElement;
+
+    /**
+     *  Player's action div
+     * @private
+     */
+    private actionDiv: HTMLElement;
+
+    // endregion
+
+    // region Constructor
     /**
      *  Player constructor
      * @param id
@@ -113,6 +133,10 @@ class Player {
         this.handDiv.id = `player-${this.id}-hand`;
         this.handDiv.classList.add('hand');
     }
+
+    // endregion
+
+    // region Public Methods
 
     /**
      * Draw Player's hand
@@ -201,7 +225,7 @@ class Player {
                 discardButton.innerHTML = 'Discard';
                 discardButton.onclick = () => {
                     console.log("Drawn Card", this.drawnCard);
-                    this.game?.deck.discard(this.drawnCard!);
+                    this.discard(this.drawnCard!);
                     this.game?.endTurn(this);
                     document.getElementById('drawnCard')?.remove();
 
@@ -224,13 +248,6 @@ class Player {
      */
     public changePlayerNameColor(color: string) {
         this.playerDiv?.querySelector('h1')?.setAttribute('style', `color: ${color}`);
-    }
-
-    /**
-     *  Get the player's hand
-     */
-    public getHand() {
-        return this.hand;
     }
 
     /**
@@ -263,7 +280,7 @@ class Player {
     /**
      * Play logic for the player
      */
-    play() {
+    public play() {
         this.isTurn = true;
         this.changePlayerNameColor('rebeccapurple');
         this.renderAction('dutch');
@@ -283,7 +300,8 @@ class Player {
     /**
      *  End the player's turn
      */
-    endTurn() {
+    public endTurn() {
+        //TODO #4 - Check if player has drawn a card before ending turn
         this.isTurn = false;
         this.changePlayerNameColor('black');
         this.renderAction('');
@@ -293,27 +311,28 @@ class Player {
      *  Discard a card from the player's hand
      * @param card
      */
-    discard(card: Card) {
+    public discard(card: Card) {
         this.hand = this.hand.filter(c => c.code !== card.code);
         this.renderHand();
         this.game?.deck.discard(card);
+
+        //TODO #2 - Check for card to apply effect
     }
 
     /**
      *  Add a card to the player's hand
      * @param card
      */
-    addCard(card: Card) {
+    public addCard(card: Card) {
         this.hand.push(card);
         this.renderHand();
-
     }
 
     /**
      *  Flip all cards in the player's hand
      *  DEBUGGING PURPOSES
      */
-    flipAllCards() {
+    public flipAllCards() {
         this.hand.forEach(card => {
             card.show();
         })
@@ -323,6 +342,8 @@ class Player {
             })
         }, 2000)
     }
+
+    // endregion
 }
 
 export default Player;

@@ -2,8 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-
-/* Custom Styles */
+/* region Global */
 body {
     font-family: 'Roboto', sans-serif;
     /* green play board background*/
@@ -16,8 +15,9 @@ body {
     justify-content: center;
     height: 100vh;
 }
+/* endregion Global */
 
-/* Play Card */
+/* region Card */
 .card {
     position: relative;
     border-radius: 10px;
@@ -117,7 +117,9 @@ body {
     /*border-radius: 30px;*/
     color: black;
 }
+/* endregion Card */
 
+/* region Player */
 .player {
     display: flex;
     align-items: center;
@@ -131,3 +133,4 @@ body {
     justify-content: center;
     gap: 10px;
 }
+/* endregion Player */

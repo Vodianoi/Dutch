@@ -38,6 +38,8 @@ class Player {
             };
         });
     }
+    // endregion
+    // region Constructor
     /**
      *  Player constructor
      * @param id
@@ -53,7 +55,7 @@ class Player {
          */
         this.isTurn = false;
         /**
-         *
+         * Player's game
          * @public
          */
         this.game = undefined;
@@ -68,9 +70,11 @@ class Player {
         this.drawnCard = undefined;
         /**
          *  Player's current action
-         * @private
+         * @public
          */
         this.currentAction = '';
+        // endregion
+        // region Event Handlers
         /**
          *  Player's onClick event
          *   - Default is an empty function
@@ -89,6 +93,8 @@ class Player {
         this.handDiv.id = `player-${this.id}-hand`;
         this.handDiv.classList.add('hand');
     }
+    // endregion
+    // region Public Methods
     /**
      * Draw Player's hand
      * use card.render() to display each card (returns HTMLElement)
@@ -173,11 +179,11 @@ class Player {
                 const discardButton = document.createElement('button');
                 discardButton.innerHTML = 'Discard';
                 discardButton.onclick = () => {
-                    var _a, _b, _c;
+                    var _a, _b;
                     console.log("Drawn Card", this.drawnCard);
-                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(this.drawnCard);
-                    (_b = this.game) === null || _b === void 0 ? void 0 : _b.endTurn(this);
-                    (_c = document.getElementById('drawnCard')) === null || _c === void 0 ? void 0 : _c.remove();
+                    this.discard(this.drawnCard);
+                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.endTurn(this);
+                    (_b = document.getElementById('drawnCard')) === null || _b === void 0 ? void 0 : _b.remove();
                 };
                 this.actionDiv.appendChild(discardButton);
                 (_f = this.playerDiv) === null || _f === void 0 ? void 0 : _f.appendChild(this.actionDiv);
@@ -196,12 +202,6 @@ class Player {
     changePlayerNameColor(color) {
         var _a, _b;
         (_b = (_a = this.playerDiv) === null || _a === void 0 ? void 0 : _a.querySelector('h1')) === null || _b === void 0 ? void 0 : _b.setAttribute('style', `color: ${color}`);
-    }
-    /**
-     *  Get the player's hand
-     */
-    getHand() {
-        return this.hand;
     }
     /**
      *  Set the player's hand
@@ -253,6 +253,7 @@ class Player {
      *  End the player's turn
      */
     endTurn() {
+        //TODO #4 - Check if player has drawn a card before ending turn
         this.isTurn = false;
         this.changePlayerNameColor('black');
         this.renderAction('');
@@ -266,6 +267,7 @@ class Player {
         this.hand = this.hand.filter(c => c.code !== card.code);
         this.renderHand();
         (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(card);
+        //TODO #2 - Check for card to apply effect
     }
     /**
      *  Add a card to the player's hand

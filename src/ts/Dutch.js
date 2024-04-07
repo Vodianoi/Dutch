@@ -12,6 +12,8 @@ const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
 document.body.appendChild(gameContainer);
 class Dutch {
+    // endregion
+    // region Constructor
     /**
      *  Initialize the game
      *  - Set the deck
@@ -30,6 +32,8 @@ class Dutch {
         this.currentPlayer = 0;
         this.nbCardsPerPlayer = 4;
     }
+    // endregion
+    // region Public Methods
     /**
      *  Initialize the game
      *  - Deal the cards
@@ -78,40 +82,6 @@ class Dutch {
         for (let player of this.players) {
             player.flipAllCards();
         }
-    }
-    /**
-     *  Deal the cards to the players and discard one card from the draw pile
-     * @private
-     */
-    deal() {
-        return __awaiter(this, void 0, void 0, function* () {
-            for (let player of this.players) {
-                player.game = this;
-                let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
-                yield player.setHand(cards);
-            }
-            yield this.deck.discardOneFromDraw();
-        });
-    }
-    /**
-     *  Render the game
-     *  - Get the game container
-     *  - Render the players
-     *  - Render the deck
-     */
-    render() {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
-            gameContainer.id = 'game';
-            gameContainer.innerHTML = '';
-            const players = this.players;
-            for (let player of players) {
-                const playerDiv = player.render();
-                gameContainer.appendChild(playerDiv);
-            }
-            yield this.deck.renderDeck();
-        });
     }
     /**
      *  Ready the player
@@ -165,70 +135,6 @@ class Dutch {
         this.players.push(player);
     }
     /**
-     *  Get the next player to play
-     */
-    nextPlayer() {
-        this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-    }
-    /**
-     *  Get the current player
-     */
-    getCurrentPlayer() {
-        return this.players[this.currentPlayer];
-    }
-    /**
-     *  - Show the card
-     *  - Get the discard pile
-     *  - Check if the card correspond to the top card of the discard pile
-     *  - If yes, discard the card and end the turn
-     *  - If no, draw a card and end the turn
-     *  - Allow playing a card again for all players
-     * @param card
-     * @param player
-     */
-    checkCard(card, player) {
-        return __awaiter(this, void 0, void 0, function* () {
-            console.log("CHECK CARD", card);
-            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                card.show();
-                const discardPile = yield this.deck.getDiscard();
-                if ((discardPile === null || discardPile === void 0 ? void 0 : discardPile.length) === 0)
-                    return;
-                if (discardPile) {
-                    const topCard = discardPile[discardPile.length - 1];
-                    if (card.value === topCard.value) {
-                        player.discard(card);
-                        // await this.deck.discard(card);
-                        // this.endTurn(player);
-                    }
-                    else {
-                        const card = yield this.deck.drawCard();
-                        player.addCard(card);
-                        // this.endTurn(player);
-                    }
-                    yield this.allowPlayCard();
-                }
-            }), 1000);
-            card.hide();
-        });
-    }
-    /**
-     *  Play a card for the current player
-     *  - Get the current player
-     *  - Set the current player to play
-     *  - Allow playing a card for all players
-     *  - Allow currentPlayer to draw
-     * @private
-     */
-    play() {
-        const currentPlayer = this.getCurrentPlayer();
-        currentPlayer.play();
-        this.allowPlayCard().then(() => {
-            console.log('allow play card');
-            this.deck.addDrawEvent(currentPlayer);
-        });
-    }
-    /**
      * Allow playing a card for all players
      * - Check if one player is drawing a card
      *  - If yes, set onClick to empty function for all players and return
@@ -255,6 +161,104 @@ class Dutch {
                     yield this.checkCard(card, player);
                 }));
             }
+        });
+    }
+    // endregion
+    // region Private Methods
+    /**
+     *  Deal the cards to the players and discard one card from the draw pile
+     * @private
+     */
+    deal() {
+        return __awaiter(this, void 0, void 0, function* () {
+            for (let player of this.players) {
+                player.game = this;
+                let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
+                yield player.setHand(cards);
+            }
+            yield this.deck.discardOneFromDraw();
+        });
+    }
+    /**
+     *  Render the game
+     *  - Get the game container
+     *  - Render the players
+     *  - Render the deck
+     */
+    render() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
+            gameContainer.id = 'game';
+            gameContainer.innerHTML = '';
+            const players = this.players;
+            for (let player of players) {
+                const playerDiv = player.render();
+                gameContainer.appendChild(playerDiv);
+            }
+            yield this.deck.renderDeck();
+        });
+    }
+    /**
+     *  Get the next player to play
+     */
+    nextPlayer() {
+        this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
+    }
+    /**
+     *  Get the current player
+     */
+    getCurrentPlayer() {
+        return this.players[this.currentPlayer];
+    }
+    /**
+     *  Play a card for the current player
+     *  - Get the current player
+     *  - Set the current player to play
+     *  - Allow playing a card for all players
+     *  - Allow currentPlayer to draw
+     * @private
+     */
+    play() {
+        const currentPlayer = this.getCurrentPlayer();
+        currentPlayer.play();
+        this.allowPlayCard().then(() => {
+            console.log('allow play card');
+            this.deck.addDrawEvent(currentPlayer);
+        });
+    }
+    // endregion
+    // region Event Handlers
+    /**
+     *  - Show the card
+     *  - Get the discard pile
+     *  - Check if the card correspond to the top card of the discard pile
+     *  - If yes, discard the card and end the turn
+     *  - If no, draw a card and end the turn
+     *  - Allow playing a card again for all players
+     * @param card
+     * @param player
+     */
+    checkCard(card, player) {
+        return __awaiter(this, void 0, void 0, function* () {
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                card.show();
+                const discardPile = yield this.deck.getDiscard();
+                if ((discardPile === null || discardPile === void 0 ? void 0 : discardPile.length) === 0)
+                    return;
+                if (discardPile) {
+                    const topCard = discardPile[discardPile.length - 1];
+                    if (card.value === topCard.value) {
+                        player.discard(card);
+                    }
+                    else {
+                        const card = yield this.deck.drawCard();
+                        player.addCard(card);
+                    }
+                    yield this.allowPlayCard();
+                }
+            }), 1000);
+            card.hide();
         });
     }
 }

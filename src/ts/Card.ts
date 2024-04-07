@@ -1,17 +1,27 @@
 class Card {
-    readonly code: string;
-    readonly image: string;
-    readonly value: string;
-    readonly suit: string;
-    div: HTMLDivElement;
+
+    // region Static Properties
+    static readonly DECK_IMAGE_BACK = 'https://www.deckofcardsapi.com/static/img/back.png';
+    // endregion
+
+    // region Public Properties
+
+    public readonly code: string;
+    public readonly image: string;
+    public readonly value: string;
+    public readonly suit: string;
+    public div: HTMLDivElement;
+    // endregion
+
+    // region Private Properties
 
     private readonly CLASS_CARD = 'card';
     private readonly CLASS_CARD_INNER = 'card-inner';
     private readonly CLASS_CARD_FRONT = 'card-front';
     private readonly CLASS_CARD_BACK = 'card-back';
-    static readonly DECK_IMAGE_BACK = 'https://www.deckofcardsapi.com/static/img/back.png';
+    // endregion
 
-    public onClick: Function = () => { };
+    // region Constructor
 
     constructor(code: string, image: string, value: string, suit: string) {
         this.code = code;
@@ -20,7 +30,9 @@ class Card {
         this.suit = suit;
         this.div = document.createElement('div');
     }
+    // endregion
 
+    // region Public Methods
     /**
      * Render the card to the screen
      * Use card with 2 divs card-back, card-front as css classes and img tag for the image
@@ -60,7 +72,11 @@ class Card {
     public addClickEvent(callback: Function) {
         this.onClick = callback;
     }
+    // endregion
 
+    // region Event Handlers
+    public onClick: Function = () => { };
+    // endregion
 }
 
 export default Card;
