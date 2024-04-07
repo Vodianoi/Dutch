@@ -8,12 +8,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import Deck from "./Deck.js";
-const div = document.createElement('div');
-div.id = 'game';
-document.body.appendChild(div);
+const gameContainer = document.createElement('div');
+gameContainer.id = 'game';
+document.body.appendChild(gameContainer);
 class Dutch {
     constructor(deck_id) {
-        this.dutched = false;
+        this.oneDutch = false;
         this.deck = new Deck(deck_id);
         this.players = [];
         this.currentPlayer = 0;
@@ -32,6 +32,9 @@ class Dutch {
     startGame() {
         return __awaiter(this, void 0, void 0, function* () {
             const players = this.getPlayers();
+            for (let player of players) {
+                player.renderAction("play");
+            }
             setTimeout(() => {
                 for (let player of players) {
                     player.toggleLastTwoCards(true);
@@ -40,8 +43,15 @@ class Dutch {
             for (let player of players) {
                 player.toggleLastTwoCards(false);
             }
-            yield this.play();
+            setTimeout(() => {
+                this.play();
+            }, 3000);
         });
+    }
+    flipAllCards() {
+        for (let player of this.players) {
+            player.flipAllCards();
+        }
     }
     deal() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -50,32 +60,31 @@ class Dutch {
                 let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
                 yield player.setHand(cards);
             }
+            yield this.deck.discardOneFromDraw();
         });
     }
     render() {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            const game = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
-            game.id = 'game';
-            game.innerHTML = '';
+            const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
+            gameContainer.id = 'game';
+            gameContainer.innerHTML = '';
             const players = this.getPlayers();
             for (let player of players) {
                 const playerDiv = player.render();
-                game.appendChild(playerDiv);
+                gameContainer.appendChild(playerDiv);
             }
-            yield this.deck.discardOneFromDraw();
             yield this.deck.renderDeck();
-            // this.deck.renderDiscardPile();
         });
     }
-    updatePlayer(player) {
-    }
     ready(player) {
+        if (player.ready)
+            return;
         player.ready = true;
         player.changePlayerNameColor('green');
         console.log('player ready', player.getName());
         if (this.getPlayers().every(player => player.ready)) {
-            this.startGame().then(r => {
+            this.startGame().then(() => {
                 this.players.forEach((player) => player.changePlayerNameColor('black'));
                 console.log('game started');
             });
@@ -84,7 +93,7 @@ class Dutch {
     dutch(player) {
         const currentPlayer = this.getCurrentPlayer();
         if (player.getId() === currentPlayer.getId()) {
-            this.dutched = true;
+            this.oneDutch = true;
             this.nextPlayer();
             this.play();
         }
@@ -106,35 +115,67 @@ class Dutch {
     getPlayers() {
         return this.players;
     }
-    getDeck() {
-        return this.deck.getDeck();
-    }
     getCurrentPlayer() {
         return this.players[this.currentPlayer];
     }
-    setCurrentPlayer(player) {
-        this.currentPlayer = player;
-    }
-    getPlayersCount() {
-        return this.players.length;
-    }
-    getPlayersNames() {
-        return this.players.map(player => player.getName());
-    }
-    getPlayersIds() {
-        return this.players.map(player => player.getId());
-    }
-    getPlayersHands() {
-        return this.players.map(player => player.getHand());
-    }
-    static fromJSON(json) {
-        return Object.assign(new Dutch(json.deck_id), json);
+    checkCard(card, player) {
+        return __awaiter(this, void 0, void 0, function* () {
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                card.show();
+                const discardPile = yield this.deck.getDiscard();
+                if ((discardPile === null || discardPile === void 0 ? void 0 : discardPile.length) === 0)
+                    return;
+                if (discardPile) {
+                    const topCard = discardPile[discardPile.length - 1];
+                    if (card.value === topCard.value) {
+                        player.discard(card);
+                        yield this.deck.discard(card);
+                        yield this.deck.renderDeck();
+                        // this.endTurn(player);
+                    }
+                    else {
+                        const card = yield this.deck.drawCard();
+                        player.addCard(card);
+                        // this.endTurn(player);
+                    }
+                    yield this.allowPlayCard();
+                }
+            }), 1000);
+            card.hide();
+        });
     }
     play() {
+        const currentPlayer = this.getCurrentPlayer();
+        currentPlayer.play();
+        this.allowPlayCard().then(() => {
+            console.log('allow play card');
+            this.deck.addDrawEvent(currentPlayer);
+        });
+    }
+    /**
+     * allow playing a card for all players
+     */
+    allowPlayCard() {
         return __awaiter(this, void 0, void 0, function* () {
-            const players = this.getPlayers();
-            const currentPlayer = this.getCurrentPlayer();
-            currentPlayer.play();
+            //Check if one player is drawing a card
+            console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction);
+            if (this.getCurrentPlayer().currentAction === 'draw') {
+                this.players.forEach(player => {
+                    player.onClick = () => { };
+                });
+                return;
+            }
+            //Check if one player is playing a card
+            this.players.forEach(player => {
+                if (player.currentAction === 'play')
+                    return;
+            });
+            for (const player of this.players) {
+                // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
+                player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
+                    yield this.checkCard(card, player);
+                }));
+            }
         });
     }
 }

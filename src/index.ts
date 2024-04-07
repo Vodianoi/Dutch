@@ -8,10 +8,12 @@ fetchData.then(async(data) => {
     });
     await dutch.init();
 
-    let remaining = await dutch.deck.getRemaining()
-    console.log(remaining);
-    console.log(dutch.players);
-    console.log(dutch.deck);
+    let flip = document.createElement('button');
+    flip.textContent = 'Flip';
+    flip.addEventListener('click', () => {
+        dutch.flipAllCards();
+    });
+    document.body.appendChild(flip);
 });
 
 
