@@ -286,7 +286,11 @@ class Deck {
             throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
         }
         let discardData = await discardResponse.json();
-        await this.renderDeck()
+        let discardDiv = this.container.querySelector('#discard') as HTMLImageElement;
+        if (discardDiv) {
+            discardDiv.src = card.image;
+        }
+
         console.log('DISCARDED CARD', discardData);
     }
 
