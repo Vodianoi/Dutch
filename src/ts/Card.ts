@@ -46,11 +46,6 @@ class Card {
         return this.div;
     }
 
-
-    public flip() {
-        this.div.classList.toggle('is-flipped');
-    }
-
     public show() {
         this.div.classList.remove('is-flipped');
     }
@@ -63,23 +58,6 @@ class Card {
         this.onClick = callback;
     }
 
-    public addFlipEvent() {
-        this.div.addEventListener('click', () => this.flip());
-    }
-
-    public removeFlipEvent() {
-        this.div.removeEventListener('click', () => this.flip());
-    }
-
-    public removeClickEvent() {
-        this.div.removeEventListener('click', () => this.onClick(this));
-    }
-
-
-    public removeListeners() {
-        console.log('removing listeners');
-        this.div.replaceWith(this.div.cloneNode(true));
-    }
 }
 
 export default Card;

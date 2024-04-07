@@ -14,7 +14,7 @@ class Dutch {
     players: Player[];
     currentPlayer: number;
     nbCardsPerPlayer: number;
-    dutched: boolean = false;
+    oneDutch: boolean = false;
 
     constructor(deck_id: string) {
         this.deck = new Deck(deck_id)
@@ -47,8 +47,8 @@ class Dutch {
             player.toggleLastTwoCards(false);
 
         }
-        setTimeout(async () => {
-            await this.play();
+        setTimeout(() => {
+            this.play();
         }, 4000);
 
 
@@ -78,16 +78,13 @@ class Dutch {
         // this.deck.renderDiscardPile();
     }
 
-    public updatePlayer(player: Player) {
-    }
-
     public ready(player: Player) {
         if (player.ready) return;
         player.ready = true;
         player.changePlayerNameColor('green')
         console.log('player ready', player.getName());
         if (this.getPlayers().every(player => player.ready)) {
-            this.startGame().then(r => {
+            this.startGame().then(() => {
                 this.players.forEach((player) => player.changePlayerNameColor('black'))
                 console.log('game started');
             });
@@ -97,7 +94,7 @@ class Dutch {
     public dutch(player: Player) {
         const currentPlayer = this.getCurrentPlayer();
         if (player.getId() === currentPlayer.getId()) {
-            this.dutched = true;
+            this.oneDutch = true;
             this.nextPlayer();
             this.play();
         }
@@ -124,37 +121,8 @@ class Dutch {
         return this.players;
     }
 
-    getDeck() {
-        return this.deck.getDeck();
-    }
-
     getCurrentPlayer() {
         return this.players[this.currentPlayer];
-    }
-
-    setCurrentPlayer(player: number) {
-        this.currentPlayer = player;
-    }
-
-    getPlayersCount() {
-        return this.players.length;
-    }
-
-    getPlayersNames() {
-        return this.players.map(player => player.getName());
-    }
-
-    getPlayersIds() {
-        return this.players.map(player => player.getId());
-    }
-
-    getPlayersHands() {
-        return this.players.map(player => player.getHand());
-    }
-
-
-    static fromJSON(json: any) {
-        return Object.assign(new Dutch(json.deck_id), json);
     }
 
     async checkCard(card: Card, player: Player) {
@@ -183,11 +151,13 @@ class Dutch {
 
     }
 
-    private async play() {
+    private play() {
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
-        await this.allowPlayCard()
-        this.deck?.addDrawEvent(currentPlayer);
+        this.allowPlayCard().then(() => {
+            console.log('allow play card')
+            this.deck?.addDrawEvent(currentPlayer);
+        });
     }
 
     /**

@@ -60,7 +60,7 @@ class Player {
 
     private _currentAction: string = '';
 
-    public _onClick: Function = (e: Event) => {
+    public _onClick: Function = () => {
     };
 
     constructor(id: number, name: string) {
@@ -84,7 +84,7 @@ class Player {
     }
 
     /**
-     * Draw Player's hand using Card.render function
+     * Draw Player's hand
      * use card.render() to display each card (returns HTMLElement)
      */
     public render() {
@@ -127,7 +127,7 @@ class Player {
 
     /**
      * Render Player's action buttons depending on the action
-     * Actons: Ready, Dutch or End turn
+     * Actions: Ready, Dutch or End turn
      */
     public renderAction(action: string) {
         console.log(action);
@@ -190,17 +190,11 @@ class Player {
     }
 
     public async setHand(hand: Card[]) {
-        try {
-            // if (this._hand.length > 0)
-            //     await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/return/`);
-            const response = await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
-            if (!response.ok) {
-                throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
-            }
-            this._hand = hand
-        } catch (error) {
-            console.error('Error:', error);
+        const response = await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
+        if (!response.ok) {
+            throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
         }
+        this._hand = hand
     }
 
 
@@ -232,9 +226,6 @@ class Player {
 
     endTurn() {
         this.isTurn = false;
-        this._hand.forEach((card) => {
-            card.removeFlipEvent();
-        })
         this.changePlayerNameColor('black');
         this.renderAction('');
     }

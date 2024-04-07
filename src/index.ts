@@ -7,11 +7,6 @@ fetchData.then(async(data) => {
         dutch.addPlayer(player);
     });
     await dutch.init();
-
-    let remaining = await dutch.deck.getRemaining()
-    console.log(remaining);
-    console.log(dutch.players);
-    console.log(dutch.deck);
 });
 
 
