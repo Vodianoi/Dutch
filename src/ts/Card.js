@@ -36,9 +36,6 @@ class Card {
         };
         return this.div;
     }
-    flip() {
-        this.div.classList.toggle('is-flipped');
-    }
     show() {
         this.div.classList.remove('is-flipped');
     }
@@ -47,19 +44,6 @@ class Card {
     }
     addClickEvent(callback) {
         this.onClick = callback;
-    }
-    addFlipEvent() {
-        this.div.addEventListener('click', () => this.flip());
-    }
-    removeFlipEvent() {
-        this.div.removeEventListener('click', () => this.flip());
-    }
-    removeClickEvent() {
-        this.div.removeEventListener('click', () => this.onClick(this));
-    }
-    removeListeners() {
-        console.log('removing listeners');
-        this.div.replaceWith(this.div.cloneNode(true));
     }
 }
 Card.backImage = 'https://www.deckofcardsapi.com/static/img/back.png';

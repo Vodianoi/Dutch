@@ -49,7 +49,7 @@ class Player {
         this._game = undefined;
         this._ready = false;
         this._currentAction = '';
-        this._onClick = (e) => {
+        this._onClick = () => {
         };
         this.id = id;
         this.name = name;
@@ -68,7 +68,7 @@ class Player {
         return this.name;
     }
     /**
-     * Draw Player's hand using Card.render function
+     * Draw Player's hand
      * use card.render() to display each card (returns HTMLElement)
      */
     render() {
@@ -106,7 +106,7 @@ class Player {
     // }
     /**
      * Render Player's action buttons depending on the action
-     * Actons: Ready, Dutch or End turn
+     * Actions: Ready, Dutch or End turn
      */
     renderAction(action) {
         var _a, _b, _c, _d, _e;
@@ -171,18 +171,11 @@ class Player {
     setHand(hand) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
-            try {
-                // if (this._hand.length > 0)
-                //     await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/return/`);
-                const response = yield fetch(`https://deckofcardsapi.com/api/deck/${(_b = (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck) === null || _b === void 0 ? void 0 : _b.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
-                }
-                this._hand = hand;
+            const response = yield fetch(`https://deckofcardsapi.com/api/deck/${(_b = (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck) === null || _b === void 0 ? void 0 : _b.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
+            if (!response.ok) {
+                throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
             }
-            catch (error) {
-                console.error('Error:', error);
-            }
+            this._hand = hand;
         });
     }
     toggleLastTwoCards(on) {
@@ -211,9 +204,6 @@ class Player {
     }
     endTurn() {
         this.isTurn = false;
-        this._hand.forEach((card) => {
-            card.removeFlipEvent();
-        });
         this.changePlayerNameColor('black');
         this.renderAction('');
     }
