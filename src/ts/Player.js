@@ -48,6 +48,7 @@ class Player {
         this._isTurn = false;
         this._game = undefined;
         this._ready = false;
+        this.drawnCard = undefined;
         this._currentAction = '';
         this._onClick = () => {
         };
@@ -101,7 +102,7 @@ class Player {
      * Actions: Ready, Dutch or End turn
      */
     renderAction(action) {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g;
         console.log(action);
         this.currentAction = action;
         switch (action) {
@@ -140,8 +141,25 @@ class Player {
                 this.actionDiv.appendChild(dutchButton);
                 (_d = this.playerDiv) === null || _d === void 0 ? void 0 : _d.appendChild(this.actionDiv);
                 break;
-            default:
+            case 'draw':
                 this.actionDiv = (_e = document.getElementById(`player-${this.id}-action`)) !== null && _e !== void 0 ? _e : document.createElement('div');
+                this.actionDiv.id = `player-${this.id}-action`;
+                this.actionDiv.innerHTML = '';
+                this.actionDiv.classList.add('action');
+                const discardButton = document.createElement('button');
+                discardButton.innerHTML = 'Discard';
+                discardButton.onclick = () => {
+                    var _a, _b, _c;
+                    console.log("Drawn Card", this.drawnCard);
+                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(this.drawnCard);
+                    (_b = this.game) === null || _b === void 0 ? void 0 : _b.endTurn(this);
+                    (_c = document.getElementById('drawnCard')) === null || _c === void 0 ? void 0 : _c.remove();
+                };
+                this.actionDiv.appendChild(discardButton);
+                (_f = this.playerDiv) === null || _f === void 0 ? void 0 : _f.appendChild(this.actionDiv);
+                break;
+            default:
+                this.actionDiv = (_g = document.getElementById(`player-${this.id}-action`)) !== null && _g !== void 0 ? _g : document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
                 this.actionDiv.innerHTML = '';
                 break;
@@ -200,8 +218,10 @@ class Player {
         this.renderAction('');
     }
     discard(card) {
-        this._hand = this._hand.filter((c) => c !== card);
+        var _a;
+        this._hand = this._hand.filter(c => c.code !== card.code);
         this.renderHand();
+        (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(card);
     }
     addCard(card) {
         this._hand.push(card);

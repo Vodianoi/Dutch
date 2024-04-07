@@ -8,9 +8,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import Deck from "./Deck.js";
-const div = document.createElement('div');
-div.id = 'game';
-document.body.appendChild(div);
+const gameContainer = document.createElement('div');
+gameContainer.id = 'game';
+document.body.appendChild(gameContainer);
 class Dutch {
     constructor(deck_id) {
         this.oneDutch = false;
@@ -66,16 +66,15 @@ class Dutch {
     render() {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            const game = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
-            game.id = 'game';
-            game.innerHTML = '';
+            const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
+            gameContainer.id = 'game';
+            gameContainer.innerHTML = '';
             const players = this.getPlayers();
             for (let player of players) {
                 const playerDiv = player.render();
-                game.appendChild(playerDiv);
+                gameContainer.appendChild(playerDiv);
             }
             yield this.deck.renderDeck();
-            // this.deck.renderDiscardPile();
         });
     }
     ready(player) {
@@ -159,6 +158,7 @@ class Dutch {
     allowPlayCard() {
         return __awaiter(this, void 0, void 0, function* () {
             //Check if one player is drawing a card
+            console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction);
             if (this.getCurrentPlayer().currentAction === 'draw') {
                 this.players.forEach(player => {
                     player.onClick = () => { };

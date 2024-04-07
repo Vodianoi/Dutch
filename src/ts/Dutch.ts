@@ -2,9 +2,9 @@ import Deck from "./Deck.js";
 import Player from "./Player.js";
 import Card from "./Card";
 
-const div = document.createElement('div');
-div.id = 'game';
-document.body.appendChild(div);
+const gameContainer = document.createElement('div');
+gameContainer.id = 'game';
+document.body.appendChild(gameContainer);
 
 
 class Dutch {
@@ -32,12 +32,10 @@ class Dutch {
     }
 
     public async startGame() {
-
         const players = this.getPlayers();
         for (let player of players) {
             player.renderAction("play");
         }
-
         setTimeout(() => {
             for (let player of players) {
                 player.toggleLastTwoCards(true);
@@ -49,8 +47,6 @@ class Dutch {
         setTimeout(() => {
             this.play();
         }, 3000);
-
-
     }
 
     public flipAllCards() {
@@ -71,16 +67,15 @@ class Dutch {
     }
 
     public async render() {
-        const game = document.getElementById('game') ?? document.createElement('div');
-        game.id = 'game';
-        game.innerHTML = '';
+        const gameContainer = document.getElementById('game') ?? document.createElement('div');
+        gameContainer.id = 'game';
+        gameContainer.innerHTML = '';
         const players = this.getPlayers();
         for (let player of players) {
             const playerDiv = player.render()
-            game.appendChild(playerDiv);
+            gameContainer.appendChild(playerDiv);
         }
         await this.deck.renderDeck();
-        // this.deck.renderDiscardPile();
     }
 
     public ready(player: Player) {
@@ -170,7 +165,7 @@ class Dutch {
      */
     public async allowPlayCard() {
         //Check if one player is drawing a card
-
+        console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction)
         if (this.getCurrentPlayer().currentAction === 'draw') {
             this.players.forEach(player => {
                 player.onClick = () => { };

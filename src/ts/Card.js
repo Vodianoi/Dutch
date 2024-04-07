@@ -1,5 +1,9 @@
 class Card {
     constructor(code, image, value, suit) {
+        this.CLASS_CARD = 'card';
+        this.CLASS_CARD_INNER = 'card-inner';
+        this.CLASS_CARD_FRONT = 'card-front';
+        this.CLASS_CARD_BACK = 'card-back';
         this.onClick = () => { };
         this.code = code;
         this.image = image;
@@ -12,21 +16,19 @@ class Card {
      * Use card with 2 divs card-back, card-front as css classes and img tag for the image
      */
     render() {
-        this.div.remove();
-        this.div = document.createElement('div');
-        this.div.classList.add('card');
+        this.div.classList.add(this.CLASS_CARD);
         this.div.id = this.code;
         this.div.innerHTML = '';
-        let cardFront = document.createElement('div');
-        cardFront.classList.add('card-inner');
-        cardFront.classList.add('card-front');
-        let cardBack = document.createElement('div');
-        cardBack.classList.add('card-inner');
-        cardBack.classList.add('card-back');
-        let frontImage = document.createElement('img');
+        const cardFront = document.createElement('div');
+        cardFront.classList.add(this.CLASS_CARD_INNER);
+        cardFront.classList.add(this.CLASS_CARD_FRONT);
+        const cardBack = document.createElement('div');
+        cardBack.classList.add(this.CLASS_CARD_INNER);
+        cardBack.classList.add(this.CLASS_CARD_BACK);
+        const frontImage = document.createElement('img');
         frontImage.src = this.image;
-        let backImage = document.createElement('img');
-        backImage.src = Card.backImage;
+        const backImage = document.createElement('img');
+        backImage.src = Card.DECK_IMAGE_BACK;
         cardBack.appendChild(backImage);
         cardFront.appendChild(frontImage);
         this.div.appendChild(cardFront);
@@ -46,5 +48,5 @@ class Card {
         this.onClick = callback;
     }
 }
-Card.backImage = 'https://www.deckofcardsapi.com/static/img/back.png';
+Card.DECK_IMAGE_BACK = 'https://www.deckofcardsapi.com/static/img/back.png';
 export default Card;

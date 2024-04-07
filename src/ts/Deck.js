@@ -64,7 +64,7 @@ class Deck {
     renderDraw() {
         return __awaiter(this, void 0, void 0, function* () {
             let deckImg = document.createElement('img');
-            deckImg.src = Card.backImage;
+            deckImg.src = Card.DECK_IMAGE_BACK;
             deckImg.id = 'draw';
             deckImg.style.width = '100px';
             deckImg.style.height = '150px';
@@ -145,7 +145,9 @@ class Deck {
      * Draw event, place the clicked card in the middle of the screen to let the player choose where he wants to put it
      */
     drawEvent(e, player) {
+        var _a;
         player.renderAction('draw');
+        (_a = player.game) === null || _a === void 0 ? void 0 : _a.allowPlayCard();
         console.log('DRAW EVENT', e);
         let cardDiv = e.target;
         switch (cardDiv.id) {
@@ -160,6 +162,7 @@ class Deck {
                     player.onClick = (card) => {
                         this.replaceCardEvent(card, player, discardCard);
                     };
+                    player.drawnCard = discardCard;
                 }));
                 break;
             case 'draw':
@@ -169,6 +172,7 @@ class Deck {
                     player.onClick = (card) => {
                         this.replaceCardEvent(card, player, card);
                     };
+                    player.drawnCard = card;
                 }));
                 break;
         }
@@ -184,7 +188,7 @@ class Deck {
      */
     replaceCardEvent(card, player, discardCard) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
+            var _a, _b;
             let selectedCardCode = card.code;
             let selectedCardDiv = document.getElementById(selectedCardCode);
             selectedCardDiv === null || selectedCardDiv === void 0 ? void 0 : selectedCardDiv.remove();
@@ -201,12 +205,13 @@ class Deck {
             (_a = document.getElementById('drawnCard')) === null || _a === void 0 ? void 0 : _a.remove();
             player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
                 setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                    var _b;
+                    var _c;
                     card.show();
-                    yield ((_b = player.game) === null || _b === void 0 ? void 0 : _b.checkCard(card, player));
+                    yield ((_c = player.game) === null || _c === void 0 ? void 0 : _c.checkCard(card, player));
                 }), 1000);
                 card.hide();
             }));
+            (_b = player.game) === null || _b === void 0 ? void 0 : _b.allowPlayCard();
         });
     }
     discard(card) {
@@ -216,6 +221,7 @@ class Deck {
                 throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
             }
             let discardData = yield discardResponse.json();
+            yield this.renderDeck();
             console.log('DISCARDED CARD', discardData);
         });
     }

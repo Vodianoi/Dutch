@@ -58,6 +58,8 @@ class Player {
     private actionDiv: HTMLElement;
     private _ready: boolean = false;
 
+    public drawnCard: Card | undefined = undefined;
+
     private _currentAction: string = '';
 
     public _onClick: Function = () => {
@@ -157,6 +159,24 @@ class Player {
                 this.actionDiv.appendChild(dutchButton);
                 this.playerDiv?.appendChild(this.actionDiv);
                 break;
+
+            case 'draw':
+                this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
+                this.actionDiv.id = `player-${this.id}-action`;
+                this.actionDiv.innerHTML = '';
+                this.actionDiv.classList.add('action');
+                const discardButton = document.createElement('button');
+                discardButton.innerHTML = 'Discard';
+                discardButton.onclick = () => {
+                    console.log("Drawn Card",this.drawnCard);
+                    this.game?.deck.discard(this.drawnCard!);
+                    this.game?.endTurn(this);
+                    document.getElementById('drawnCard')?.remove();
+
+                }
+                this.actionDiv.appendChild(discardButton);
+                this.playerDiv?.appendChild(this.actionDiv);
+                break;
             default:
                 this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
@@ -222,8 +242,9 @@ class Player {
     }
 
     discard(card: Card) {
-        this._hand = this._hand.filter((c) => c !== card);
+        this._hand = this._hand.filter(c => c.code !== card.code);
         this.renderHand();
+        this.game?.deck.discard(card);
     }
 
     addCard(card: Card) {

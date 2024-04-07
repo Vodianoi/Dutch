@@ -1,5 +1,6 @@
 import Card from './Card.js';
 import Player from "./Player";
+import Dutch from "./Dutch";
 
 
 class Deck {
@@ -66,7 +67,7 @@ class Deck {
 
     private async renderDraw() {
         let deckImg = document.createElement('img');
-        deckImg.src = Card.backImage;
+        deckImg.src = Card.DECK_IMAGE_BACK;
         deckImg.id = 'draw';
         deckImg.style.width = '100px';
         deckImg.style.height = '150px';
@@ -152,7 +153,8 @@ class Deck {
      * Draw event, place the clicked card in the middle of the screen to let the player choose where he wants to put it
      */
     public drawEvent(e: Event, player: Player) {
-        player.renderAction('draw')
+        player.renderAction('draw');
+        player.game?.allowPlayCard()
         console.log('DRAW EVENT', e);
         let cardDiv = e.target as HTMLImageElement;
         switch (cardDiv.id) {
@@ -167,6 +169,7 @@ class Deck {
                     player.onClick = (card: Card) => {
                         this.replaceCardEvent(card, player, discardCard);
                     };
+                    player.drawnCard = discardCard;
                 });
                 break;
             case 'draw':
@@ -176,6 +179,7 @@ class Deck {
                     player.onClick = (card: Card) => {
                         this.replaceCardEvent(card, player, card);
                     };
+                    player.drawnCard = card;
                 });
                 break;
         }
@@ -214,6 +218,8 @@ class Deck {
             }, 1000);
             card.hide()
         });
+
+        player.game?.allowPlayCard()
     }
 
 
@@ -223,6 +229,7 @@ class Deck {
             throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
         }
         let discardData = await discardResponse.json();
+        await this.renderDeck()
         console.log('DISCARDED CARD', discardData);
     }
 
