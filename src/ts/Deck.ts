@@ -326,6 +326,10 @@ class Deck {
         return card;
     }
 
+    /**
+     *  Draw multiple cards from the deck
+     * @param count
+     */
     public async draw(count: number): Promise<Card[]> {
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`)
         let data = await response.json();
@@ -338,6 +342,9 @@ class Deck {
         return res;
     }
 
+    /**
+     *  Draw a card from the discard pile
+     */
     public async drawFromDiscard(): Promise<Card>{
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
         if (!response.ok) {
@@ -353,6 +360,9 @@ class Deck {
         return card;
     }
 
+    /**
+     *  Get the discard pile
+     */
     public async getDiscard(): Promise<Card[]>{
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
         if (!response.ok) {
