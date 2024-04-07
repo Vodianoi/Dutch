@@ -40,7 +40,9 @@ class Dutch {
             for (let player of players) {
                 player.toggleLastTwoCards(false);
             }
-            yield this.play();
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                yield this.play();
+            }), 4000);
         });
     }
     deal() {
@@ -50,6 +52,7 @@ class Dutch {
                 let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
                 yield player.setHand(cards);
             }
+            yield this.deck.discardOneFromDraw();
         });
     }
     render() {
@@ -63,7 +66,6 @@ class Dutch {
                 const playerDiv = player.render();
                 game.appendChild(playerDiv);
             }
-            yield this.deck.discardOneFromDraw();
             yield this.deck.renderDeck();
             // this.deck.renderDiscardPile();
         });
@@ -71,6 +73,8 @@ class Dutch {
     updatePlayer(player) {
     }
     ready(player) {
+        if (player.ready)
+            return;
         player.ready = true;
         player.changePlayerNameColor('green');
         console.log('player ready', player.getName());
@@ -130,11 +134,58 @@ class Dutch {
     static fromJSON(json) {
         return Object.assign(new Dutch(json.deck_id), json);
     }
+    checkCard(card, player) {
+        return __awaiter(this, void 0, void 0, function* () {
+            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                card.show();
+                const discardPile = yield this.deck.getDiscard();
+                if ((discardPile === null || discardPile === void 0 ? void 0 : discardPile.length) === 0)
+                    return;
+                if (discardPile) {
+                    const topCard = discardPile[discardPile.length - 1];
+                    if (card.value === topCard.value) {
+                        player.discard(card);
+                        yield this.deck.discard(card);
+                        yield this.deck.renderDeck();
+                        // this.endTurn(player);
+                    }
+                    else {
+                        const card = yield this.deck.drawCard();
+                        player.addCard(card);
+                        // this.endTurn(player);
+                        yield this.allowPlayCard();
+                    }
+                }
+            }), 1000);
+            card.hide();
+        });
+    }
     play() {
         return __awaiter(this, void 0, void 0, function* () {
-            const players = this.getPlayers();
+            var _a;
             const currentPlayer = this.getCurrentPlayer();
             currentPlayer.play();
+            yield this.allowPlayCard();
+            (_a = this.deck) === null || _a === void 0 ? void 0 : _a.addDrawEvent(currentPlayer);
+        });
+    }
+    /**
+     * allow playing a card for all players
+     */
+    allowPlayCard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            for (const player of this.players) {
+                // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
+                if (player.getId() === this.getCurrentPlayer().getId() && player.currentAction === 'draw')
+                    continue;
+                player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
+                    setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                        card.show();
+                        yield this.checkCard(card, player);
+                    }), 1000);
+                    card.hide();
+                }));
+            }
         });
     }
 }

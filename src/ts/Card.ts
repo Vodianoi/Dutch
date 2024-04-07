@@ -6,6 +6,8 @@ class Card {
     readonly suit: string;
     div: HTMLDivElement;
 
+    public onClick: Function = () => { };
+
     constructor(code: string, image: string, value: string, suit: string) {
         this.code = code;
         this.image = image;
@@ -38,6 +40,9 @@ class Card {
         cardFront.appendChild(frontImage);
         this.div.appendChild(cardFront);
         this.div.appendChild(cardBack);
+        this.div.onclick = () => {
+            this.onClick(this);
+        }
         return this.div;
     }
 
@@ -55,9 +60,7 @@ class Card {
     }
 
     public addClickEvent(callback: Function) {
-        this.div.addEventListener('click', () => {
-            callback(this);
-        });
+        this.onClick = callback;
     }
 
     public addFlipEvent() {
@@ -69,11 +72,14 @@ class Card {
     }
 
     public removeClickEvent() {
-        this.div.removeEventListener('click', () => {
-        });
+        this.div.removeEventListener('click', () => this.onClick(this));
     }
 
 
+    public removeListeners() {
+        console.log('removing listeners');
+        this.div.replaceWith(this.div.cloneNode(true));
+    }
 }
 
 export default Card;

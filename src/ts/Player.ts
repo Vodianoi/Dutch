@@ -18,19 +18,61 @@ class Player {
         this._ready = value;
     }
 
+    get onClick(): Function {
+        return this._onClick;
+    }
+
+    set onClick(value: Function) {
+        this._onClick = value;
+        this._hand.forEach((card) => {
+            card.onClick = (e: Event) => {
+                value(e);
+            }
+        })
+    }
+
+    get currentAction(): string {
+        return this._currentAction;
+    }
+
+    set currentAction(value: string) {
+        this._currentAction = value;
+    }
+
+    get isTurn(): boolean {
+        return this._isTurn;
+    }
+
+    set isTurn(value: boolean) {
+        this._isTurn = value;
+    }
+
 
     private readonly id: number;
     private readonly name: string;
     private _hand: Card[] = [];
-    private isTurn: boolean = false;
+    private _isTurn: boolean = false;
     private _game: Dutch | undefined = undefined;
-    private handDiv: HTMLElement | null = null;
-    private actionDiv: HTMLElement | null = null;
+    private playerDiv: HTMLElement;
+    private readonly handDiv: HTMLElement;
+    private actionDiv: HTMLElement;
     private _ready: boolean = false;
+
+    private _currentAction: string = '';
+
+    public _onClick: Function = (e: Event) => {
+    };
 
     constructor(id: number, name: string) {
         this.id = id;
         this.name = name;
+        this.playerDiv = document.createElement('div');
+        this.playerDiv.id = `player-${this.id}`;
+        this.actionDiv = document.createElement('div');
+        this.actionDiv.id = `player-${this.id}-action`;
+        this.handDiv = document.createElement('div');
+        this.handDiv.id = `player-${this.id}-hand`;
+        this.handDiv.classList.add('hand');
     }
 
     public getId() {
@@ -46,45 +88,42 @@ class Player {
      * use card.render() to display each card (returns HTMLElement)
      */
     public render() {
-        this.handDiv = document.getElementById(`player-${this.id}`) ?? document.createElement('div');
-        this.handDiv.id = `player-${this.id}`;
-        this.handDiv.innerHTML = '';
-        this.handDiv.classList.add('player');
-        this.handDiv.innerHTML = this.isTurn ? `<h2 style="color: rebeccapurple">${this.name}</h2>` : `<h1>${this.name}</h1>`;
-        const handDiv = document.createElement('div');
-        handDiv.classList.add('hand');
-        this.handDiv.appendChild(handDiv);
-        this.getHand().then((cards) => {
-            console.log(cards)
-            cards.forEach(card => {
-                handDiv?.appendChild(card.render());
-            })
+        this.playerDiv = document.getElementById(`player-${this.id}`) ?? document.createElement('div');
+        this.playerDiv.id = `player-${this.id}`;
+        this.playerDiv.innerHTML = '';
+        this.playerDiv.classList.add('player');
+        this.playerDiv.innerHTML = this.isTurn ? `<h2 style="color: rebeccapurple">${this.name}</h2>` : `<h1>${this.name}</h1>`;
+        this.playerDiv.appendChild(this.handDiv);
+
+        this._hand.forEach(card => {
+            this.handDiv.appendChild(card.render());
+            card.onClick = (e: Event) => {
+                this.onClick(e);
+            }
+
         })
-        return this.handDiv;
+
+        return this.playerDiv;
     }
 
     public renderHand() {
-        const cards = this.handDiv?.querySelectorAll('.card');
-        cards?.forEach((card) => {
-            card.remove();
-        })
-        const handDiv = this.handDiv?.querySelector('.hand');
-        this.getHand().then((cards) => {
-            cards.forEach(card => {
-                console.log(card)
-                handDiv?.appendChild(card.render());
-            })
+        this.handDiv.innerHTML = '';
+        this._hand.forEach(card => {
+            this.handDiv.appendChild(card.render());
+            card.onClick = (e: Event) => {
+                this.onClick(e);
+            }
         })
     }
 
-    public setHandListeners(callback : Function) {
-        this._hand.forEach((card) => {
-            card.removeFlipEvent();
-            card.div?.addEventListener('click', () => {
-                callback(card);
-            })
-        })
-    }
+    // public setHandListeners(callback : Function) {
+    //     this._hand.forEach((card) => {
+    //         console.log('setting listeners', callback);
+    //         card.onClick = (e: Event) => {
+    //             callback(e);
+    //         }
+    //     })
+    // }
 
     /**
      * Render Player's action buttons depending on the action
@@ -92,6 +131,7 @@ class Player {
      */
     public renderAction(action: string) {
         console.log(action);
+        this.currentAction = action;
         switch (action) {
             case "ready":
                 this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
@@ -104,7 +144,7 @@ class Player {
                     this.game?.ready(this);
                 }
                 this.actionDiv.appendChild(readyButton);
-                this.handDiv?.appendChild(this.actionDiv);
+                this.playerDiv?.appendChild(this.actionDiv);
                 break;
             case "dutch":
                 this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
@@ -124,7 +164,7 @@ class Player {
                 }
                 this.actionDiv.appendChild(endTurnButton);
                 this.actionDiv.appendChild(dutchButton);
-                this.handDiv?.appendChild(this.actionDiv);
+                this.playerDiv?.appendChild(this.actionDiv);
                 break;
             default:
                 this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
@@ -136,10 +176,10 @@ class Player {
     }
 
     public changePlayerNameColor(color: string) {
-        this.handDiv?.querySelector('h1')?.setAttribute('style', `color: ${color}`);
+        this.playerDiv?.querySelector('h1')?.setAttribute('style', `color: ${color}`);
     }
 
-    public async getHand() {
+    public getHand() {
         // const response = await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/list/`);
         // const data = await response.json();
         // const cards: Card[] = []
@@ -179,14 +219,15 @@ class Player {
      */
     play() {
         this.isTurn = true;
-        this._hand.forEach((card) => {
-            // Add event listener to each card
-            card.addFlipEvent();
-        })
-        this.game?.deck?.addDrawEvent(this)
-
         this.changePlayerNameColor('rebeccapurple');
         this.renderAction('dutch');
+    }
+
+    public addListener(callback: Function) {
+        this._hand.forEach((card) => {
+            // Add event listener to each card
+            card.addClickEvent(callback);
+        })
     }
 
     endTurn() {
@@ -196,6 +237,17 @@ class Player {
         })
         this.changePlayerNameColor('black');
         this.renderAction('');
+    }
+
+    discard(card: Card) {
+        this._hand = this._hand.filter((c) => c !== card);
+        this.renderHand();
+    }
+
+    addCard(card: Card) {
+        this._hand.push(card);
+        this.renderHand();
+
     }
 }
 

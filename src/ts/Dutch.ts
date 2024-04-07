@@ -7,6 +7,8 @@ div.id = 'game';
 document.body.appendChild(div);
 
 
+
+
 class Dutch {
     deck: Deck;
     players: Player[];
@@ -45,7 +47,11 @@ class Dutch {
             player.toggleLastTwoCards(false);
 
         }
-        await this.play();
+        setTimeout(async () => {
+            await this.play();
+        }, 4000);
+
+
     }
 
     private async deal() {
@@ -56,6 +62,7 @@ class Dutch {
 
             await player.setHand(cards);
         }
+        await this.deck.discardOneFromDraw();
     }
 
     public async render() {
@@ -67,17 +74,15 @@ class Dutch {
             const playerDiv = player.render()
             game.appendChild(playerDiv);
         }
-        await this.deck.discardOneFromDraw();
         await this.deck.renderDeck();
         // this.deck.renderDiscardPile();
     }
 
     public updatePlayer(player: Player) {
-
-
     }
 
     public ready(player: Player) {
+        if (player.ready) return;
         player.ready = true;
         player.changePlayerNameColor('green')
         console.log('player ready', player.getName());
@@ -152,11 +157,54 @@ class Dutch {
         return Object.assign(new Dutch(json.deck_id), json);
     }
 
+    async checkCard(card: Card, player: Player) {
+        setTimeout( async () => {
+            card.show();
+            const discardPile = await this.deck.getDiscard();
+
+            if (discardPile?.length === 0) return;
+            if (discardPile) {
+                const topCard = discardPile[discardPile.length - 1];
+
+                if (card.value === topCard.value) {
+                    player.discard(card);
+                    await this.deck.discard(card);
+                    await this.deck.renderDeck()
+                    // this.endTurn(player);
+                } else {
+                    const card = await this.deck.drawCard()
+                    player.addCard(card);
+                    // this.endTurn(player);
+                    await this.allowPlayCard()
+                }
+            }
+        }, 1000);
+        card.hide();
+
+    }
+
     private async play() {
-        const players = this.getPlayers();
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
+        await this.allowPlayCard()
+        this.deck?.addDrawEvent(currentPlayer);
+    }
 
+    /**
+     * allow playing a card for all players
+     */
+    public async allowPlayCard(){
+        for (const player of this.players) {
+            // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
+            if(player.getId() === this.getCurrentPlayer().getId() && player.currentAction === 'draw') continue;
+            player.addListener(async (card: Card) => {
+                setTimeout(async () => {
+                    card.show();
+                    await this.checkCard(card, player);
+                }, 1000);
+                card.hide()
+            });
+        }
     }
 
 }

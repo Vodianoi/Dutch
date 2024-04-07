@@ -1,5 +1,6 @@
 class Card {
     constructor(code, image, value, suit) {
+        this.onClick = () => { };
         this.code = code;
         this.image = image;
         this.value = value;
@@ -30,6 +31,9 @@ class Card {
         cardFront.appendChild(frontImage);
         this.div.appendChild(cardFront);
         this.div.appendChild(cardBack);
+        this.div.onclick = () => {
+            this.onClick(this);
+        };
         return this.div;
     }
     flip() {
@@ -42,9 +46,7 @@ class Card {
         this.div.classList.add('is-flipped');
     }
     addClickEvent(callback) {
-        this.div.addEventListener('click', () => {
-            callback(this);
-        });
+        this.onClick = callback;
     }
     addFlipEvent() {
         this.div.addEventListener('click', () => this.flip());
@@ -53,8 +55,11 @@ class Card {
         this.div.removeEventListener('click', () => this.flip());
     }
     removeClickEvent() {
-        this.div.removeEventListener('click', () => {
-        });
+        this.div.removeEventListener('click', () => this.onClick(this));
+    }
+    removeListeners() {
+        console.log('removing listeners');
+        this.div.replaceWith(this.div.cloneNode(true));
     }
 }
 Card.backImage = 'https://www.deckofcardsapi.com/static/img/back.png';

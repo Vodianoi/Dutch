@@ -12,8 +12,18 @@ class Deck {
     constructor(id) {
         this.pile = 'discard';
         this.div = document.createElement('div');
+        this._onDraw = (e) => {
+        };
+        this._onDrawDiscard = (e) => {
+        };
         this.deck_id = id;
         this.div.id = 'deck';
+        this._onDraw = (e) => {
+            console.log('Draw event not set');
+        };
+        this._onDrawDiscard = (e) => {
+            console.log('Draw discard event not set');
+        };
     }
     getId() {
         return this.deck_id;
@@ -56,18 +66,19 @@ class Deck {
                 this.div.style.justifyContent = 'center';
                 this.div.style.alignItems = 'center';
                 this.div.style.flexDirection = 'row';
-                let card = discardData.piles[this.pile].cards[0];
+                const cardLength = discardData.piles[this.pile].cards.length;
+                let card = discardData.piles[this.pile].cards[cardLength - 1];
                 console.log('CARD', card);
-                let img = document.createElement('img');
-                img.id = 'discard';
-                img.src = card.image;
-                img.style.width = '100px';
-                img.style.height = '150px';
-                this.div.appendChild(img);
+                let discardImg = document.createElement('img');
+                discardImg.id = 'discard';
+                discardImg.src = card.image;
+                discardImg.style.width = '100px';
+                discardImg.style.height = '150px';
+                this.div.appendChild(discardImg);
                 // DECK
                 let deckImg = document.createElement('img');
                 deckImg.src = Card.backImage;
-                deckImg.id = 'deck';
+                deckImg.id = 'draw';
                 deckImg.style.width = '100px';
                 deckImg.style.height = '150px';
                 const remaining = yield this.getRemaining();
@@ -81,6 +92,12 @@ class Deck {
                 this.div.style.transform = 'translateX(35%)';
                 if (!document.getElementById('deck'))
                     document.body.appendChild(this.div);
+                discardImg.onclick = (ev) => {
+                    this._onDrawDiscard(ev);
+                };
+                deckImg.onclick = (ev) => {
+                    this._onDraw(ev);
+                };
             }
             catch (error) {
                 console.error("Error while rendering deck: ", error);
@@ -101,36 +118,58 @@ class Deck {
         img.id = 'drawnCard';
         document.body.appendChild(img);
     }
-    /**
-     *
-     */
     addDrawEvent(player) {
-        var _a, _b;
-        (_a = this.div.querySelector('#discard')) === null || _a === void 0 ? void 0 : _a.addEventListener('click', this.drawEvent(player));
-        (_b = this.div.querySelector('#deck')) === null || _b === void 0 ? void 0 : _b.addEventListener('click', this.drawEvent(player));
+        this._onDraw = (e) => this.drawEvent(e, player);
+        this._onDrawDiscard = (e) => this.drawEvent(e, player);
+        // this.div.querySelector('#discard')?.addEventListener('click', () => this._onDrawDiscard);
+        // this.div.querySelector('#draw')?.addEventListener('click', () => this._onDraw);
+        // console.log(this._onDraw);
+        // console.log(this._onDrawDiscard);
+    }
+    removeDrawEvent() {
+        this._onDraw = (e) => {
+            console.log('Draw event not set');
+        };
+        this._onDrawDiscard = (e) => {
+            console.log('Draw discard event not set');
+        };
+        // this.div.querySelector('#discard')?.removeEventListener('click', () => this._onDrawDiscard, true);
+        // this.div.querySelector('#draw')?.removeEventListener('click', () => this._onDraw, true);
     }
     /**
      * Draw event, place the clicked card in the middle of the screen to let the player choose where he wants to put it
      */
-    drawEvent(player) {
-        return (e) => {
-            let cardDiv = e.target;
-            this.drawFromDiscard().then((discardCard) => __awaiter(this, void 0, void 0, function* () {
-                if (!discardCard) {
-                    throw new Error('No card to draw from discard');
-                }
-                cardDiv === null || cardDiv === void 0 ? void 0 : cardDiv.remove();
-                this.renderCardAtMiddle(discardCard);
-                // let cards = await player.getHand() as Card[];
-                player.setHandListeners((card) => this.replaceCardEvent(card, player, discardCard));
-                // cards.forEach(handCard => {
-                //     handCard.removeFlipEvent();
-                //     // Add Listener to select one of the cards in the hand
-                //     handCard.div.addEventListener('click', );
-                //     console.log("ADDED EVENT", handCard.div)
-                // });
-            }));
-        };
+    drawEvent(e, player) {
+        player.renderAction('draw');
+        console.log('DRAW EVENT', e);
+        let cardDiv = e.target;
+        switch (cardDiv.id) {
+            case 'discard':
+                this.div.removeChild(cardDiv);
+                this.drawFromDiscard().then((discardCard) => __awaiter(this, void 0, void 0, function* () {
+                    console.log('DISCARD CARD', discardCard);
+                    if (!discardCard) {
+                        throw new Error('No card to draw from discard');
+                    }
+                    this.renderCardAtMiddle(discardCard);
+                    player.onClick = (card) => {
+                        this.replaceCardEvent(card, player, discardCard);
+                    };
+                }));
+                break;
+            case 'draw':
+                this.drawCard().then((card) => __awaiter(this, void 0, void 0, function* () {
+                    console.log('DRAW CARD', card);
+                    // cardDiv?.remove();
+                    this.renderCardAtMiddle(card);
+                    player.onClick = (card) => {
+                        this.replaceCardEvent(card, player, card);
+                    };
+                }));
+                break;
+        }
+        // Remove event listeners after handling the event
+        this.removeDrawEvent();
     }
     /**
      * EVENT: Replace the selected card in the hand with the drawn card
@@ -142,15 +181,10 @@ class Deck {
     replaceCardEvent(card, player, discardCard) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            // let selectedCard = e.currentTarget as HTMLImageElement;
-            console.log("EVENT: REPLACE CARD", card);
             let selectedCardCode = card.code;
             let selectedCardDiv = document.getElementById(selectedCardCode);
             selectedCardDiv === null || selectedCardDiv === void 0 ? void 0 : selectedCardDiv.remove();
-            console.log("SELECTED CARD", selectedCardCode);
-            let cards = yield player.getHand();
-            console.log("HAND CARD", card);
-            console.log("CARDS", cards);
+            let cards = player.getHand();
             //discard the selected card in hand
             yield this.discard(card);
             yield this.renderDeck();
@@ -159,7 +193,16 @@ class Deck {
             cards.splice(index, 1, discardCard);
             yield player.setHand(cards);
             player.renderHand();
+            player.renderAction(player.isTurn ? 'dutch' : '');
             (_a = document.getElementById('drawnCard')) === null || _a === void 0 ? void 0 : _a.remove();
+            player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
+                setTimeout(() => __awaiter(this, void 0, void 0, function* () {
+                    var _b;
+                    card.show();
+                    yield ((_b = player.game) === null || _b === void 0 ? void 0 : _b.checkCard(card, player));
+                }), 1000);
+                card.hide();
+            }));
         });
     }
     shuffle() {
@@ -172,13 +215,6 @@ class Deck {
     discard(card) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                // Return the card to deck before adding to discard pile
-                let returnResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/return/?cards=${card.code}`);
-                if (!returnResponse.ok) {
-                    throw new Error(`Failed to return card to deck: ${returnResponse.status} ${returnResponse.statusText}`);
-                }
-                let returnData = yield returnResponse.json();
-                console.log('RETURNED CARD', returnData);
                 let discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
                 if (!discardResponse.ok) {
                     throw new Error(`Failed to discard card: ${discardResponse.status} ${discardResponse.statusText}`);
@@ -208,10 +244,12 @@ class Deck {
         });
     }
     drawCard() {
-        return fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`)
-            .then(response => response.json())
-            .then(data => {
-            return data;
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
+            const data = yield response.json();
+            let card = data.cards[0];
+            card = new Card(card.code, card.image, card.value, card.suit);
+            return card;
         });
     }
     draw(count) {
@@ -244,6 +282,26 @@ class Deck {
             }
             catch (error) {
                 console.error("Error while drawing from discard: ", error);
+                return null; // Or return a default card object
+            }
+        });
+    }
+    getDiscard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                let response = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
+                if (!response.ok) {
+                    throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
+                }
+                let data = yield response.json();
+                let cards = [];
+                for (let card of data.piles[this.pile].cards) {
+                    cards.push(new Card(card.code, card.image, card.value, card.suit));
+                }
+                return cards;
+            }
+            catch (error) {
+                console.error("Error while getting discard pile: ", error);
                 return null; // Or return a default card object
             }
         });
