@@ -162,7 +162,6 @@ class Deck {
             case 'discard':
                 this.div.removeChild(cardDiv);
                 this.drawFromDiscard().then((discardCard) => __awaiter(this, void 0, void 0, function* () {
-                    console.log('DISCARD CARD', discardCard);
                     if (!discardCard) {
                         throw new Error('No card to draw from discard');
                     }
@@ -175,7 +174,6 @@ class Deck {
                 break;
             case 'draw':
                 this.drawCard().then((card) => __awaiter(this, void 0, void 0, function* () {
-                    console.log('DRAW CARD', card);
                     this.renderCardAtMiddle(card);
                     player.onClick = (handCard) => {
                         this.replaceCardEvent(handCard, player, card);

@@ -1,24 +1,48 @@
 import Card from './Card.js';
 import Player from "./Player";
 
-
+/**
+ *  Deck class
+ */
 class Deck {
-    private readonly _deck_id: string;
+    /**
+     *  Deck id from the API
+     */
+    public readonly deck_id: string;
+    /**
+     *  Discard pile
+     * @private
+     */
     private pile: string = 'discard';
-    private div = document.createElement('div');
+    /**
+     *  Container for the deck
+     * @private
+     */
+    private container = document.createElement('div');
 
-    get deck_id() {
-        return this._deck_id;
-    }
-
+    /**
+     * Draw clicked event
+     */
     private _onDraw: Function = () => {
     };
+
+    /**
+     *  Draw discard clicked event
+     */
     private _onDrawDiscard: Function = () => {
     };
 
+    /**
+     *  Create a new deck
+     *   - Set the deck id
+     *   - Set the discard pile
+     *   - Set the div id
+     *   - Set the draw and discard event listener to the default event
+     * @param id
+     */
     constructor(id: string) {
-        this._deck_id = id;
-        this.div.id = 'deck';
+        this.deck_id = id;
+        this.container.id = 'deck';
         this._onDraw = () => {
             console.log('Draw event not set');
         }
@@ -27,7 +51,10 @@ class Deck {
         }
     }
 
-    public async getRemaining() {
+    /**
+     *  Get the remaining cards in the deck
+     */
+    public async getRemaining(): Promise<number> {
         return await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/`)
             .then(response => response.json())
             .then(data => {
@@ -37,6 +64,10 @@ class Deck {
 
 
     /**
+     *  Render the deck
+     *   - Draw pile
+     *   - Remaining cards
+     *   - Discard pile
      * @returns
      */
     public async renderDeck() {
@@ -49,7 +80,7 @@ class Deck {
             const deckImg = await this.renderDraw();
 
             if (!document.getElementById('deck'))
-                document.body.appendChild(this.div);
+                document.body.appendChild(this.container);
 
             discardImg.onclick = (ev) => {
                 this._onDrawDiscard(ev);
@@ -63,7 +94,10 @@ class Deck {
         }
     }
 
-
+    /**
+     *  Render the draw pile
+     * @private
+     */
     private async renderDraw() {
         let deckImg = document.createElement('img');
         deckImg.src = Card.DECK_IMAGE_BACK;
@@ -78,15 +112,19 @@ class Deck {
         remainingText.style.color = 'white';
         remainingText.innerHTML = `Remaining: ${remaining}`;
 
-        this.div.appendChild(deckImg);
-        this.div.appendChild(remainingText);
-        this.div.style.transform = 'translateX(35%)';
+        this.container.appendChild(deckImg);
+        this.container.appendChild(remainingText);
+        this.container.style.transform = 'translateX(35%)';
         return deckImg;
     }
 
+    /**
+     *  Update remaining cards displayed on the deck
+     * @private
+     */
     private updateRemaining() {
         this.getRemaining().then(remaining => {
-            let remainingText = this.div.querySelector('p');
+            let remainingText = this.container.querySelector('p');
             if (remainingText) {
                 remainingText.innerHTML = `Remaining: ${remaining}`;
             }
@@ -94,7 +132,7 @@ class Deck {
     }
 
     /**
-     *
+     * Render the discard pile
      * @private
      */
     private async renderDiscard() {
@@ -104,11 +142,11 @@ class Deck {
         }
         const discardData = await this.getDiscard();
         console.log('DISCARD', discardData);
-        this.div.innerHTML = '';
-        this.div.style.display = 'flex';
-        this.div.style.justifyContent = 'center';
-        this.div.style.alignItems = 'center';
-        this.div.style.flexDirection = 'row';
+        this.container.innerHTML = '';
+        this.container.style.display = 'flex';
+        this.container.style.justifyContent = 'center';
+        this.container.style.alignItems = 'center';
+        this.container.style.flexDirection = 'row';
         if (!discardData) {
             throw new Error('No discard data found');
         }
@@ -119,7 +157,7 @@ class Deck {
         discardImg.src = card.image;
         discardImg.style.width = '100px';
         discardImg.style.height = '150px';
-        this.div.appendChild(discardImg);
+        this.container.appendChild(discardImg);
         return discardImg;
     }
 
@@ -142,11 +180,18 @@ class Deck {
         document.body.appendChild(img);
     }
 
+    /**
+     *  Add the draw event listeners to the deck
+     * @param player Player that will draw the card
+     */
     public addDrawEvent(player: Player) {
         this._onDraw = (e: Event) => this.drawEvent(e, player);
         this._onDrawDiscard = (e: Event) => this.drawEvent(e, player);
     }
 
+    /**
+     *  Remove the draw event listeners from the deck and set the default event
+     */
     public removeDrawEvent() {
         this._onDraw = () => {
             console.log('Draw event not set');
@@ -166,27 +211,25 @@ class Deck {
         let cardDiv = e.target as HTMLImageElement;
         switch (cardDiv.id) {
             case 'discard':
-                this.div.removeChild(cardDiv);
+                this.container.removeChild(cardDiv);
                 this.drawFromDiscard().then(async discardCard => {
-                    console.log('DISCARD CARD', discardCard);
                     if (!discardCard) {
                         throw new Error('No card to draw from discard');
                     }
                     this.renderCardAtMiddle(discardCard);
-                    player.onClick = (card: Card) => {
-                        this.replaceCardEvent(card, player, discardCard);
+                    player.onClick = (handCard: Card) => {
+                        this.replaceCardEvent(handCard, player, discardCard);
                     };
                     player.drawnCard = discardCard;
                 });
                 break;
             case 'draw':
-                this.drawCard().then(async card => {
-                    console.log('DRAW CARD', card);
-                    this.renderCardAtMiddle(card);
+                this.drawCard().then(async drawnCard => {
+                    this.renderCardAtMiddle(drawnCard);
                     player.onClick = (handCard: Card) => {
-                        this.replaceCardEvent(handCard, player, card);
+                        this.replaceCardEvent(handCard, player, drawnCard);
                     };
-                    player.drawnCard = card;
+                    player.drawnCard = drawnCard;
                 });
                 break;
         }
@@ -210,7 +253,6 @@ class Deck {
         let cards = player.getHand();
         //discard the selected card in hand
         await this.discard(card)
-        await this.renderDeck()
         //add the drawn card to the hand
         let index = cards.indexOf(card);
         cards.splice(index, 1, discardCard)
@@ -218,7 +260,7 @@ class Deck {
         player.renderHand();
         player.renderAction(player.isTurn ? 'dutch' : '')
         document.getElementById('drawnCard')?.remove();
-        player.addListener(async (card: Card) => {
+        player.addListenerToHand(async (card: Card) => {
             setTimeout(async () => {
                 card.show();
                 await player.game?.checkCard(card, player);
@@ -230,6 +272,14 @@ class Deck {
     }
 
 
+    /**
+     *  Discard a card
+     *   - Add the card to the discard pile
+     *   - Render the deck
+     *   - Log the discarded card
+     *
+     * @param card Card to discard
+     */
     public async discard(card: Card) {
         let discardResponse = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`);
         if (!discardResponse.ok) {
@@ -241,12 +291,20 @@ class Deck {
     }
 
 
-    public async discardOneFromDraw() {
+    /**
+     *  Discard one card from the draw pile
+     *  - Get the last card in the deck
+     *  - Add the card to the discard pile
+     *  - Return the discarded card
+     */
+    // @ts-ignore
+    public async discardOneFromDraw(): Promise<Card>{
         try {
             //get the last card in the deck
             let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`)
             let data = await response.json();
             let card = data["cards"][0];
+            card = new Card(card.code, card.image, card.value, card.suit);
             //add the card to the discard pile
             await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/add/?cards=${card.code}`)
             return card;
@@ -256,7 +314,10 @@ class Deck {
     }
 
 
-    public async drawCard() {
+    /**
+     *  Draw a card from the deck
+     */
+    public async drawCard(): Promise<Card> {
         const response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=1`);
         const data = await response.json();
         let card = data.cards[0];
@@ -265,7 +326,7 @@ class Deck {
         return card;
     }
 
-    public async draw(count: number) {
+    public async draw(count: number): Promise<Card[]> {
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/draw/?count=${count}`)
         let data = await response.json();
         let cards = data["cards"];
@@ -277,7 +338,7 @@ class Deck {
         return res;
     }
 
-    public async drawFromDiscard() {
+    public async drawFromDiscard(): Promise<Card>{
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/draw/?count=1`);
         if (!response.ok) {
             throw new Error(`Failed to draw from discard: ${response.status} ${response.statusText}`);
@@ -292,7 +353,7 @@ class Deck {
         return card;
     }
 
-    public async getDiscard() {
+    public async getDiscard(): Promise<Card[]>{
         let response = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
         if (!response.ok) {
             throw new Error(`Failed to get discard pile: ${response.status} ${response.statusText}`);
