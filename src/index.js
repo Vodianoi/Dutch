@@ -15,4 +15,10 @@ fetchData.then((data) => __awaiter(void 0, void 0, void 0, function* () {
         dutch.addPlayer(player);
     });
     yield dutch.init();
+    let flip = document.createElement('button');
+    flip.textContent = 'Flip';
+    flip.addEventListener('click', () => {
+        dutch.flipAllCards();
+    });
+    document.body.appendChild(flip);
 }));

@@ -7,6 +7,13 @@ fetchData.then(async(data) => {
         dutch.addPlayer(player);
     });
     await dutch.init();
+
+    let flip = document.createElement('button');
+    flip.textContent = 'Flip';
+    flip.addEventListener('click', () => {
+        dutch.flipAllCards();
+    });
+    document.body.appendChild(flip);
 });
 
 

@@ -32,6 +32,9 @@ class Dutch {
     startGame() {
         return __awaiter(this, void 0, void 0, function* () {
             const players = this.getPlayers();
+            for (let player of players) {
+                player.renderAction("play");
+            }
             setTimeout(() => {
                 for (let player of players) {
                     player.toggleLastTwoCards(true);
@@ -42,8 +45,13 @@ class Dutch {
             }
             setTimeout(() => {
                 this.play();
-            }, 4000);
+            }, 3000);
         });
+    }
+    flipAllCards() {
+        for (let player of this.players) {
+            player.flipAllCards();
+        }
     }
     deal() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -141,9 +149,8 @@ class Dutch {
         const currentPlayer = this.getCurrentPlayer();
         currentPlayer.play();
         this.allowPlayCard().then(() => {
-            var _a;
             console.log('allow play card');
-            (_a = this.deck) === null || _a === void 0 ? void 0 : _a.addDrawEvent(currentPlayer);
+            this.deck.addDrawEvent(currentPlayer);
         });
     }
     /**
@@ -151,16 +158,22 @@ class Dutch {
      */
     allowPlayCard() {
         return __awaiter(this, void 0, void 0, function* () {
+            //Check if one player is drawing a card
+            if (this.getCurrentPlayer().currentAction === 'draw') {
+                this.players.forEach(player => {
+                    player.onClick = () => { };
+                });
+                return;
+            }
+            //Check if one player is playing a card
+            this.players.forEach(player => {
+                if (player.currentAction === 'play')
+                    return;
+            });
             for (const player of this.players) {
                 // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
-                if (player.getId() === this.getCurrentPlayer().getId() && player.currentAction === 'draw')
-                    continue;
                 player.addListener((card) => __awaiter(this, void 0, void 0, function* () {
-                    setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                        card.show();
-                        yield this.checkCard(card, player);
-                    }), 1000);
-                    card.hide();
+                    yield this.checkCard(card, player);
                 }));
             }
         });

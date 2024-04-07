@@ -21,12 +21,15 @@ body {
 .card {
     position: relative;
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: all 0.5s;
+    /*box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);*/
+    transition: 0.3s;
     transform-style: preserve-3d;
 
     /*border: 1px solid #f1f1f1;*/
 
+    &:hover {
+        scale: 1.1;
+    }
 
     cursor: pointer;
     transform-origin: center right;

@@ -137,11 +137,6 @@ class Deck {
     public addDrawEvent(player: Player) {
         this._onDraw = (e: Event) => this.drawEvent(e, player);
         this._onDrawDiscard = (e: Event) => this.drawEvent(e, player);
-
-        // this.div.querySelector('#discard')?.addEventListener('click', () => this._onDrawDiscard);
-        // this.div.querySelector('#draw')?.addEventListener('click', () => this._onDraw);
-        // console.log(this._onDraw);
-        // console.log(this._onDrawDiscard);
     }
 
     public removeDrawEvent() {
@@ -151,10 +146,6 @@ class Deck {
         this._onDrawDiscard = () => {
             console.log('Draw discard event not set');
         }
-
-
-        // this.div.querySelector('#discard')?.removeEventListener('click', () => this._onDrawDiscard, true);
-        // this.div.querySelector('#draw')?.removeEventListener('click', () => this._onDraw, true);
     }
 
     /**
@@ -181,7 +172,6 @@ class Deck {
             case 'draw':
                 this.drawCard().then(async card => {
                     console.log('DRAW CARD', card);
-                    // cardDiv?.remove();
                     this.renderCardAtMiddle(card);
                     player.onClick = (card: Card) => {
                         this.replaceCardEvent(card, player, card);
@@ -282,7 +272,7 @@ class Deck {
         if (!data || !data.cards || data.cards.length === 0) {
             throw new Error('No card data found in the response');
         }
-        let card = data.cards[0];
+        let card = data.cards[data.cards.length - 1];
         card = new Card(card.code, card.image, card.value, card.suit);
         console.log('DRAW DISCARD', data);
         return card;

@@ -116,15 +116,6 @@ class Player {
         })
     }
 
-    // public setHandListeners(callback : Function) {
-    //     this._hand.forEach((card) => {
-    //         console.log('setting listeners', callback);
-    //         card.onClick = (e: Event) => {
-    //             callback(e);
-    //         }
-    //     })
-    // }
-
     /**
      * Render Player's action buttons depending on the action
      * Actions: Ready, Dutch or End turn
@@ -239,6 +230,17 @@ class Player {
         this._hand.push(card);
         this.renderHand();
 
+    }
+
+    flipAllCards() {
+        this._hand.forEach(card => {
+            card.show();
+        })
+        setTimeout( () => {
+            this._hand.forEach(card => {
+                card.hide();
+            })
+        }, 2000)
     }
 }
 

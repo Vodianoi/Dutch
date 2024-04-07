@@ -7,8 +7,6 @@ div.id = 'game';
 document.body.appendChild(div);
 
 
-
-
 class Dutch {
     deck: Deck;
     players: Player[];
@@ -36,6 +34,9 @@ class Dutch {
     public async startGame() {
 
         const players = this.getPlayers();
+        for (let player of players) {
+            player.renderAction("play");
+        }
 
         setTimeout(() => {
             for (let player of players) {
@@ -43,15 +44,19 @@ class Dutch {
             }
         }, 2000);
         for (let player of players) {
-
             player.toggleLastTwoCards(false);
-
         }
         setTimeout(() => {
             this.play();
-        }, 4000);
+        }, 3000);
 
 
+    }
+
+    public flipAllCards() {
+        for (let player of this.players) {
+            player.flipAllCards();
+        }
     }
 
     private async deal() {
@@ -126,7 +131,7 @@ class Dutch {
     }
 
     async checkCard(card: Card, player: Player) {
-        setTimeout( async () => {
+        setTimeout(async () => {
             card.show();
             const discardPile = await this.deck.getDiscard();
 
@@ -156,23 +161,30 @@ class Dutch {
         currentPlayer.play();
         this.allowPlayCard().then(() => {
             console.log('allow play card')
-            this.deck?.addDrawEvent(currentPlayer);
+            this.deck.addDrawEvent(currentPlayer);
         });
     }
 
     /**
      * allow playing a card for all players
      */
-    public async allowPlayCard(){
+    public async allowPlayCard() {
+        //Check if one player is drawing a card
+
+        if (this.getCurrentPlayer().currentAction === 'draw') {
+            this.players.forEach(player => {
+                player.onClick = () => { };
+            });
+            return;
+        }
+        //Check if one player is playing a card
+        this.players.forEach(player => {
+            if (player.currentAction === 'play') return;
+        });
         for (const player of this.players) {
             // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
-            if(player.getId() === this.getCurrentPlayer().getId() && player.currentAction === 'draw') continue;
             player.addListener(async (card: Card) => {
-                setTimeout(async () => {
-                    card.show();
-                    await this.checkCard(card, player);
-                }, 1000);
-                card.hide()
+                await this.checkCard(card, player);
             });
         }
     }
