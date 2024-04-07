@@ -88,6 +88,10 @@ class Deck {
             }
         });
     }
+    /**
+     *
+     * @private
+     */
     renderDiscard() {
         return __awaiter(this, void 0, void 0, function* () {
             const discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
@@ -115,6 +119,10 @@ class Deck {
             return discardImg;
         });
     }
+    /**
+     * Render the card in the middle of the screen
+     * @param card Card to render
+     */
     renderCardAtMiddle(card) {
         let img = document.createElement('img');
         img.src = card.image;
@@ -169,8 +177,8 @@ class Deck {
                 this.drawCard().then((card) => __awaiter(this, void 0, void 0, function* () {
                     console.log('DRAW CARD', card);
                     this.renderCardAtMiddle(card);
-                    player.onClick = (card) => {
-                        this.replaceCardEvent(card, player, card);
+                    player.onClick = (handCard) => {
+                        this.replaceCardEvent(handCard, player, card);
                     };
                     player.drawnCard = card;
                 }));

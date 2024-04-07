@@ -1,6 +1,5 @@
 import Card from './Card.js';
 import Player from "./Player";
-import Dutch from "./Dutch";
 
 
 class Deck {
@@ -94,6 +93,10 @@ class Deck {
         });
     }
 
+    /**
+     *
+     * @private
+     */
     private async renderDiscard() {
         const discardResponse = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
         if (!discardResponse.ok) {
@@ -120,6 +123,10 @@ class Deck {
         return discardImg;
     }
 
+    /**
+     * Render the card in the middle of the screen
+     * @param card Card to render
+     */
     public renderCardAtMiddle(card: Card) {
         let img = document.createElement('img');
         img.src = card.image;
@@ -176,8 +183,8 @@ class Deck {
                 this.drawCard().then(async card => {
                     console.log('DRAW CARD', card);
                     this.renderCardAtMiddle(card);
-                    player.onClick = (card: Card) => {
-                        this.replaceCardEvent(card, player, card);
+                    player.onClick = (handCard: Card) => {
+                        this.replaceCardEvent(handCard, player, card);
                     };
                     player.drawnCard = card;
                 });
