@@ -1,9 +1,15 @@
 class Card {
+    // endregion
+    // region Constructor
     constructor(code, image, value, suit) {
+        // endregion
+        // region Private Properties
         this.CLASS_CARD = 'card';
         this.CLASS_CARD_INNER = 'card-inner';
         this.CLASS_CARD_FRONT = 'card-front';
         this.CLASS_CARD_BACK = 'card-back';
+        // endregion
+        // region Event Handlers
         this.onClick = () => { };
         this.code = code;
         this.image = image;
@@ -11,6 +17,8 @@ class Card {
         this.suit = suit;
         this.div = document.createElement('div');
     }
+    // endregion
+    // region Public Methods
     /**
      * Render the card to the screen
      * Use card with 2 divs card-back, card-front as css classes and img tag for the image
@@ -48,5 +56,6 @@ class Card {
         this.onClick = callback;
     }
 }
+// region Static Properties
 Card.DECK_IMAGE_BACK = 'https://www.deckofcardsapi.com/static/img/back.png';
 export default Card;
