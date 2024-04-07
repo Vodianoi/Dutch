@@ -143,8 +143,8 @@ class Dutch {
                     const card = await this.deck.drawCard()
                     player.addCard(card);
                     // this.endTurn(player);
-                    await this.allowPlayCard()
                 }
+                await this.allowPlayCard()
             }
         }, 1000);
         card.hide();

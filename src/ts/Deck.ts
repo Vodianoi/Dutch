@@ -84,6 +84,15 @@ class Deck {
         return deckImg;
     }
 
+    private updateRemaining() {
+        this.getRemaining().then(remaining => {
+            let remainingText = this.div.querySelector('p');
+            if (remainingText) {
+                remainingText.innerHTML = `Remaining: ${remaining}`;
+            }
+        });
+    }
+
     private async renderDiscard() {
         const discardResponse = await fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
         if (!discardResponse.ok) {
@@ -248,6 +257,7 @@ class Deck {
         const data = await response.json();
         let card = data.cards[0];
         card = new Card(card.code, card.image, card.value, card.suit);
+        this.updateRemaining();
         return card;
     }
 
@@ -259,6 +269,7 @@ class Deck {
         for (let card of cards) {
             res.push(new Card(card.code, card.image, card.value, card.suit));
         }
+        this.updateRemaining();
         return res;
     }
 

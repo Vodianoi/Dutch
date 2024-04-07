@@ -80,6 +80,14 @@ class Deck {
             return deckImg;
         });
     }
+    updateRemaining() {
+        this.getRemaining().then(remaining => {
+            let remainingText = this.div.querySelector('p');
+            if (remainingText) {
+                remainingText.innerHTML = `Remaining: ${remaining}`;
+            }
+        });
+    }
     renderDiscard() {
         return __awaiter(this, void 0, void 0, function* () {
             const discardResponse = yield fetch(`https://www.deckofcardsapi.com/api/deck/${this.deck_id}/pile/${this.pile}/list/`);
@@ -240,6 +248,7 @@ class Deck {
             const data = yield response.json();
             let card = data.cards[0];
             card = new Card(card.code, card.image, card.value, card.suit);
+            this.updateRemaining();
             return card;
         });
     }
@@ -252,6 +261,7 @@ class Deck {
             for (let card of cards) {
                 res.push(new Card(card.code, card.image, card.value, card.suit));
             }
+            this.updateRemaining();
             return res;
         });
     }

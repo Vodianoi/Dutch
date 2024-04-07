@@ -130,8 +130,8 @@ class Dutch {
                         const card = yield this.deck.drawCard();
                         player.addCard(card);
                         // this.endTurn(player);
-                        yield this.allowPlayCard();
                     }
+                    yield this.allowPlayCard();
                 }
             }), 1000);
             card.hide();
