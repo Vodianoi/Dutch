@@ -2,7 +2,7 @@
   "name": "dutch",
   "version": "0.0.1",
   "description": "Dutch is real",
-  "main": "src/index.ts",
+  "main": "index.ts",
   "scripts": {
     "build": "tsc",
     "start": "tsc -w",

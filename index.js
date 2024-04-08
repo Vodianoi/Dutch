@@ -7,8 +7,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import Dutch from "./ts/Dutch.js";
-import fetchData from "./ts/datas.js";
+import Dutch from "./src/ts/Dutch.js";
+import fetchData from "./src/ts/datas.js";
 fetchData.then((data) => __awaiter(void 0, void 0, void 0, function* () {
     let dutch = new Dutch(data.deck.deck_id);
     data.players.forEach(player => {

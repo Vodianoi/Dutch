@@ -226,7 +226,6 @@ class Player {
                 discardButton.onclick = () => {
                     console.log("Drawn Card", this.drawnCard);
                     this.discard(this.drawnCard!);
-                    this.game?.endTurn(this);
                     document.getElementById('drawnCard')?.remove();
 
                 }

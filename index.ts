@@ -1,5 +1,5 @@
-import Dutch from "./ts/Dutch.js";
-import fetchData from "./ts/datas.js";
+import Dutch from "./src/ts/Dutch.js";
+import fetchData from "./src/ts/datas.js";
 
 fetchData.then(async(data) => {
     let dutch = new Dutch(data.deck.deck_id);

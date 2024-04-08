@@ -179,11 +179,10 @@ class Player {
                 const discardButton = document.createElement('button');
                 discardButton.innerHTML = 'Discard';
                 discardButton.onclick = () => {
-                    var _a, _b;
+                    var _a;
                     console.log("Drawn Card", this.drawnCard);
                     this.discard(this.drawnCard);
-                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.endTurn(this);
-                    (_b = document.getElementById('drawnCard')) === null || _b === void 0 ? void 0 : _b.remove();
+                    (_a = document.getElementById('drawnCard')) === null || _a === void 0 ? void 0 : _a.remove();
                 };
                 this.actionDiv.appendChild(discardButton);
                 (_f = this.playerDiv) === null || _f === void 0 ? void 0 : _f.appendChild(this.actionDiv);
