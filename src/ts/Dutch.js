@@ -57,16 +57,15 @@ class Dutch {
      */
     startGame() {
         return __awaiter(this, void 0, void 0, function* () {
-            const players = this.players;
-            for (let player of players) {
+            for (let player of this.players) {
                 player.renderAction("play");
             }
             setTimeout(() => {
-                for (let player of players) {
+                for (let player of this.players) {
                     player.toggleLastTwoCards(true);
                 }
             }, 2000);
-            for (let player of players) {
+            for (let player of this.players) {
                 player.toggleLastTwoCards(false);
             }
             setTimeout(() => {
@@ -150,7 +149,7 @@ class Dutch {
                 });
                 return;
             }
-            //Check if one player is playing a card
+            //Check if one player is playing a card TODO
             this.players.forEach(player => {
                 if (player.currentAction === 'play')
                     return;

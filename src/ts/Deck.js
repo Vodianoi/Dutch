@@ -367,6 +367,7 @@ class Deck {
             let cards = player.hand;
             //discard the selected card in hand
             yield this.discard(card);
+            yield this.renderDeck();
             //add the drawn card to the hand
             let index = cards.indexOf(card);
             cards.splice(index, 1, discardCard);

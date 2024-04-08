@@ -79,16 +79,15 @@ class Dutch {
      *  Toggle the last two cards for all players for 2 seconds
      */
     public async startGame() {
-        const players = this.players;
-        for (let player of players) {
+        for (let player of this.players) {
             player.renderAction("play");
         }
         setTimeout(() => {
-            for (let player of players) {
+            for (let player of this.players) {
                 player.toggleLastTwoCards(true);
             }
         }, 2000);
-        for (let player of players) {
+        for (let player of this.players) {
             player.toggleLastTwoCards(false);
         }
         setTimeout(() => {
@@ -177,7 +176,7 @@ class Dutch {
             });
             return;
         }
-        //Check if one player is playing a card
+        //Check if one player is playing a card TODO
         this.players.forEach(player => {
             if (player.currentAction === 'play') return;
         });
@@ -280,7 +279,6 @@ class Dutch {
 
                 if (card.value === topCard.value) {
                     player.discard(card);
-
                 } else {
                     const card = await this.deck.drawCard()
                     player.addCard(card);
