@@ -6,7 +6,8 @@
 body {
     font-family: 'Roboto', sans-serif;
     /* green play board background*/
-    background-color: #2E8B57;
+    background: rgb(55,166,104);
+    background: radial-gradient(circle, rgba(55,166,104,1) 0%, rgba(21,69,42,1) 100%);
     margin: 0;
     padding: 0;
     display: flex;
@@ -123,8 +124,8 @@ body {
 .player {
     display: flex;
     align-items: center;
-    justify-content: center;
-    margin: 10px;
+    justify-content: space-between;
+    margin: 10px 50px;
 }
 
 .hand {
@@ -134,3 +135,71 @@ body {
     gap: 10px;
 }
 /* endregion Player */
+
+h1 {
+    color: white;
+    margin-right: 50px;
+    width: 100px;
+}
+
+/* Encadrement des joueurs, carte, actions */
+
+#game {
+    border : 4mm ridge rgb(255, 255, 255);
+}
+
+/* Actions */
+
+#player-1-action,
+#player-2-action,
+#player-3-action,
+#player-4-action {
+    display: flex;
+    justify-content: right;
+    margin-left: 30px;
+    gap: 5px
+}
+
+/* Dutch Game style */
+
+.title {
+    display: flex;
+    justify-content: center;
+    color: white;
+    font-size: 50px;
+}
+
+/* Deck style */
+
+#deck {
+    margin: 15px;
+    gap: 10px;
+}
+
+button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.7rem 1rem;
+    font-family: "Poppins", sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    backface-visibility: hidden;
+    border: 0.3rem solid transparent;
+    border-radius: 3rem;
+}
+
+button {
+    border-color: transparent;
+    background-color: #fff;
+    color: #000;
+    transition: transform 0.2s cubic-bezier(0.235, 0, 0.05, 0.95);
+}
+
+button:hover {
+    transform: perspective(1px) scale3d(1.044, 1.044, 1) translateZ(0) !important;
+}
+
