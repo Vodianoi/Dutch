@@ -2,11 +2,11 @@
   "name": "dutch",
   "version": "0.0.1",
   "description": "Dutch is real",
-  "main": "index.ts",
+  "main": "index.html",
   "scripts": {
     "build": "tsc",
     "start": "tsc -w",
-    "test": "test"
+    "test": "tsc --noEmit"
   },
   "repository": {
     "type": "git",

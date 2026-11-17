@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 /**
  *  Player class
  *  - Represents a player in the game
@@ -100,8 +91,7 @@ class Player {
      * use card.render() to display each card (returns HTMLElement)
      */
     render() {
-        var _a;
-        this.playerDiv = (_a = document.getElementById(`player-${this.id}`)) !== null && _a !== void 0 ? _a : document.createElement('div');
+        this.playerDiv = document.getElementById(`player-${this.id}`) ?? document.createElement('div');
         this.playerDiv.id = `player-${this.id}`;
         this.playerDiv.innerHTML = '';
         this.playerDiv.classList.add('player');
@@ -132,63 +122,58 @@ class Player {
      * Actions: Ready, Dutch or End turn
      */
     renderAction(action) {
-        var _a, _b, _c, _d, _e, _f, _g;
         console.log(action);
         this.currentAction = action;
         switch (action) {
             case "ready":
-                this.actionDiv = (_a = document.getElementById(`player-${this.id}-action`)) !== null && _a !== void 0 ? _a : document.createElement('div');
+                this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
                 this.actionDiv.innerHTML = '';
                 this.actionDiv.classList.add('action');
                 const readyButton = document.createElement('button');
                 readyButton.innerHTML = 'Ready';
                 readyButton.onclick = () => {
-                    var _a;
-                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.ready(this);
+                    this.game?.ready(this);
                 };
                 this.actionDiv.appendChild(readyButton);
-                (_b = this.playerDiv) === null || _b === void 0 ? void 0 : _b.appendChild(this.actionDiv);
+                this.playerDiv?.appendChild(this.actionDiv);
                 break;
             case "dutch":
-                this.actionDiv = (_c = document.getElementById(`player-${this.id}-action`)) !== null && _c !== void 0 ? _c : document.createElement('div');
+                this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
                 this.actionDiv.innerHTML = '';
                 this.actionDiv.classList.add('action');
                 const dutchButton = document.createElement('button');
                 dutchButton.innerHTML = 'Dutch';
                 dutchButton.onclick = () => {
-                    var _a;
-                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.dutch(this);
+                    this.game?.dutch(this);
                 };
                 const endTurnButton = document.createElement('button');
                 endTurnButton.innerHTML = 'End Turn';
                 endTurnButton.onclick = () => {
-                    var _a;
-                    (_a = this.game) === null || _a === void 0 ? void 0 : _a.endTurn(this);
+                    this.game?.endTurn(this);
                 };
                 this.actionDiv.appendChild(endTurnButton);
                 this.actionDiv.appendChild(dutchButton);
-                (_d = this.playerDiv) === null || _d === void 0 ? void 0 : _d.appendChild(this.actionDiv);
+                this.playerDiv?.appendChild(this.actionDiv);
                 break;
             case 'draw':
-                this.actionDiv = (_e = document.getElementById(`player-${this.id}-action`)) !== null && _e !== void 0 ? _e : document.createElement('div');
+                this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
                 this.actionDiv.innerHTML = '';
                 this.actionDiv.classList.add('action');
                 const discardButton = document.createElement('button');
                 discardButton.innerHTML = 'Discard';
                 discardButton.onclick = () => {
-                    var _a;
                     console.log("Drawn Card", this.drawnCard);
                     this.discard(this.drawnCard);
-                    (_a = document.getElementById('drawnCard')) === null || _a === void 0 ? void 0 : _a.remove();
+                    document.getElementById('drawnCard')?.remove();
                 };
                 this.actionDiv.appendChild(discardButton);
-                (_f = this.playerDiv) === null || _f === void 0 ? void 0 : _f.appendChild(this.actionDiv);
+                this.playerDiv?.appendChild(this.actionDiv);
                 break;
             default:
-                this.actionDiv = (_g = document.getElementById(`player-${this.id}-action`)) !== null && _g !== void 0 ? _g : document.createElement('div');
+                this.actionDiv = document.getElementById(`player-${this.id}-action`) ?? document.createElement('div');
                 this.actionDiv.id = `player-${this.id}-action`;
                 this.actionDiv.innerHTML = '';
                 break;
@@ -199,22 +184,18 @@ class Player {
      * @param color
      */
     changePlayerNameColor(color) {
-        var _a, _b;
-        (_b = (_a = this.playerDiv) === null || _a === void 0 ? void 0 : _a.querySelector('h1')) === null || _b === void 0 ? void 0 : _b.setAttribute('style', `color: ${color}`);
+        this.playerDiv?.querySelector('h1')?.setAttribute('style', `color: ${color}`);
     }
     /**
      *  Set the player's hand
      * @param hand
      */
-    setHand(hand) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
-            const response = yield fetch(`https://deckofcardsapi.com/api/deck/${(_b = (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck) === null || _b === void 0 ? void 0 : _b.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
-            if (!response.ok) {
-                throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
-            }
-            this.hand = hand;
-        });
+    async setHand(hand) {
+        const response = await fetch(`https://deckofcardsapi.com/api/deck/${this.game?.deck?.deck_id}/pile/${this.id}/add/?cards=${hand.map(card => card.code).join(',')}`);
+        if (!response.ok) {
+            throw new Error(`Failed to add cards to pile: ${response.status} ${response.statusText}`);
+        }
+        this.hand = hand;
     }
     /**
      *  Toggle the last two cards in the player's hand
@@ -262,10 +243,9 @@ class Player {
      * @param card
      */
     discard(card) {
-        var _a;
         this.hand = this.hand.filter(c => c.code !== card.code);
         this.renderHand();
-        (_a = this.game) === null || _a === void 0 ? void 0 : _a.deck.discard(card);
+        this.game?.deck.discard(card);
         //TODO #2 - Check for card to apply effect
     }
     /**
