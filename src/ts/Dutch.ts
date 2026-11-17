@@ -1,293 +1,620 @@
-import Deck from "./Deck.js";
-import Player from "./Player.js";
-import Card from "./Card";
+import Card from './Card.js';
+import Deck, {Rng} from './Deck.js';
+import Player from './Player.js';
 
-const gameContainer = document.createElement('div');
-gameContainer.id = 'game';
-document.body.appendChild(gameContainer);
+// region Types
+/**
+ *  Phases of a round
+ *  - peek:      (variant) players look at their 2 last cards before the round starts
+ *  - draw:      current player must draw from the draw pile or take the discard
+ *  - drawn:     current player holds a card and must swap it (or discard it if it comes from the draw pile)
+ *  - played:    current player has played, he can end his turn or say "Dutch"
+ *  - roundOver: points are counted, waiting for next round
+ *  - gameOver:  someone reached the target score
+ */
+export type Phase = 'peek' | 'draw' | 'drawn' | 'played' | 'roundOver' | 'gameOver';
 
+/**
+ *  Special cards effects (README "Cartes spéciales")
+ *  - JACK:  swap two cards on the table
+ *  - QUEEN: look at one of your cards
+ *  - ACE:   give a card from the draw pile to a player
+ */
+export type EffectType = 'JACK' | 'QUEEN' | 'ACE';
+
+export interface PendingEffect {
+    type: EffectType;
+    playerId: number;
+    card: Card;
+}
+
+export type LogKind = 'info' | 'good' | 'bad' | 'effect' | 'dutch' | 'score';
+
+export interface LogEntry {
+    round: number;
+    kind: LogKind;
+    message: string;
+}
+
+export interface DrawnCard {
+    card: Card;
+    source: 'pile' | 'discard';
+}
+
+export interface RoundScore {
+    playerId: number;
+    points: number;
+    penalty: number;
+    total: number;
+}
+
+export interface RoundResult {
+    round: number;
+    dutchCallerId: number | null;
+    scores: RoundScore[];
+    hands: Record<number, Card[]>;
+    gameOver: boolean;
+    winners: number[];
+}
+
+/**
+ *  Events emitted to the UI
+ *  - change: the state changed, re-render
+ *  - reveal: show a face down card for a short time (the owner gets to know it)
+ */
+export type GameEvent =
+    | { type: 'change' }
+    | { type: 'reveal'; cardId: string; playerId: number };
+
+export interface DutchOptions {
+    players: string[];
+    deckCount?: number;
+    cardsPerPlayer?: number;
+    targetScore?: number;
+    dutchPenalty?: number;
+    peekVariant?: boolean;
+    rng?: Rng;
+}
+
+/**
+ *  Thrown when an action is not allowed by the rules; the message is shown to the players
+ */
+export class RuleError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'RuleError';
+    }
+}
+// endregion
+
+/**
+ *  Dutch game engine
+ *  - Holds the whole game state and enforces the rules of the README
+ *  - No DOM access: the UI calls the actions and listens to the events
+ */
 class Dutch {
 
     // region Public Properties
-    /**
-     *  Deck of the game
-     */
+    public readonly players: Player[];
     public deck: Deck;
-
-
-    /**
-     *  Players in the game
-     */
-    public players: Player[];
-
+    public phase: Phase = 'draw';
+    public round: number = 0;
 
     /**
-     *  Current player index
+     *  Index of the player whose turn it is
      */
-    public currentPlayer: number;
-
-
-    /**
-     *  Number of cards per player
-     */
-    public nbCardsPerPlayer: number;
+    public currentPlayerIndex: number = 0;
 
     /**
-     *  Verify if one player has already said dutch
+     *  Card held by the current player after drawing
      */
-    public oneDutch: boolean = false;
+    public drawn: DrawnCard | null = null;
+
+    /**
+     *  Special card effects waiting to be resolved, in the order the cards were played
+     */
+    public effects: PendingEffect[] = [];
+
+    /**
+     *  Player who said "Dutch" this round (immune until the end of the round)
+     */
+    public dutchCallerId: number | null = null;
+
+    /**
+     *  Turns left to play after "Dutch" was called
+     */
+    public finalTurnsLeft: number = 0;
+
+    public log: LogEntry[] = [];
+    public lastResult: RoundResult | null = null;
+
+    public readonly deckCount: number;
+    public readonly cardsPerPlayer: number;
+    public readonly targetScore: number;
+    public readonly dutchPenalty: number;
+    public readonly peekVariant: boolean;
+    // endregion
+
+    // region Private Properties
+    private readonly rng: Rng;
+    private firstPlayerIndex: number = 0;
+    private listeners: ((event: GameEvent) => void)[] = [];
     // endregion
 
     // region Constructor
-    /**
-     *  Initialize the game
-     *  - Set the deck
-     *  - Set the players
-     *  - Set the current player
-     *  - Set the number of cards per player
-     * @param deck_id
-     */
-    constructor(deck_id: string) {
-        this.deck = new Deck(deck_id)
-        this.players = [];
-        this.currentPlayer = 0;
-        this.nbCardsPerPlayer = 4;
+    constructor(options: DutchOptions) {
+        if (options.players.length < 2 || options.players.length > 10) {
+            throw new RuleError('Le Dutch se joue de 2 à 10 joueurs.');
+        }
+        this.players = options.players.map((name, i) => new Player(i, name));
+        this.deckCount = options.deckCount ?? 2;
+        this.cardsPerPlayer = options.cardsPerPlayer ?? 4;
+        this.targetScore = options.targetScore ?? 100;
+        this.dutchPenalty = options.dutchPenalty ?? 10;
+        this.peekVariant = options.peekVariant ?? false;
+        this.rng = options.rng ?? Math.random;
+        this.deck = new Deck(this.deckCount, this.rng);
     }
     // endregion
 
-    // region Public Methods
-
-    /**
-     *  Initialize the game
-     *  - Deal the cards
-     *  - Render the game
-     *  - Set the game for all players
-     */
-    public async init() {
-        await this.deal();
-        await this.render();
-
-        for (let player of this.players) {
-            player.renderAction("ready");
-            player.game = this;
-        }
+    // region Getters
+    public get currentPlayer(): Player {
+        return this.players[this.currentPlayerIndex];
     }
 
     /**
-     *  Start the game
-     *  Change the action of all players to play
-     *  Toggle the last two cards for all players for 2 seconds
+     *  Effect being resolved right now (the first of the queue)
      */
-    public async startGame() {
-        for (let player of this.players) {
-            player.renderAction("play");
-        }
-        setTimeout(() => {
-            for (let player of this.players) {
-                player.toggleLastTwoCards(true);
-            }
-        }, 2000);
-        for (let player of this.players) {
-            player.toggleLastTwoCards(false);
-        }
-        setTimeout(() => {
-            this.play();
-        }, 3000);
+    public get activeEffect(): PendingEffect | undefined {
+        return this.effects[0];
+    }
+
+    public get isFinalRound(): boolean {
+        return this.dutchCallerId !== null;
+    }
+
+    public get isRoundRunning(): boolean {
+        return this.phase === 'draw' || this.phase === 'drawn' || this.phase === 'played';
+    }
+
+    public getPlayer(id: number): Player {
+        const player = this.players[id];
+        if (!player) throw new RuleError(`Joueur inconnu (${id}).`);
+        return player;
     }
 
     /**
-     *  Flip all cards for all players
-     *  DEBUGGING PURPOSE
+     *  The player who said "Dutch" is immune: his cards can't be exchanged and he can't receive cards
      */
-    public flipAllCards() {
-        for (let player of this.players) {
-            player.flipAllCards();
-        }
+    public isImmune(playerId: number): boolean {
+        return this.dutchCallerId === playerId;
     }
 
+    /**
+     *  Find which player holds a card
+     */
+    public ownerOf(cardId: string): Player | undefined {
+        return this.players.find(p => p.hasCard(cardId));
+    }
 
     /**
-     *  Ready the player
-     *  - Set the player to ready
-     *  - Change the player name color to green
-     *  - Start the game if all players are ready
-     * @param player
+     *  Can this player try to throw a card on the discard pile right now?
      */
-    public ready(player: Player) {
-        if (player.ready) return;
+    public canThrow(playerId: number): boolean {
+        const player = this.players[playerId];
+        return !!player
+            && (this.phase === 'draw' || this.phase === 'played')
+            && this.effects.length === 0
+            && !player.locked
+            && !!this.deck.topDiscard;
+    }
+
+    /**
+     *  Can the current player end his turn? (issue #4: he must have played first)
+     */
+    public get canEndTurn(): boolean {
+        if (this.effects.length > 0) return false;
+        if (this.phase === 'played') return true;
+        // Nothing left to draw at all: the player is allowed to pass
+        return this.phase === 'draw' && this.isStuck;
+    }
+
+    /**
+     *  No card can be drawn and the discard can't be taken
+     */
+    public get isStuck(): boolean {
+        return this.deck.remaining === 0
+            && this.deck.discardPile.length <= 1
+            && (this.currentPlayer.hand.length === 0 || !this.deck.topDiscard);
+    }
+    // endregion
+
+    // region Events
+    public on(listener: (event: GameEvent) => void): () => void {
+        this.listeners.push(listener);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== listener);
+        };
+    }
+
+    private emit(event: GameEvent) {
+        for (const listener of this.listeners) listener(event);
+    }
+
+    private changed() {
+        this.emit({type: 'change'});
+    }
+
+    private reveal(player: Player, card: Card) {
+        this.emit({type: 'reveal', cardId: card.id, playerId: player.id});
+    }
+
+    private addLog(message: string, kind: LogKind = 'info') {
+        this.log.push({round: this.round, kind, message});
+    }
+    // endregion
+
+    // region Round lifecycle
+    /**
+     *  Start a new round
+     *  - New shuffled shoe
+     *  - Deal 4 cards face down to each player
+     *  - Put the top card of the draw pile on the discard pile
+     */
+    public startRound() {
+        if (this.phase === 'gameOver') throw new RuleError('La partie est terminée.');
+        this.round++;
+        this.deck = new Deck(this.deckCount, this.rng);
+        for (const player of this.players) {
+            player.resetForRound();
+            player.hand = this.deck.drawMany(this.cardsPerPlayer);
+        }
+        this.deck.discard(this.deck.draw()!);
+        this.drawn = null;
+        this.effects = [];
+        this.dutchCallerId = null;
+        this.finalTurnsLeft = 0;
+        this.lastResult = null;
+        this.currentPlayerIndex = this.firstPlayerIndex;
+
+        this.addLog(`— Ronde ${this.round} — ${this.deck.deckCount * 52} cartes, ${this.cardsPerPlayer} cartes chacun.`, 'info');
+        if (this.peekVariant) {
+            this.phase = 'peek';
+            this.addLog('Chaque joueur regarde ses 2 dernières cartes.', 'info');
+        } else {
+            this.phase = 'draw';
+            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
+        }
+        this.changed();
+    }
+
+    /**
+     *  Variant: a player looks at his 2 last cards and is ready
+     * @returns the revealed cards
+     */
+    public peek(playerId: number): Card[] {
+        if (this.phase !== 'peek') throw new RuleError('Ce n\'est pas le moment de regarder ses cartes.');
+        const player = this.getPlayer(playerId);
+        if (player.ready) throw new RuleError(`${player.name} a déjà regardé ses cartes.`);
+        const cards = player.hand.slice(-2);
+        cards.forEach(card => this.reveal(player, card));
         player.ready = true;
-        player.changePlayerNameColor('green')
-        console.log('player ready', player.name);
-        if (this.players.every(player => player.ready)) {
-            this.startGame().then(() => {
-                this.players.forEach((player) => player.changePlayerNameColor('black'))
-                console.log('game started');
-            });
+        this.addLog(`${player.name} regarde ses 2 dernières cartes.`, 'info');
+        if (this.players.every(p => p.ready)) {
+            this.phase = 'draw';
+            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
+        }
+        this.changed();
+        return cards;
+    }
+
+    /**
+     *  Count the points of the round and check the end of the game
+     */
+    private endRound() {
+        const hands: Record<number, Card[]> = {};
+        const points = this.players.map(p => {
+            hands[p.id] = p.hand.slice();
+            return p.handPoints;
+        });
+        const lowest = Math.min(...points);
+        const scores: RoundScore[] = this.players.map((p, i) => {
+            let penalty = 0;
+            // A player who says "Dutch" and doesn't have the lowest score gets a penalty.
+            // On a tie, the player who said "Dutch" has the advantage.
+            if (p.id === this.dutchCallerId && points[i] > lowest) penalty = this.dutchPenalty;
+            const roundTotal = points[i] + penalty;
+            p.roundScores.push(roundTotal);
+            p.score += roundTotal;
+            return {playerId: p.id, points: points[i], penalty, total: p.score};
+        });
+
+        this.addLog(`Fin de la ronde ${this.round} : ` + scores
+            .map(s => `${this.players[s.playerId].name} ${s.points}${s.penalty ? ` (+${s.penalty})` : ''}`)
+            .join(', '), 'score');
+
+        const gameOver = this.players.some(p => p.score >= this.targetScore);
+        let winners: number[] = [];
+        if (gameOver) {
+            const best = Math.min(...this.players.map(p => p.score));
+            winners = this.players.filter(p => p.score === best).map(p => p.id);
+            this.addLog(`Partie terminée ! Victoire de ${winners.map(id => this.players[id].name).join(' et ')} avec ${best} points.`, 'dutch');
+        }
+
+        this.lastResult = {round: this.round, dutchCallerId: this.dutchCallerId, scores, hands, gameOver, winners};
+        this.phase = gameOver ? 'gameOver' : 'roundOver';
+        this.drawn = null;
+        this.effects = [];
+        this.firstPlayerIndex = (this.firstPlayerIndex + 1) % this.players.length;
+        this.changed();
+    }
+
+    public nextRound() {
+        if (this.phase !== 'roundOver') throw new RuleError('La ronde n\'est pas terminée.');
+        this.startRound();
+    }
+    // endregion
+
+    // region Turn actions
+    private assertCurrent(playerId: number) {
+        if (!this.isRoundRunning) throw new RuleError('Aucune ronde en cours.');
+        if (playerId !== this.currentPlayerIndex) {
+            throw new RuleError(`Ce n'est pas le tour de ${this.getPlayer(playerId).name}.`);
+        }
+    }
+
+    private assertNoEffect() {
+        const effect = this.activeEffect;
+        if (effect) {
+            throw new RuleError(`${this.players[effect.playerId].name} doit d'abord résoudre l'effet de: ${effect.card.name}.`);
         }
     }
 
     /**
-     * TODO: Implement the dutch function
-     * @param player
+     *  Draw the top card of the draw pile (pioche)
      */
-    public dutch(player: Player) {
-        const currentPlayer = this.getCurrentPlayer();
-        if (player.id === currentPlayer.id) {
-            this.oneDutch = true;
-            this.nextPlayer();
-            this.play();
+    public drawFromPile(playerId: number): Card {
+        this.assertCurrent(playerId);
+        this.assertNoEffect();
+        if (this.phase !== 'draw') throw new RuleError('Vous avez déjà pioché ce tour-ci.');
+        const reshuffled = this.deck.remaining === 0 && this.deck.discardPile.length > 1;
+        const card = this.deck.draw();
+        if (!card) throw new RuleError('Il n\'y a plus de carte dans la pioche.');
+        if (reshuffled) this.addLog('La pioche est vide : la pile de rejet est mélangée pour refaire la pioche.', 'info');
+        this.drawn = {card, source: 'pile'};
+        this.phase = 'drawn';
+        this.addLog(`${this.currentPlayer.name} pioche une carte.`, 'info');
+        this.changed();
+        return card;
+    }
+
+    /**
+     *  Take the visible card of the discard pile. The player must then swap it with one of his cards.
+     */
+    public takeDiscard(playerId: number): Card {
+        this.assertCurrent(playerId);
+        this.assertNoEffect();
+        if (this.phase !== 'draw') throw new RuleError('Vous avez déjà pioché ce tour-ci.');
+        if (this.currentPlayer.hand.length === 0) {
+            throw new RuleError('Sans carte en main, impossible d\'échanger : piochez plutôt.');
         }
+        const card = this.deck.takeDiscard();
+        if (!card) throw new RuleError('La pile de rejet est vide.');
+        this.drawn = {card, source: 'discard'};
+        this.phase = 'drawn';
+        this.addLog(`${this.currentPlayer.name} prend ${card} de la pile de rejet.`, 'info');
+        this.changed();
+        return card;
     }
 
     /**
-     * End the turn for the current player
-     * @param player
+     *  Swap the drawn card with a card of the hand; the hand card goes to the discard pile
      */
-    public endTurn(player: Player) {
-        const currentPlayer = this.getCurrentPlayer();
-        if (player.id === currentPlayer.id) {
-            currentPlayer.endTurn();
-            this.nextPlayer();
-            this.play();
+    public swapDrawn(playerId: number, handCardId: string) {
+        this.assertCurrent(playerId);
+        if (this.phase !== 'drawn' || !this.drawn) throw new RuleError('Piochez d\'abord une carte.');
+        const player = this.currentPlayer;
+        const newCard = this.drawn.card;
+        const old = player.replaceCard(handCardId, newCard);
+        if (!old) throw new RuleError('Cette carte n\'est pas dans votre main.');
+        this.drawn = null;
+        this.phase = 'played';
+        this.addLog(`${player.name} échange une carte et jette ${old}.`, 'info');
+        this.discardCard(player, old);
+        // The player now knows the card he just placed
+        this.reveal(player, newCard);
+        this.changed();
+    }
+
+    /**
+     *  Throw the card drawn from the draw pile without keeping it
+     */
+    public discardDrawn(playerId: number) {
+        this.assertCurrent(playerId);
+        if (this.phase !== 'drawn' || !this.drawn) throw new RuleError('Piochez d\'abord une carte.');
+        if (this.drawn.source === 'discard') {
+            throw new RuleError('Une carte prise dans la pile de rejet doit être échangée.');
         }
+        const card = this.drawn.card;
+        this.drawn = null;
+        this.phase = 'played';
+        this.addLog(`${this.currentPlayer.name} jette ${card}.`, 'info');
+        this.discardCard(this.currentPlayer, card);
+        this.changed();
     }
 
     /**
-     *  Add a player to the game
-     * @param player
+     *  Any player (not only the current one) throws a card of the same value as the visible discard.
+     *  - Right value: the card goes to the discard pile (and its effect is triggered)
+     *  - Wrong value: the card stays, the player gets a penalty card and can't throw again this turn
+     * @returns true if the card matched
      */
-    public addPlayer(player: Player) {
-        this.players.push(player);
+    public throwCard(playerId: number, cardId: string): boolean {
+        const player = this.getPlayer(playerId);
+        if (!this.isRoundRunning) throw new RuleError('Aucune ronde en cours.');
+        this.assertNoEffect();
+        if (this.phase === 'drawn') {
+            throw new RuleError(`Attendez que ${this.currentPlayer.name} ait joué sa carte.`);
+        }
+        if (player.locked) throw new RuleError(`${player.name} s'est trompé : plus de carte à jeter durant ce tour.`);
+        const card = player.getCard(cardId);
+        if (!card) throw new RuleError('Cette carte n\'est pas dans votre main.');
+        const top = this.deck.topDiscard;
+        if (!top) throw new RuleError('La pile de rejet est vide.');
+
+        if (card.matches(top)) {
+            player.removeCard(cardId);
+            this.addLog(`${player.name} jette ${card} sur ${top} !`, 'good');
+            this.discardCard(player, card);
+            this.changed();
+            return true;
+        }
+
+        player.locked = true;
+        this.reveal(player, card);
+        const penalty = this.deck.draw();
+        if (penalty) {
+            player.addCard(penalty);
+            this.addLog(`${player.name} se trompe (${card} ≠ ${top}) : carte de pénalité.`, 'bad');
+        } else {
+            this.addLog(`${player.name} se trompe (${card} ≠ ${top}), mais il n'y a plus de carte de pénalité.`, 'bad');
+        }
+        this.changed();
+        return false;
     }
 
-
     /**
-     * Allow playing a card for all players
-     * - Check if one player is drawing a card
-     *  - If yes, set onClick to empty function for all players and return
-     *  - If no, set onClick to checkCard for all players
+     *  End the turn of the current player, optionally saying "Dutch"
      */
-    public async allowPlayCard() {
-        //Check if one player is drawing a card
-        console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction)
-        if (this.getCurrentPlayer().currentAction === 'draw') {
-            this.players.forEach(player => {
-                player.onClick = () => { };
-            });
+    public endTurn(playerId: number, callDutch: boolean = false) {
+        this.assertCurrent(playerId);
+        this.assertNoEffect();
+        if (!this.canEndTurn) throw new RuleError('Vous devez jouer (piocher ou prendre le rejet) avant de finir votre tour.');
+        const player = this.currentPlayer;
+
+        if (callDutch) {
+            if (this.dutchCallerId !== null) {
+                throw new RuleError(`${this.players[this.dutchCallerId].name} a déjà dit Dutch.`);
+            }
+            this.dutchCallerId = player.id;
+            this.finalTurnsLeft = this.players.length - 1;
+            this.addLog(`${player.name} dit « Dutch » ! Dernier tour pour les autres joueurs.`, 'dutch');
+        } else if (this.dutchCallerId !== null) {
+            this.finalTurnsLeft--;
+        }
+
+        this.players.forEach(p => p.locked = false);
+
+        if (this.dutchCallerId !== null && this.finalTurnsLeft <= 0) {
+            this.endRound();
             return;
         }
-        //Check if one player is playing a card TODO
-        this.players.forEach(player => {
-            if (player.currentAction === 'play') return;
-        });
-        for (const player of this.players) {
-            // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
-            player.addListenerToHand(async (card: Card) => {
-                await this.checkCard(card, player);
-            });
-        }
+
+        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.phase = 'draw';
+        this.addLog(`${this.isFinalRound ? 'Dernier tour' : 'Au tour'} de ${this.currentPlayer.name}.`, 'info');
+        this.changed();
     }
     // endregion
 
-    // region Private Methods
+    // region Special cards
     /**
-     *  Deal the cards to the players and discard one card from the draw pile
-     * @private
+     *  Put a card on the discard pile and queue its effect if it is a special card
      */
-    private async deal() {
-        for (let player of this.players) {
-
-            player.game = this;
-            let [cards] = await Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
-
-            await player.setHand(cards);
+    private discardCard(player: Player, card: Card) {
+        this.deck.discard(card);
+        let type: EffectType | null = null;
+        switch (card.value) {
+            case 'JACK': type = 'JACK'; break;
+            case 'QUEEN': type = 'QUEEN'; break;
+            case 'ACE': type = 'ACE'; break;
         }
-        await this.deck.discardOneFromDraw();
-    }
-
-    /**
-     *  Render the game
-     *  - Get the game container
-     *  - Render the players
-     *  - Render the deck
-     */
-    private async render() {
-        const gameContainer = document.getElementById('game') ?? document.createElement('div');
-        gameContainer.id = 'game';
-        gameContainer.innerHTML = '';
-        const players = this.players;
-        for (let player of players) {
-            const playerDiv = player.render()
-            gameContainer.appendChild(playerDiv);
+        if (type) {
+            this.effects.push({type, playerId: player.id, card});
+            this.addLog(`${card.name} : ${player.name} gagne un effet.`, 'effect');
         }
-        await this.deck.renderDeck();
     }
 
-
-    /**
-     *  Get the next player to play
-     */
-    private nextPlayer() {
-        this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
+    private assertEffect(playerId: number, type: EffectType): PendingEffect {
+        const effect = this.activeEffect;
+        if (!effect || effect.type !== type) throw new RuleError('Aucun effet de ce type à résoudre.');
+        if (effect.playerId !== playerId) {
+            throw new RuleError(`C'est à ${this.players[effect.playerId].name} de résoudre l'effet.`);
+        }
+        return effect;
     }
 
     /**
-     *  Get the current player
+     *  Valet: exchange two cards on the table, from any players (but not the immune "Dutch" player)
      */
-    private getCurrentPlayer() {
-        return this.players[this.currentPlayer];
-    }
-
-
-    /**
-     *  Play a card for the current player
-     *  - Get the current player
-     *  - Set the current player to play
-     *  - Allow playing a card for all players
-     *  - Allow currentPlayer to draw
-     * @private
-     */
-    private play() {
-        const currentPlayer = this.getCurrentPlayer();
-        currentPlayer.play();
-        this.allowPlayCard().then(() => {
-            console.log('allow play card')
-            this.deck.addDrawEvent(currentPlayer);
-        });
-    }
-    // endregion
-
-    // region Event Handlers
-    /**
-     *  - Show the card
-     *  - Get the discard pile
-     *  - Check if the card correspond to the top card of the discard pile
-     *  - If yes, discard the card and end the turn
-     *  - If no, draw a card and end the turn
-     *  - Allow playing a card again for all players
-     * @param card
-     * @param player
-     */
-    public async checkCard(card: Card, player: Player) {
-        setTimeout(async () => {
-            card.show();
-            const discardPile = await this.deck.getDiscard();
-
-            if (discardPile?.length === 0) return;
-            if (discardPile) {
-                const topCard = discardPile[discardPile.length - 1];
-
-                if (card.value === topCard.value) {
-                    player.discard(card);
-                } else {
-                    const card = await this.deck.drawCard()
-                    player.addCard(card);
-                }
-                await this.allowPlayCard()
+    public jackSwap(playerId: number, cardIdA: string, cardIdB: string) {
+        this.assertEffect(playerId, 'JACK');
+        if (cardIdA === cardIdB) throw new RuleError('Choisissez deux cartes différentes.');
+        const ownerA = this.ownerOf(cardIdA);
+        const ownerB = this.ownerOf(cardIdB);
+        if (!ownerA || !ownerB) throw new RuleError('Carte introuvable.');
+        for (const owner of [ownerA, ownerB]) {
+            if (this.isImmune(owner.id) && owner.id !== playerId) {
+                throw new RuleError(`${owner.name} a dit Dutch : ses cartes sont protégées.`);
             }
-        }, 1000);
-        card.hide();
+        }
+        const indexA = ownerA.hand.findIndex(c => c.id === cardIdA);
+        const indexB = ownerB.hand.findIndex(c => c.id === cardIdB);
+        const cardA = ownerA.hand[indexA];
+        ownerA.hand[indexA] = ownerB.hand[indexB];
+        ownerB.hand[indexB] = cardA;
+        const who = ownerA === ownerB ? `deux cartes de ${ownerA.name}` : `une carte de ${ownerA.name} et une carte de ${ownerB.name}`;
+        this.addLog(`${this.players[playerId].name} (Valet) échange ${who}.`, 'effect');
+        this.effects.shift();
+        this.changed();
+    }
 
+    /**
+     *  Dame: look at one of your cards without penalty
+     * @returns the card
+     */
+    public queenPeek(playerId: number, cardId: string): Card {
+        this.assertEffect(playerId, 'QUEEN');
+        const player = this.getPlayer(playerId);
+        const card = player.getCard(cardId);
+        if (!card) throw new RuleError('Choisissez une de vos cartes.');
+        this.reveal(player, card);
+        this.addLog(`${player.name} (Dame) regarde une de ses cartes.`, 'effect');
+        this.effects.shift();
+        this.changed();
+        return card;
+    }
+
+    /**
+     *  As: give a card from the draw pile to a player
+     */
+    public aceGive(playerId: number, targetId: number) {
+        this.assertEffect(playerId, 'ACE');
+        const target = this.getPlayer(targetId);
+        if (this.isImmune(target.id)) throw new RuleError(`${target.name} a dit Dutch : il est protégé.`);
+        const card = this.deck.draw();
+        if (card) {
+            target.addCard(card);
+            this.addLog(`${this.players[playerId].name} (As) donne une carte de la pioche à ${target.name}.`, 'effect');
+        } else {
+            this.addLog('Plus de carte dans la pioche : l\'As n\'a pas d\'effet.', 'effect');
+        }
+        this.effects.shift();
+        this.changed();
+    }
+
+    /**
+     *  Choose not to use the effect
+     */
+    public skipEffect(playerId: number) {
+        const effect = this.activeEffect;
+        if (!effect) throw new RuleError('Aucun effet à résoudre.');
+        if (effect.playerId !== playerId) {
+            throw new RuleError(`C'est à ${this.players[effect.playerId].name} de résoudre l'effet.`);
+        }
+        this.addLog(`${this.players[playerId].name} n'utilise pas l'effet de ${effect.card.name}.`, 'effect');
+        this.effects.shift();
+        this.changed();
     }
     // endregion
 }
