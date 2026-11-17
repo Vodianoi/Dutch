@@ -187,6 +187,10 @@ button.dutch-button {
     margin: 8px 0 0;
 }
 
+.effect-actions {
+    margin-top: 8px;
+}
+
 .message {
     margin: 8px 0 0;
     padding: 6px 10px;
@@ -283,7 +287,12 @@ button.dutch-button {
     box-shadow: 0 0 0 2px var(--gold), 0 0 24px rgba(255, 209, 102, 0.35);
 }
 
-.player.said-dutch {
+.player.effect-owner {
+    border-color: #c9a7ff;
+    box-shadow: 0 0 0 2px #c9a7ff;
+}
+
+.player.immune {
     background: rgba(102, 51, 153, 0.35);
 }
 
@@ -361,6 +370,14 @@ button.dutch-button {
 .card.clickable:hover, .card.clickable:focus-visible {
     scale: 1.08;
     outline: none;
+}
+
+.card.selected {
+    transform: translateY(-10px);
+}
+
+.card.selected .card-face {
+    box-shadow: 0 0 0 4px var(--gold), 0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
 .card.empty {
@@ -504,6 +521,7 @@ button.dutch-button {
 
 .log li.good { color: var(--ok); }
 .log li.bad { color: #ffb3b3; }
+.log li.effect { color: #d9c2ff; }
 .log li.dutch { color: var(--gold); font-weight: 700; }
 .log li.score { font-weight: 700; }
 /* endregion Side panel */
