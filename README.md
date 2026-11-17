@@ -8,9 +8,26 @@ Nombre de joueur: 2 à 10
 
 Temps approximatif d'une partie: 30 minutes
 
-## Jouer en ligne / en local
+## Jouer
 
-Le jeu tourne entièrement dans le navigateur, sans serveur ni API externe (« hot-seat » : tous les joueurs sur le même écran).
+Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
+
+* **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
+* **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »).
+
+### Comment marche le jeu en ligne
+
+Il n'y a pas de serveur de jeu : la partie tourne dans le navigateur de celui qui l'a créée (l'hôte), qui sert d'arbitre. Les appareils se connectent directement entre eux en WebRTC grâce à [PeerJS](https://peerjs.com) ; le serveur public gratuit de PeerJS sert uniquement à les mettre en relation.
+
+* Chaque joueur ne reçoit que sa propre vue : les cartes face cachée sont envoyées sans leur valeur, la carte piochée n'est visible que par celui qui l'a piochée, et les cartes regardées (Dame, échange, variante) ne sont montrées qu'à leur propriétaire. Une erreur de jet est montrée à tous.
+* L'hôte vérifie toutes les actions : un joueur ne peut jouer que pour lui-même.
+* Un joueur qui recharge la page ou perd la connexion retrouve sa place (même onglet) ; s'il est déconnecté, la partie l'attend.
+* L'hôte doit garder la page ouverte : s'il la ferme, la partie s'arrête pour tout le monde.
+* Certains réseaux très restrictifs (réseaux d'entreprise, certains opérateurs mobiles) peuvent bloquer les connexions WebRTC directes.
+
+Pour tester le mode en ligne sur un seul ordinateur, ajoutez `?transport=local` à l'URL et ouvrez la partie dans plusieurs onglets : les onglets communiquent entre eux sans réseau.
+
+### Développement
 
 ```bash
 npm install      # TypeScript
@@ -19,7 +36,7 @@ npm test         # tests du moteur de jeu (node --test)
 python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 ```
 
-Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes.
+Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes (seulement sur un même écran).
 
 **Comment jouer à l'écran**
 
