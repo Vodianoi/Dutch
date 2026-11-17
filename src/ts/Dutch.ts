@@ -14,6 +14,14 @@ import Player from './Player.js';
  */
 export type Phase = 'peek' | 'draw' | 'drawn' | 'played' | 'roundOver' | 'gameOver';
 
+export type LogKind = 'info' | 'good' | 'bad' | 'dutch' | 'score';
+
+export interface LogEntry {
+    round: number;
+    kind: LogKind;
+    message: string;
+}
+
 export interface DrawnCard {
     card: Card;
     source: 'pile' | 'discard';
@@ -98,6 +106,7 @@ class Dutch {
      */
     public finalTurnsLeft: number = 0;
 
+    public log: LogEntry[] = [];
     public lastResult: RoundResult | null = null;
 
     public readonly deckCount: number;
@@ -198,6 +207,9 @@ class Dutch {
         this.emit({type: 'reveal', cardId: card.id, playerId: player.id});
     }
 
+    private addLog(message: string, kind: LogKind = 'info') {
+        this.log.push({round: this.round, kind, message});
+    }
     // endregion
 
     // region Round lifecycle
@@ -222,7 +234,14 @@ class Dutch {
         this.lastResult = null;
         this.currentPlayerIndex = this.firstPlayerIndex;
 
-        this.phase = this.peekVariant ? 'peek' : 'draw';
+        this.addLog(`— Ronde ${this.round} — ${this.deck.deckCount * 52} cartes, ${this.cardsPerPlayer} cartes chacun.`, 'info');
+        if (this.peekVariant) {
+            this.phase = 'peek';
+            this.addLog('Chaque joueur regarde ses 2 dernières cartes.', 'info');
+        } else {
+            this.phase = 'draw';
+            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
+        }
         this.changed();
     }
 
@@ -237,8 +256,10 @@ class Dutch {
         const cards = player.hand.slice(-2);
         cards.forEach(card => this.reveal(player, card));
         player.ready = true;
+        this.addLog(`${player.name} regarde ses 2 dernières cartes.`, 'info');
         if (this.players.every(p => p.ready)) {
             this.phase = 'draw';
+            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
         }
         this.changed();
         return cards;
@@ -265,12 +286,16 @@ class Dutch {
             return {playerId: p.id, points: points[i], penalty, total: p.score};
         });
 
+        this.addLog(`Fin de la ronde ${this.round} : ` + scores
+            .map(s => `${this.players[s.playerId].name} ${s.points}${s.penalty ? ` (+${s.penalty})` : ''}`)
+            .join(', '), 'score');
 
         const gameOver = this.players.some(p => p.score >= this.targetScore);
         let winners: number[] = [];
         if (gameOver) {
             const best = Math.min(...this.players.map(p => p.score));
             winners = this.players.filter(p => p.score === best).map(p => p.id);
+            this.addLog(`Partie terminée ! Victoire de ${winners.map(id => this.players[id].name).join(' et ')} avec ${best} points.`, 'dutch');
         }
 
         this.lastResult = {round: this.round, dutchCallerId: this.dutchCallerId, scores, hands, gameOver, winners};
@@ -300,10 +325,13 @@ class Dutch {
     public drawFromPile(playerId: number): Card {
         this.assertCurrent(playerId);
         if (this.phase !== 'draw') throw new RuleError('Vous avez déjà pioché ce tour-ci.');
+        const reshuffled = this.deck.remaining === 0 && this.deck.discardPile.length > 1;
         const card = this.deck.draw();
         if (!card) throw new RuleError('Il n\'y a plus de carte dans la pioche.');
+        if (reshuffled) this.addLog('La pioche est vide : la pile de rejet est mélangée pour refaire la pioche.', 'info');
         this.drawn = {card, source: 'pile'};
         this.phase = 'drawn';
+        this.addLog(`${this.currentPlayer.name} pioche une carte.`, 'info');
         this.changed();
         return card;
     }
@@ -321,6 +349,7 @@ class Dutch {
         if (!card) throw new RuleError('La pile de rejet est vide.');
         this.drawn = {card, source: 'discard'};
         this.phase = 'drawn';
+        this.addLog(`${this.currentPlayer.name} prend ${card} de la pile de rejet.`, 'info');
         this.changed();
         return card;
     }
@@ -337,6 +366,7 @@ class Dutch {
         if (!old) throw new RuleError('Cette carte n\'est pas dans votre main.');
         this.drawn = null;
         this.phase = 'played';
+        this.addLog(`${player.name} échange une carte et jette ${old}.`, 'info');
         this.discardCard(old);
         // The player now knows the card he just placed
         this.reveal(player, newCard);
@@ -355,6 +385,7 @@ class Dutch {
         const card = this.drawn.card;
         this.drawn = null;
         this.phase = 'played';
+        this.addLog(`${this.currentPlayer.name} jette ${card}.`, 'info');
         this.discardCard(card);
         this.changed();
     }
@@ -379,6 +410,7 @@ class Dutch {
 
         if (card.matches(top)) {
             player.removeCard(cardId);
+            this.addLog(`${player.name} jette ${card} sur ${top} !`, 'good');
             this.discardCard(card);
             this.changed();
             return true;
@@ -387,7 +419,12 @@ class Dutch {
         player.locked = true;
         this.reveal(player, card);
         const penalty = this.deck.draw();
-        if (penalty) player.addCard(penalty);
+        if (penalty) {
+            player.addCard(penalty);
+            this.addLog(`${player.name} se trompe (${card} ≠ ${top}) : carte de pénalité.`, 'bad');
+        } else {
+            this.addLog(`${player.name} se trompe (${card} ≠ ${top}), mais il n'y a plus de carte de pénalité.`, 'bad');
+        }
         this.changed();
         return false;
     }
@@ -406,6 +443,7 @@ class Dutch {
             }
             this.dutchCallerId = player.id;
             this.finalTurnsLeft = this.players.length - 1;
+            this.addLog(`${player.name} dit « Dutch » ! Dernier tour pour les autres joueurs.`, 'dutch');
         } else if (this.dutchCallerId !== null) {
             this.finalTurnsLeft--;
         }
@@ -419,6 +457,7 @@ class Dutch {
 
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
         this.phase = 'draw';
+        this.addLog(`${this.isFinalRound ? 'Dernier tour' : 'Au tour'} de ${this.currentPlayer.name}.`, 'info');
         this.changed();
     }
     // endregion

@@ -205,6 +205,19 @@ test('peek variant: everyone looks at his 2 last cards before playing', () => {
     assert.equal(revealed.length, 6);
 });
 
+test('the game log records what happens (#6)', () => {
+    const game = newGame();
+    game.deck.discardPile = [c('5', 'HEARTS')];
+    game.players[1].hand = [c('5', 'CLUBS'), c('8')];
+    game.throwCard(1, game.players[1].hand[0].id);
+    game.throwCard(1, game.players[1].hand[0].id);
+    const kinds = game.log.map(e => e.kind);
+    assert.equal(game.log[0].round, 1);
+    assert.ok(kinds.includes('good'));
+    assert.ok(kinds.includes('bad'));
+    assert.match(game.log.at(-1).message, /Hugo se trompe/);
+});
+
 test('random full games always terminate with consistent card count', () => {
     for (let seed = 1; seed <= 30; seed++) {
         const rng = seeded(seed);

@@ -36,7 +36,7 @@ class GameView {
             return;
         const game = this.game;
         clear(this.root);
-        this.root.appendChild(el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(), this.renderCenter(), el('section', { class: 'players' }, ...game.players.map(p => this.renderPlayer(p)))), el('aside', { class: 'side' }, this.renderScores())));
+        this.root.appendChild(el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(), this.renderCenter(), el('section', { class: 'players' }, ...game.players.map(p => this.renderPlayer(p)))), el('aside', { class: 'side' }, this.renderScores(), this.renderLog())));
         if (game.phase === 'roundOver' || game.phase === 'gameOver') {
             this.root.appendChild(this.renderRoundResult());
         }
@@ -202,6 +202,13 @@ class GameView {
         const game = this.game;
         const rounds = Math.max(0, ...game.players.map(p => p.roundScores.length));
         return el('section', { class: 'scores panel' }, el('h3', {}, `Scores (fin à ${game.targetScore})`), el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Joueur'), ...Array.from({ length: rounds }, (_, i) => el('th', {}, `R${i + 1}`)), el('th', {}, 'Total'))), el('tbody', {}, ...game.players.map(p => el('tr', {}, el('td', {}, p.name), ...p.roundScores.map(s => el('td', {}, s)), el('td', { class: 'total' }, p.score))))));
+    }
+    /**
+     *  Game log (issue #6), latest first
+     */
+    renderLog() {
+        const entries = this.game.log.slice(-80).reverse();
+        return el('section', { class: 'log panel' }, el('h3', {}, 'Journal'), el('ol', {}, ...entries.map((entry) => el('li', { class: entry.kind }, entry.message))));
     }
     renderRoundResult() {
         const game = this.game;

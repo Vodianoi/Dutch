@@ -488,6 +488,24 @@ button.dutch-button {
     font-weight: 700;
 }
 
+.log ol {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    font-size: 14px;
+}
+
+.log li {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.log li.good { color: var(--ok); }
+.log li.bad { color: #ffb3b3; }
+.log li.dutch { color: var(--gold); font-weight: 700; }
+.log li.score { font-weight: 700; }
 /* endregion Side panel */
 
 /* region Round result */
