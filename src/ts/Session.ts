@@ -16,6 +16,7 @@ export type SessionEvent =
     | { type: 'state' }
     | { type: 'reveal'; card: CardView }
     | { type: 'notice'; notice: Notice }
+    | { type: 'lobby' }
     | { type: 'closed'; reason: string };
 
 export interface Session {

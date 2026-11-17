@@ -110,6 +110,10 @@ class GameView {
             case 'notice':
                 this.flash(event.notice.text, event.notice.kind);
                 return;
+            case 'closed':
+            case 'lobby':
+                // Handled by the App (connection lost dialog, back to the lobby)
+                return;
         }
         this.render();
     }

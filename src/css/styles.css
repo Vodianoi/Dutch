@@ -560,3 +560,169 @@ button.dutch-button {
     align-self: center;
 }
 /* endregion Round result */
+
+/* region Online */
+.tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    border-radius: 999px;
+    align-self: center;
+}
+
+.tab {
+    background: transparent;
+    color: white;
+    font-size: 16px;
+}
+
+.tab.active {
+    background: white;
+    color: #000;
+}
+
+.setup-online, .setup-local {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 700;
+}
+
+.online-choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 480px) {
+    .online-choices {
+        grid-template-columns: 1fr;
+    }
+}
+
+.choice {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.choice button {
+    margin-top: auto;
+}
+
+.setup input.code-input, #room-code {
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    font-size: 22px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.setup input.invalid {
+    outline: 3px solid var(--danger);
+}
+
+.game-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.game-options select {
+    font-size: 16px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: none;
+}
+
+.lobby {
+    max-width: 560px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.room-code {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.room-code strong {
+    font-size: 48px;
+    letter-spacing: 0.25em;
+    color: var(--gold);
+}
+
+.share {
+    display: flex;
+    gap: 8px;
+}
+
+.share input {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: none;
+}
+
+.lobby-players {
+    margin: 0;
+    padding-left: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 18px;
+}
+
+.lobby-players li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.lobby-players li.offline {
+    opacity: 0.5;
+}
+
+.badge.you {
+    background: white;
+    color: #222;
+}
+
+.player.me {
+    background: rgba(0, 0, 0, 0.32);
+}
+
+.player.me h2 small {
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.player.offline {
+    opacity: 0.6;
+}
+
+.waiting {
+    text-align: center;
+    font-style: italic;
+}
+/* endregion Online */
+
+.overlay.lost {
+    z-index: 20;
+}
