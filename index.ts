@@ -1,24 +1,24 @@
-import Dutch from "./src/ts/Dutch.js";
-import fetchData from "./src/ts/datas.js";
+import Dutch, {DutchOptions} from './src/ts/Dutch.js';
+import GameView from './src/ts/ui/GameView.js';
+import {renderSetup} from './src/ts/ui/SetupView.js';
 
-fetchData.then(async(data) => {
-    let dutch = new Dutch(data.deck.deck_id);
-    data.players.forEach(player => {
-        dutch.addPlayer(player);
-    });
-    await dutch.init();
+const root = document.getElementById('app')!;
+const debug = new URLSearchParams(location.search).has('debug');
 
-    let flip = document.createElement('button');
-    flip.textContent = 'Flip';
-    flip.addEventListener('click', () => {
-        dutch.flipAllCards();
-    });
-    document.body.appendChild(flip);
-});
+let view: GameView | null = null;
 
+function showSetup() {
+    view?.destroy();
+    view = null;
+    renderSetup(root, startGame);
+}
 
+function startGame(options: DutchOptions) {
+    const game = new Dutch(options);
+    view = new GameView(root, game, showSetup, debug);
+    game.startRound();
+    // Handy in the console while developing
+    (window as unknown as { dutch: Dutch }).dutch = game;
+}
 
-
-
-
-
+showSetup();

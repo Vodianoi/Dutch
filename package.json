@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "tsc -w",
-    "test": "tsc --noEmit"
+    "test": "tsc && node --test test/*.test.mjs"
   },
   "repository": {
     "type": "git",
