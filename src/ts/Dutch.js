@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import Deck from "./Deck.js";
 const gameContainer = document.createElement('div');
 gameContainer.id = 'game';
@@ -40,38 +31,34 @@ class Dutch {
      *  - Render the game
      *  - Set the game for all players
      */
-    init() {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.deal();
-            yield this.render();
-            for (let player of this.players) {
-                player.renderAction("ready");
-                player.game = this;
-            }
-        });
+    async init() {
+        await this.deal();
+        await this.render();
+        for (let player of this.players) {
+            player.renderAction("ready");
+            player.game = this;
+        }
     }
     /**
      *  Start the game
      *  Change the action of all players to play
      *  Toggle the last two cards for all players for 2 seconds
      */
-    startGame() {
-        return __awaiter(this, void 0, void 0, function* () {
+    async startGame() {
+        for (let player of this.players) {
+            player.renderAction("play");
+        }
+        setTimeout(() => {
             for (let player of this.players) {
-                player.renderAction("play");
+                player.toggleLastTwoCards(true);
             }
-            setTimeout(() => {
-                for (let player of this.players) {
-                    player.toggleLastTwoCards(true);
-                }
-            }, 2000);
-            for (let player of this.players) {
-                player.toggleLastTwoCards(false);
-            }
-            setTimeout(() => {
-                this.play();
-            }, 3000);
-        });
+        }, 2000);
+        for (let player of this.players) {
+            player.toggleLastTwoCards(false);
+        }
+        setTimeout(() => {
+            this.play();
+        }, 3000);
     }
     /**
      *  Flip all cards for all players
@@ -139,28 +126,26 @@ class Dutch {
      *  - If yes, set onClick to empty function for all players and return
      *  - If no, set onClick to checkCard for all players
      */
-    allowPlayCard() {
-        return __awaiter(this, void 0, void 0, function* () {
-            //Check if one player is drawing a card
-            console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction);
-            if (this.getCurrentPlayer().currentAction === 'draw') {
-                this.players.forEach(player => {
-                    player.onClick = () => { };
-                });
-                return;
-            }
-            //Check if one player is playing a card TODO
+    async allowPlayCard() {
+        //Check if one player is drawing a card
+        console.log("CURRENT ACTION", this.getCurrentPlayer().currentAction);
+        if (this.getCurrentPlayer().currentAction === 'draw') {
             this.players.forEach(player => {
-                if (player.currentAction === 'play')
-                    return;
+                player.onClick = () => { };
             });
-            for (const player of this.players) {
-                // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
-                player.addListenerToHand((card) => __awaiter(this, void 0, void 0, function* () {
-                    yield this.checkCard(card, player);
-                }));
-            }
+            return;
+        }
+        //Check if one player is playing a card TODO
+        this.players.forEach(player => {
+            if (player.currentAction === 'play')
+                return;
         });
+        for (const player of this.players) {
+            // Set listeners for the current player to check if flipped card correspond to the card in the discard pile
+            player.addListenerToHand(async (card) => {
+                await this.checkCard(card, player);
+            });
+        }
     }
     // endregion
     // region Private Methods
@@ -168,15 +153,13 @@ class Dutch {
      *  Deal the cards to the players and discard one card from the draw pile
      * @private
      */
-    deal() {
-        return __awaiter(this, void 0, void 0, function* () {
-            for (let player of this.players) {
-                player.game = this;
-                let [cards] = yield Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
-                yield player.setHand(cards);
-            }
-            yield this.deck.discardOneFromDraw();
-        });
+    async deal() {
+        for (let player of this.players) {
+            player.game = this;
+            let [cards] = await Promise.all([this.deck.draw(this.nbCardsPerPlayer)]);
+            await player.setHand(cards);
+        }
+        await this.deck.discardOneFromDraw();
     }
     /**
      *  Render the game
@@ -184,19 +167,16 @@ class Dutch {
      *  - Render the players
      *  - Render the deck
      */
-    render() {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            const gameContainer = (_a = document.getElementById('game')) !== null && _a !== void 0 ? _a : document.createElement('div');
-            gameContainer.id = 'game';
-            gameContainer.innerHTML = '';
-            const players = this.players;
-            for (let player of players) {
-                const playerDiv = player.render();
-                gameContainer.appendChild(playerDiv);
-            }
-            yield this.deck.renderDeck();
-        });
+    async render() {
+        const gameContainer = document.getElementById('game') ?? document.createElement('div');
+        gameContainer.id = 'game';
+        gameContainer.innerHTML = '';
+        const players = this.players;
+        for (let player of players) {
+            const playerDiv = player.render();
+            gameContainer.appendChild(playerDiv);
+        }
+        await this.deck.renderDeck();
     }
     /**
      *  Get the next player to play
@@ -238,27 +218,25 @@ class Dutch {
      * @param card
      * @param player
      */
-    checkCard(card, player) {
-        return __awaiter(this, void 0, void 0, function* () {
-            setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-                card.show();
-                const discardPile = yield this.deck.getDiscard();
-                if ((discardPile === null || discardPile === void 0 ? void 0 : discardPile.length) === 0)
-                    return;
-                if (discardPile) {
-                    const topCard = discardPile[discardPile.length - 1];
-                    if (card.value === topCard.value) {
-                        player.discard(card);
-                    }
-                    else {
-                        const card = yield this.deck.drawCard();
-                        player.addCard(card);
-                    }
-                    yield this.allowPlayCard();
+    async checkCard(card, player) {
+        setTimeout(async () => {
+            card.show();
+            const discardPile = await this.deck.getDiscard();
+            if (discardPile?.length === 0)
+                return;
+            if (discardPile) {
+                const topCard = discardPile[discardPile.length - 1];
+                if (card.value === topCard.value) {
+                    player.discard(card);
                 }
-            }), 1000);
-            card.hide();
-        });
+                else {
+                    const card = await this.deck.drawCard();
+                    player.addCard(card);
+                }
+                await this.allowPlayCard();
+            }
+        }, 1000);
+        card.hide();
     }
 }
 export default Dutch;

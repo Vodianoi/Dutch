@@ -1,12 +1,3 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 import Deck from "./Deck.js";
 import Player from "./Player.js";
 let data = fetchDeck().then((data) => {
@@ -20,10 +11,8 @@ let data = fetchDeck().then((data) => {
         players: [player1, player2, player3, player4]
     };
 });
-function fetchDeck() {
-    return __awaiter(this, void 0, void 0, function* () {
-        const response = yield fetch("https://www.deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1");
-        return yield response.json();
-    });
+async function fetchDeck() {
+    const response = await fetch("https://www.deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1");
+    return await response.json();
 }
 export default data;
