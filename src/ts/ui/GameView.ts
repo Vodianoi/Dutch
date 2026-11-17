@@ -1,5 +1,5 @@
 import Card from '../Card.js';
-import Dutch, {GameEvent, RuleError} from '../Dutch.js';
+import Dutch, {GameEvent, LogEntry, RuleError} from '../Dutch.js';
 import Player from '../Player.js';
 import {renderCard} from './CardView.js';
 import {clear, el} from './dom.js';
@@ -58,7 +58,8 @@ class GameView {
                 this.renderCenter(),
                 el('section', {class: 'players'}, ...game.players.map(p => this.renderPlayer(p)))),
             el('aside', {class: 'side'},
-                this.renderScores())));
+                this.renderScores(),
+                this.renderLog())));
 
         if (game.phase === 'roundOver' || game.phase === 'gameOver') {
             this.root.appendChild(this.renderRoundResult());
@@ -268,6 +269,16 @@ class GameView {
                     el('td', {}, p.name),
                     ...p.roundScores.map(s => el('td', {}, s)),
                     el('td', {class: 'total'}, p.score))))));
+    }
+
+    /**
+     *  Game log (issue #6), latest first
+     */
+    private renderLog(): HTMLElement {
+        const entries = this.game.log.slice(-80).reverse();
+        return el('section', {class: 'log panel'},
+            el('h3', {}, 'Journal'),
+            el('ol', {}, ...entries.map((entry: LogEntry) => el('li', {class: entry.kind}, entry.message))));
     }
 
     private renderRoundResult(): HTMLElement {
