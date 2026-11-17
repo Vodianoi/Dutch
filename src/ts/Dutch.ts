@@ -60,11 +60,12 @@ export interface RoundResult {
 /**
  *  Events emitted to the UI
  *  - change: the state changed, re-render
- *  - reveal: show a face down card for a short time (the owner gets to know it)
+ *  - reveal: show a face down card for a short time. Private reveals are only for the
+ *    player `playerId` (he gets to know his card), public ones are seen by everybody
  */
 export type GameEvent =
     | { type: 'change' }
-    | { type: 'reveal'; cardId: string; playerId: number };
+    | { type: 'reveal'; cardId: string; playerId: number; public: boolean };
 
 export interface DutchOptions {
     players: string[];
@@ -245,8 +246,8 @@ class Dutch {
         this.emit({type: 'change'});
     }
 
-    private reveal(player: Player, card: Card) {
-        this.emit({type: 'reveal', cardId: card.id, playerId: player.id});
+    private reveal(player: Player, card: Card, isPublic = false) {
+        this.emit({type: 'reveal', cardId: card.id, playerId: player.id, public: isPublic});
     }
 
     private addLog(message: string, kind: LogKind = 'info') {
@@ -471,7 +472,8 @@ class Dutch {
         }
 
         player.locked = true;
-        this.reveal(player, card);
+        // A wrong card is shown to everybody before going back in the hand
+        this.reveal(player, card, true);
         const penalty = this.deck.draw();
         if (penalty) {
             player.addCard(penalty);

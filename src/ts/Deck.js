@@ -24,15 +24,18 @@ class Deck {
         this.discardPile = [];
         this.deckCount = deckCount;
         this.rng = rng;
+        const faces = [];
         for (let d = 0; d < deckCount; d++) {
             for (const suit of SUITS) {
-                for (const value of VALUES) {
-                    const card = new Card('', value, suit);
-                    this.drawPile.push(new Card(`${card.code}-${d}`, value, suit));
-                }
+                for (const value of VALUES)
+                    faces.push([value, suit]);
             }
         }
-        this.shuffle(this.drawPile);
+        this.shuffle(faces);
+        // Ids are given after shuffling so that an id never tells which card it is:
+        // in online games, face down cards are sent to the other players with their id only.
+        const prefix = Math.floor(this.rng() * 36 ** 4).toString(36);
+        this.drawPile = faces.map(([value, suit], i) => new Card(`${prefix}-${i}`, value, suit));
     }
     // endregion
     // region Public Methods

@@ -126,7 +126,7 @@ test('Queen effect: look at one of your cards, blocks the turn until resolved', 
     assert.throws(() => game.queenPeek(1, game.players[1].hand[0].id), RuleError);
     const target = game.players[0].hand[1];
     game.queenPeek(0, target.id);
-    assert.deepEqual(events.at(-1), {type: 'reveal', cardId: target.id, playerId: 0});
+    assert.deepEqual(events.at(-1), {type: 'reveal', cardId: target.id, playerId: 0, public: false});
     game.endTurn(0);
 });
 

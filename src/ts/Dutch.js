@@ -137,8 +137,8 @@ class Dutch {
     changed() {
         this.emit({ type: 'change' });
     }
-    reveal(player, card) {
-        this.emit({ type: 'reveal', cardId: card.id, playerId: player.id });
+    reveal(player, card, isPublic = false) {
+        this.emit({ type: 'reveal', cardId: card.id, playerId: player.id, public: isPublic });
     }
     addLog(message, kind = 'info') {
         this.log.push({ round: this.round, kind, message });
@@ -364,7 +364,8 @@ class Dutch {
             return true;
         }
         player.locked = true;
-        this.reveal(player, card);
+        // A wrong card is shown to everybody before going back in the hand
+        this.reveal(player, card, true);
         const penalty = this.deck.draw();
         if (penalty) {
             player.addCard(penalty);
