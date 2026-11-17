@@ -8,6 +8,7 @@ export interface CardViewOptions {
     revealElapsed?: number;
     /** Total duration of a reveal animation in ms */
     revealDuration?: number;
+    selected?: boolean;
     clickable?: boolean;
     disabled?: boolean;
     small?: boolean;
@@ -25,6 +26,7 @@ export function renderCard(card: Card | null, options: CardViewOptions = {}): HT
     if (card?.isRed) classes.push('red');
     if (options.faceUp) classes.push('face-up');
     if (options.revealElapsed !== undefined) classes.push('revealing');
+    if (options.selected) classes.push('selected');
     if (options.clickable) classes.push('clickable');
     if (options.disabled) classes.push('disabled');
     if (options.small) classes.push('small');

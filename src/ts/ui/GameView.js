@@ -14,6 +14,8 @@ class GameView {
     constructor(root, game, onNewGame, debug = false) {
         /** card id -> time the reveal started */
         this.revealed = new Map();
+        /** First card selected for a Valet exchange */
+        this.selectedCardId = null;
         this.message = null;
         this.showAll = false;
         this.destroyed = false;
@@ -35,6 +37,8 @@ class GameView {
         if (this.destroyed)
             return;
         const game = this.game;
+        if (!game.activeEffect || game.activeEffect.type !== 'JACK')
+            this.selectedCardId = null;
         clear(this.root);
         this.root.appendChild(el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(), this.renderCenter(), el('section', { class: 'players' }, ...game.players.map(p => this.renderPlayer(p)))), el('aside', { class: 'side' }, this.renderScores(), this.renderLog())));
         if (game.phase === 'roundOver' || game.phase === 'gameOver') {
@@ -80,13 +84,42 @@ class GameView {
     }
     /**
      *  Click on a card of a hand: depends on the phase
+     *  - Effect to resolve: Valet selection / Dame peek
      *  - Current player holding a drawn card: swap
      *  - Otherwise: try to throw the card on the discard pile
      */
     onHandCardClick(player, card) {
         const game = this.game;
+        const effect = game.activeEffect;
         if (game.phase === 'peek') {
             this.flash('Attendez que tout le monde ait regardé ses cartes.', 'error');
+            return;
+        }
+        if (effect) {
+            if (effect.type === 'QUEEN') {
+                this.act(() => game.queenPeek(effect.playerId, card.id));
+            }
+            else if (effect.type === 'JACK') {
+                if (game.isImmune(player.id) && player.id !== effect.playerId) {
+                    this.flash(`${player.name} a dit Dutch : ses cartes sont protégées.`, 'error');
+                }
+                else if (this.selectedCardId === null) {
+                    this.selectedCardId = card.id;
+                    this.render();
+                }
+                else if (this.selectedCardId === card.id) {
+                    this.selectedCardId = null;
+                    this.render();
+                }
+                else {
+                    const first = this.selectedCardId;
+                    this.selectedCardId = null;
+                    this.act(() => game.jackSwap(effect.playerId, first, card.id));
+                }
+            }
+            else {
+                this.flash(`${game.players[effect.playerId].name} doit choisir à qui donner une carte.`, 'error');
+            }
             return;
         }
         if (game.phase === 'drawn' && player.id === game.currentPlayerIndex) {
@@ -107,8 +140,22 @@ class GameView {
     instruction() {
         const game = this.game;
         const current = game.currentPlayer;
+        const effect = game.activeEffect;
         if (game.phase === 'peek')
             return 'Chaque joueur clique sur « Regarder mes 2 cartes » pendant que les autres détournent les yeux.';
+        if (effect) {
+            const who = game.players[effect.playerId].name;
+            switch (effect.type) {
+                case 'JACK':
+                    return this.selectedCardId
+                        ? `${who} (Valet) : choisissez la deuxième carte à échanger.`
+                        : `${who} (Valet) : choisissez deux cartes sur la table à échanger, ou passez.`;
+                case 'QUEEN':
+                    return `${who} (Dame) : cliquez sur une de vos cartes pour la regarder.`;
+                case 'ACE':
+                    return `${who} (As) : choisissez le joueur qui reçoit une carte de la pioche.`;
+            }
+        }
         switch (game.phase) {
             case 'draw':
                 if (game.isStuck)
@@ -126,15 +173,16 @@ class GameView {
     }
     renderStatus() {
         const game = this.game;
+        const effect = game.activeEffect;
         return el('section', { class: 'status panel' }, el('div', { class: 'status-line' }, el('span', { class: 'round' }, `Ronde ${game.round}`), game.isFinalRound ? el('span', { class: 'badge dutch' }, `Dernier tour (${game.players[game.dutchCallerId].name} a dit Dutch)`) : null, this.debug ? el('label', { class: 'debug' }, el('input', { type: 'checkbox', checked: this.showAll, onchange: (e) => {
                 this.showAll = e.target.checked;
                 this.render();
-            } }), ' Tout voir (debug)') : null), el('p', { class: 'instruction', 'aria-live': 'polite' }, this.instruction()), this.message ? el('p', { class: `message ${this.message.kind}`, role: 'alert' }, this.message.text) : null);
+            } }), ' Tout voir (debug)') : null), el('p', { class: 'instruction', 'aria-live': 'polite' }, this.instruction()), effect ? el('div', { class: 'effect-actions' }, el('button', { class: 'secondary', onclick: () => this.act(() => game.skipEffect(effect.playerId)) }, `Ne pas utiliser l'effet (${effect.card.name})`)) : null, this.message ? el('p', { class: `message ${this.message.kind}`, role: 'alert' }, this.message.text) : null);
     }
     renderCenter() {
         const game = this.game;
         const current = game.currentPlayer;
-        const canDraw = game.phase === 'draw';
+        const canDraw = game.phase === 'draw' && !game.activeEffect;
         const top = game.deck.topDiscard;
         const drawPile = el('div', { class: 'pile' }, renderCard(null, {
             clickable: canDraw && game.deck.remaining > 0,
@@ -158,20 +206,26 @@ class GameView {
     renderPlayer(player) {
         const game = this.game;
         const isCurrent = game.isRoundRunning && player.id === game.currentPlayerIndex;
-        const saidDutch = game.dutchCallerId === player.id;
+        const effect = game.activeEffect;
+        const immune = game.isImmune(player.id);
         const classes = ['player', 'panel'];
         if (isCurrent)
             classes.push('current');
-        if (saidDutch)
-            classes.push('said-dutch');
-        const handClickable = game.isRoundRunning
-            && ((game.phase === 'drawn' && isCurrent) || game.canThrow(player.id));
+        if (immune)
+            classes.push('immune');
+        if (effect?.playerId === player.id)
+            classes.push('effect-owner');
+        const handClickable = game.isRoundRunning && ((effect?.type === 'QUEEN' && effect.playerId === player.id)
+            || (effect?.type === 'JACK' && (!immune || effect.playerId === player.id))
+            || (!effect && game.phase === 'drawn' && isCurrent)
+            || (!effect && game.canThrow(player.id)));
         const hand = el('div', { class: 'hand' }, ...player.hand.map(card => {
             const start = this.revealed.get(card.id);
             return renderCard(card, {
                 faceUp: this.showAll,
                 revealElapsed: start !== undefined && !this.showAll ? Math.min(performance.now() - start, REVEAL_MS) : undefined,
                 revealDuration: REVEAL_MS,
+                selected: this.selectedCardId === card.id,
                 clickable: handClickable,
                 onClick: () => this.onHandCardClick(player, card),
             });
@@ -182,7 +236,7 @@ class GameView {
         if (game.phase === 'peek' && !player.ready) {
             actions.appendChild(el('button', { onclick: () => this.act(() => game.peek(player.id)) }, 'Regarder mes 2 cartes'));
         }
-        if (isCurrent) {
+        if (isCurrent && !effect) {
             actions.appendChild(el('button', {
                 class: 'end-turn',
                 disabled: !game.canEndTurn,
@@ -196,7 +250,13 @@ class GameView {
                 }, 'Dutch !'));
             }
         }
-        return el('div', { class: classes.join(' '), id: `player-${player.id}` }, el('header', {}, el('h2', {}, player.name), el('span', { class: 'score' }, `${player.score} pts`), isCurrent ? el('span', { class: 'badge turn' }, 'À son tour') : null, saidDutch ? el('span', { class: 'badge dutch' }, 'A dit Dutch') : null, player.locked ? el('span', { class: 'badge locked' }, 'Bloqué ce tour') : null, game.phase === 'peek' && player.ready ? el('span', { class: 'badge turn' }, 'Prêt') : null), hand, actions);
+        if (effect?.type === 'ACE' && !immune) {
+            actions.appendChild(el('button', {
+                class: 'give',
+                onclick: () => this.act(() => game.aceGive(effect.playerId, player.id)),
+            }, 'Donner une carte'));
+        }
+        return el('div', { class: classes.join(' '), id: `player-${player.id}` }, el('header', {}, el('h2', {}, player.name), el('span', { class: 'score' }, `${player.score} pts`), isCurrent ? el('span', { class: 'badge turn' }, 'À son tour') : null, immune ? el('span', { class: 'badge dutch' }, 'Dutch · protégé') : null, player.locked ? el('span', { class: 'badge locked' }, 'Bloqué ce tour') : null, game.phase === 'peek' && player.ready ? el('span', { class: 'badge turn' }, 'Prêt') : null), hand, actions);
     }
     renderScores() {
         const game = this.game;

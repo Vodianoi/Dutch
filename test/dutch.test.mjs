@@ -66,6 +66,7 @@ test('cannot end turn without playing (#4) and only the current player acts', ()
     assert.throws(() => game.drawFromPile(0), RuleError);
     assert.throws(() => game.endTurn(0), RuleError);
     game.discardDrawn(0);
+    game.effects = []; // ignore a possible special card for this test
     game.endTurn(0);
     assert.equal(game.currentPlayerIndex, 1);
 });
@@ -100,6 +101,7 @@ test('throwing a matching card works for any player, a wrong one gives a penalty
     // lock is lifted at the end of the turn
     game.drawFromPile(0);
     game.discardDrawn(0);
+    game.effects = [];
     game.endTurn(0);
     assert.equal(game.players[2].locked, false);
 });
@@ -112,24 +114,81 @@ test('no throw while the current player holds a drawn card', () => {
     assert.throws(() => game.throwCard(1, game.players[1].hand[0].id), RuleError);
 });
 
-test('Dutch: last turn for the others, then scoring', () => {
+test('Queen effect: look at one of your cards, blocks the turn until resolved', () => {
     const game = newGame();
-    game.players[0].hand = [c('KING', 'HEARTS'), c('2')];
+    const events = [];
+    game.on(e => e.type === 'reveal' && events.push(e));
+    game.deck.drawPile.push(c('QUEEN', 'HEARTS'));
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    assert.equal(game.activeEffect.type, 'QUEEN');
+    assert.throws(() => game.endTurn(0), RuleError);
+    assert.throws(() => game.queenPeek(1, game.players[1].hand[0].id), RuleError);
+    const target = game.players[0].hand[1];
+    game.queenPeek(0, target.id);
+    assert.deepEqual(events.at(-1), {type: 'reveal', cardId: target.id, playerId: 0});
+    game.endTurn(0);
+});
+
+test('Jack effect swaps two cards between players', () => {
+    const game = newGame();
+    game.deck.drawPile.push(c('JACK', 'CLUBS'));
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    const a = game.players[1].hand[0];
+    const b = game.players[2].hand[3];
+    game.jackSwap(0, a.id, b.id);
+    assert.equal(game.players[1].hand[0], b);
+    assert.equal(game.players[2].hand[3], a);
+    assert.equal(game.effects.length, 0);
+});
+
+test('Ace effect gives a card of the draw pile to a player', () => {
+    const game = newGame();
+    game.deck.drawPile.push(c('7'), c('ACE', 'CLUBS'));
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    game.aceGive(0, 2);
+    assert.equal(game.players[2].hand.length, 5);
+    assert.equal(game.players[2].hand[4].value, '7');
+});
+
+test('effects are resolved in the order the cards were played', () => {
+    const game = newGame();
+    game.deck.drawPile.push(c('ACE', 'HEARTS'));
+    game.players[1].hand[0] = c('ACE', 'SPADES');
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    game.skipEffect(0);
+    game.throwCard(1, game.players[1].hand[0].id);
+    assert.equal(game.activeEffect.playerId, 1);
+    game.skipEffect(1);
+    assert.equal(game.effects.length, 0);
+});
+
+test('Dutch: last turn for the others, immunity, then scoring', () => {
+    const game = newGame();
+    game.players[0].hand = [c('KING', 'HEARTS'), c('ACE')];          // 1 point
     game.players[1].hand = [c('KING', 'SPADES'), c('9')];            // 22
     game.players[2].hand = [c('2'), c('3')];                         // 5
     game.deck.drawPile.push(c('KING', 'DIAMONDS'));
     game.drawFromPile(0);
-    game.swapDrawn(0, game.players[0].hand[1].id);                   // two red kings: 0
+    game.swapDrawn(0, game.players[0].hand[1].id); // ace -> discard: effect
+    game.skipEffect(0);
     game.endTurn(0, true);
     assert.equal(game.dutchCallerId, 0);
     assert.ok(game.isFinalRound);
 
-    game.deck.drawPile.push(c('8'));
+    // Hugo: draws a jack and tries to swap with Eddy -> refused (immunity)
+    game.deck.drawPile.push(c('JACK', 'HEARTS'));
     game.drawFromPile(1);
     game.discardDrawn(1);
+    assert.throws(() => game.jackSwap(1, game.players[0].hand[0].id, game.players[1].hand[0].id), RuleError);
+    game.skipEffect(1);
     assert.throws(() => game.endTurn(1, true), RuleError); // Dutch already called
     game.endTurn(1);
 
+    // Axel plays his last turn
     game.deck.drawPile.push(c('4'));
     game.drawFromPile(2);
     game.discardDrawn(2);
@@ -228,6 +287,16 @@ test('random full games always terminate with consistent card count', () => {
         let guard = 0;
         while (game.phase !== 'gameOver' && guard++ < 100000) {
             if (game.phase === 'roundOver') { game.nextRound(); continue; }
+            const effect = game.activeEffect;
+            if (effect) {
+                const me = game.players[effect.playerId];
+                const others = game.players.filter(p => !game.isImmune(p.id) && p.hand.length);
+                if (effect.type === 'QUEEN' && me.hand.length) game.queenPeek(me.id, me.hand[0].id);
+                else if (effect.type === 'ACE' && others.length) game.aceGive(me.id, others[Math.floor(rng() * others.length)].id);
+                else if (effect.type === 'JACK' && others.length >= 2) game.jackSwap(me.id, others[0].hand[0].id, others[1].hand[0].id);
+                else game.skipEffect(me.id);
+                continue;
+            }
             // random throw attempts
             const thrower = game.players[Math.floor(rng() * n)];
             if (rng() < 0.3 && game.canThrow(thrower.id) && thrower.hand.length) {
@@ -243,7 +312,7 @@ test('random full games always terminate with consistent card count', () => {
             } else if (game.phase === 'drawn') {
                 if (game.drawn.source === 'discard' || (p.hand.length && rng() < 0.6)) game.swapDrawn(p.id, p.hand[Math.floor(rng() * p.hand.length)].id);
                 else game.discardDrawn(p.id);
-            } else if (game.phase === 'played') {
+            } else if (game.phase === 'played' && !game.activeEffect) {
                 game.endTurn(p.id, game.dutchCallerId === null && (p.handPoints < 12 || guard % 500 === 0));
             }
             if (game.isRoundRunning) {

@@ -12,6 +12,8 @@ export function renderCard(card, options = {}) {
         classes.push('face-up');
     if (options.revealElapsed !== undefined)
         classes.push('revealing');
+    if (options.selected)
+        classes.push('selected');
     if (options.clickable)
         classes.push('clickable');
     if (options.disabled)
