@@ -1,4 +1,4 @@
-import Card, {SUITS, VALUES} from './Card.js';
+import Card, {Suit, SUITS, Value, VALUES} from './Card.js';
 
 /**
  *  Random number generator returning a float in [0, 1)
@@ -42,15 +42,17 @@ class Deck {
     constructor(deckCount: number = 1, rng: Rng = Math.random) {
         this.deckCount = deckCount;
         this.rng = rng;
+        const faces: [Value, Suit][] = [];
         for (let d = 0; d < deckCount; d++) {
             for (const suit of SUITS) {
-                for (const value of VALUES) {
-                    const card = new Card('', value, suit);
-                    this.drawPile.push(new Card(`${card.code}-${d}`, value, suit));
-                }
+                for (const value of VALUES) faces.push([value, suit]);
             }
         }
-        this.shuffle(this.drawPile);
+        this.shuffle(faces);
+        // Ids are given after shuffling so that an id never tells which card it is:
+        // in online games, face down cards are sent to the other players with their id only.
+        const prefix = Math.floor(this.rng() * 36 ** 4).toString(36);
+        this.drawPile = faces.map(([value, suit], i) => new Card(`${prefix}-${i}`, value, suit));
     }
     // endregion
 
@@ -128,7 +130,7 @@ class Deck {
      * @param cards
      * @private
      */
-    private shuffle(cards: Card[]) {
+    private shuffle<T>(cards: T[]) {
         for (let i = cards.length - 1; i > 0; i--) {
             const j = Math.floor(this.rng() * (i + 1));
             [cards[i], cards[j]] = [cards[j], cards[i]];
