@@ -8,6 +8,29 @@ Nombre de joueur: 2 à 10
 
 Temps approximatif d'une partie: 30 minutes
 
+## Jouer en ligne / en local
+
+Le jeu tourne entièrement dans le navigateur, sans serveur ni API externe (« hot-seat » : tous les joueurs sur le même écran).
+
+```bash
+npm install      # TypeScript
+npm run build    # compile les fichiers .ts en .js (les .js sont versionnés pour GitHub Pages)
+npm test         # tests du moteur de jeu (node --test)
+python3 -m http.server 8000   # puis ouvrir http://localhost:8000
+```
+
+Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes.
+
+**Comment jouer à l'écran**
+
+* Le joueur dont c'est le tour clique sur la pioche ou sur la pile de rejet, puis sur la carte de sa main à remplacer (ou sur « Jeter » pour défausser la carte piochée).
+* À tout moment, n'importe quel joueur peut cliquer sur une de ses cartes pour la jeter si elle a la même valeur que la carte visible du rejet. En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
+* Le tour se termine avec « Fin du tour » ou « Dutch ! », seulement après avoir joué et résolu les effets.
+* Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
+* Quand la pioche est vide, la pile de rejet (sauf la carte visible) est mélangée pour refaire la pioche.
+* Variante optionnelle au lancement : chacun regarde ses 2 dernières cartes en début de ronde.
+
 ## But du jeu
 
 Le but du jeu est d'avoir le moins de point possible dans sa main. Chaque carte que l'on détient vaut le nombre de point égale à sa valeur (As = 1, Valet = 11, etc.). Les points sont comptabilisé à chaque ronde. Lorsqu'un joueur atteint 100 points, la partie est terminée et le joueur avec le moins de point gagne.
