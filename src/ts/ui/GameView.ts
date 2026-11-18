@@ -570,8 +570,14 @@ class GameView {
             || (!effect && mine && state.phase === 'drawn' && isCurrent)
             || (!effect && mine && player.canThrow));
 
-        const hand = el('div', {class: 'hand'},
-            ...player.hand.map((view, i) => {
+        // Cards in a square of 2 rows (4 cards: 2 x 2), each card keeps its place:
+        // a card that leaves the hand leaves an empty place, so players remember their cards by position
+        const columns = Math.max(1, Math.ceil(state.settings.cardsPerPlayer / 2));
+        const owner = isViewer ? 'de vous' : de(player.name);
+        const empty = player.hand.every(view => view === null);
+        const hand = el('div', {class: 'hand', style: {gridTemplateColumns: `repeat(${columns}, var(--card-w))`}},
+            ...(empty ? [] : player.hand.map((view, i) => {
+                if (!view) return el('div', {class: 'card slot', role: 'img', 'aria-label': `place ${i + 1} ${owner} : vide`});
                 const reveal = this.revealed.get(view.id);
                 const known = toCard(view);
                 const revealCard = reveal ? toCard(reveal.card) : null;
@@ -584,13 +590,13 @@ class GameView {
                     revealDuration: REVEAL_MS,
                     selected: effect?.type === 'JACK' && handClickable ? selected : undefined,
                     clickable: handClickable,
-                    label: [this.handCardAction(state, player, handClickable, selected), `carte ${i + 1} ${isViewer ? 'de vous' : de(player.name)}`].filter(Boolean).join(' : '),
+                    label: [this.handCardAction(state, player, handClickable, selected), `carte ${i + 1} ${owner}`].filter(Boolean).join(' : '),
                     tag: selected ? 'Choisie' : mark.tag,
                     highlight: selected ? {tone: 'effect', elapsed: 0} : mark.highlight,
                     onClick: () => this.onHandCardClick(state, player, view),
                 });
-            }));
-        if (player.hand.length === 0) hand.appendChild(el('span', {class: 'empty-hand'}, 'Plus de carte !'));
+            })));
+        if (empty) hand.appendChild(el('span', {class: 'empty-hand'}, 'Plus de carte !'));
 
         const actions = el('div', {class: 'actions'});
         if (state.phase === 'peek' && !player.ready && mine) {

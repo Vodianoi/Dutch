@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import Dutch, {RuleError} from '../src/ts/Dutch.js';
 import Deck from '../src/ts/Deck.js';
 import Card from '../src/ts/Card.js';
+import {buildView} from '../src/ts/View.js';
 
 function seeded(seed = 42) {
     return () => {
@@ -90,7 +91,10 @@ test('throwing a matching card works for any player, a wrong one gives a penalty
     game.players[2].hand = [c('8'), c('3'), c('4'), c('6')];
 
     assert.equal(game.throwCard(1, game.players[1].hand[0].id), true);
-    assert.equal(game.players[1].hand.length, 3);
+    // the thrown card leaves its place empty: the other cards don't move
+    assert.equal(game.players[1].hand.length, 4);
+    assert.equal(game.players[1].hand[0], null);
+    assert.equal(game.players[1].cards.length, 3);
     assert.equal(game.deck.topDiscard.value, '5');
 
     assert.equal(game.throwCard(2, game.players[2].hand[0].id), false);
@@ -268,8 +272,8 @@ test('the game log records what happens (#6)', () => {
     const game = newGame();
     game.deck.discardPile = [c('5', 'HEARTS')];
     game.players[1].hand = [c('5', 'CLUBS'), c('8')];
-    game.throwCard(1, game.players[1].hand[0].id);
-    game.throwCard(1, game.players[1].hand[0].id);
+    game.throwCard(1, game.players[1].cards[0].id);
+    game.throwCard(1, game.players[1].cards[0].id);
     const kinds = game.log.map(e => e.kind);
     assert.equal(game.log[0].round, 1);
     assert.ok(kinds.includes('good'));
@@ -290,33 +294,33 @@ test('random full games always terminate with consistent card count', () => {
             const effect = game.activeEffect;
             if (effect) {
                 const me = game.players[effect.playerId];
-                const others = game.players.filter(p => !game.isImmune(p.id) && p.hand.length);
-                if (effect.type === 'QUEEN' && me.hand.length) game.queenPeek(me.id, me.hand[0].id);
+                const others = game.players.filter(p => !game.isImmune(p.id) && p.cards.length);
+                if (effect.type === 'QUEEN' && me.cards.length) game.queenPeek(me.id, me.cards[0].id);
                 else if (effect.type === 'ACE' && others.length) game.aceGive(me.id, others[Math.floor(rng() * others.length)].id);
-                else if (effect.type === 'JACK' && others.length >= 2) game.jackSwap(me.id, others[0].hand[0].id, others[1].hand[0].id);
+                else if (effect.type === 'JACK' && others.length >= 2) game.jackSwap(me.id, others[0].cards[0].id, others[1].cards[0].id);
                 else game.skipEffect(me.id);
                 continue;
             }
             // random throw attempts
             const thrower = game.players[Math.floor(rng() * n)];
-            if (rng() < 0.3 && game.canThrow(thrower.id) && thrower.hand.length) {
-                game.throwCard(thrower.id, thrower.hand[Math.floor(rng() * thrower.hand.length)].id);
+            if (rng() < 0.3 && game.canThrow(thrower.id) && thrower.cards.length) {
+                game.throwCard(thrower.id, thrower.cards[Math.floor(rng() * thrower.cards.length)].id);
                 continue;
             }
             const p = game.currentPlayer;
             if (game.phase === 'draw') {
                 if (game.isStuck) { game.endTurn(p.id); continue; }
                 const mustTake = game.deck.remaining === 0 && game.deck.discardPile.length <= 1;
-                if ((mustTake || rng() < 0.4) && p.hand.length && game.deck.topDiscard) game.takeDiscard(p.id);
+                if ((mustTake || rng() < 0.4) && p.cards.length && game.deck.topDiscard) game.takeDiscard(p.id);
                 else game.drawFromPile(p.id);
             } else if (game.phase === 'drawn') {
-                if (game.drawn.source === 'discard' || (p.hand.length && rng() < 0.6)) game.swapDrawn(p.id, p.hand[Math.floor(rng() * p.hand.length)].id);
+                if (game.drawn.source === 'discard' || (p.cards.length && rng() < 0.6)) game.swapDrawn(p.id, p.cards[Math.floor(rng() * p.cards.length)].id);
                 else game.discardDrawn(p.id);
             } else if (game.phase === 'played' && !game.activeEffect) {
                 game.endTurn(p.id, game.dutchCallerId === null && (p.handPoints < 12 || guard % 500 === 0));
             }
             if (game.isRoundRunning) {
-                const inPlay = game.players.reduce((s, pl) => s + pl.hand.length, 0)
+                const inPlay = game.players.reduce((s, pl) => s + pl.cards.length, 0)
                     + game.deck.remaining + game.deck.discardPile.length + (game.drawn ? 1 : 0);
                 assert.equal(inPlay, total, `cards lost or duplicated (seed ${seed})`);
             }
@@ -346,4 +350,26 @@ test('a game saved as JSON is restored exactly and can go on', () => {
     game.discardDrawn(1);
     assert.deepEqual(copy.snapshot().discardPile, game.snapshot().discardPile);
     assert.equal(copy.lastMove.seq, game.lastMove.seq);
+});
+
+test('cards keep their place: a thrown card leaves a hole, a new card fills the first hole', () => {
+    const game = newGame();
+    game.deck.discardPile = [c('5', 'HEARTS')];
+    const [a, b, d, e] = [c('5', 'CLUBS'), c('8'), c('5', 'SPADES'), c('2')];
+    game.players[1].hand = [a, b, d, e];
+    game.throwCard(1, a.id);
+    game.throwCard(1, d.id);
+    assert.deepEqual(game.players[1].hand, [null, b, null, e]);
+    assert.equal(game.players[1].handPoints, 10);
+    // A wrong throw: the penalty card takes the first empty place
+    game.throwCard(1, b.id);
+    assert.equal(game.players[1].hand.length, 4);
+    assert.equal(game.players[1].hand[1], b);
+    assert.notEqual(game.players[1].hand[0], null);
+    assert.equal(game.players[1].hand[2], null);
+    // The holes are part of the views (and of the saves), at the same place
+    const view = buildView(game, 2).players[1].hand;
+    assert.deepEqual(view.map(card => card === null), [false, false, true, false]);
+    const copy = Dutch.restore(JSON.parse(JSON.stringify(game.snapshot())));
+    assert.equal(copy.players[1].hand[2], null);
 });

@@ -58,7 +58,7 @@ export function buildView(game, viewerId, options = {}) {
             locked: p.locked,
             canThrow: game.canThrow(p.id),
             connected: options.connected ? options.connected(p.id) : true,
-            hand: p.hand.map(show),
+            hand: p.hand.map(card => card ? show(card) : null),
         })),
         log: game.log.slice(-80),
         lastMove: game.lastMove ? {

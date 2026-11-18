@@ -517,7 +517,8 @@ input.invalid {
 
 .players {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+    /* Square hands are narrow: more players side by side */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 12px;
 }
 
@@ -634,13 +635,25 @@ input.invalid {
     filter: saturate(0.35);
 }
 
+/* Cards in a square of 2 rows (columns set inline from the cards per player), like on a real table */
 .hand {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(2, var(--card-w));
+    grid-auto-rows: var(--card-h);
+    gap: 14px 10px;
     padding-top: 12px;
-    min-height: calc(var(--card-h) + 12px);
+    justify-content: center;
     align-items: center;
+}
+
+/* Place of a card that left the hand: the other cards keep their position */
+.card.slot {
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.hand .empty-hand {
+    grid-column: 1 / -1;
 }
 
 .empty-hand {

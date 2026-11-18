@@ -100,7 +100,8 @@ export interface CardData {
 
 export interface DutchSnapshot {
     v: 1;
-    players: { name: string; color?: string; hand: CardData[]; score: number; roundScores: number[]; ready: boolean; locked: boolean }[];
+    /** Hands by position: null is the place of a card that left the hand */
+    players: { name: string; color?: string; hand: (CardData | null)[]; score: number; roundScores: number[]; ready: boolean; locked: boolean }[];
     deckCount: number;
     cardsPerPlayer: number;
     targetScore: number;
@@ -242,7 +243,7 @@ class Dutch {
         return {
             v: 1,
             players: this.players.map(p => ({
-                name: p.name, color: p.color, hand: p.hand.map(cardData), score: p.score,
+                name: p.name, color: p.color, hand: p.hand.map(card => card ? cardData(card) : null), score: p.score,
                 roundScores: p.roundScores.slice(), ready: p.ready, locked: p.locked,
             })),
             deckCount: this.deckCount,
@@ -291,7 +292,7 @@ class Dutch {
         });
         data.players.forEach((saved, i) => {
             const player = game.players[i];
-            player.hand = saved.hand.map(toCard);
+            player.hand = saved.hand.map(card => card ? toCard(card) : null);
             player.score = saved.score;
             player.roundScores = saved.roundScores.slice();
             player.ready = saved.ready;
@@ -388,7 +389,7 @@ class Dutch {
     public get isStuck(): boolean {
         return this.deck.remaining === 0
             && this.deck.discardPile.length <= 1
-            && (this.currentPlayer.hand.length === 0 || !this.deck.topDiscard);
+            && (this.currentPlayer.cards.length === 0 || !this.deck.topDiscard);
     }
     // endregion
 
@@ -464,7 +465,8 @@ class Dutch {
         if (this.phase !== 'peek') throw new RuleError('Ce n\'est pas le moment de regarder ses cartes.');
         const player = this.getPlayer(playerId);
         if (player.ready) throw new RuleError(`${player.name} a déjà regardé ses cartes.`);
-        const cards = player.hand.slice(-2);
+        // The 2 last places: the bottom row of the square, the cards nearest to the player
+        const cards = player.cards.slice(-2);
         cards.forEach(card => this.reveal(player, card));
         player.ready = true;
         this.move('peek', player.id, cards.map(c => c.id));
@@ -483,7 +485,7 @@ class Dutch {
     private endRound() {
         const hands: Record<number, Card[]> = {};
         const points = this.players.map(p => {
-            hands[p.id] = p.hand.slice();
+            hands[p.id] = p.cards;
             return p.handPoints;
         });
         const lowest = Math.min(...points);
@@ -565,7 +567,7 @@ class Dutch {
         this.assertCurrent(playerId);
         this.assertNoEffect();
         if (this.phase !== 'draw') throw new RuleError('Vous avez déjà pioché ce tour-ci.');
-        if (this.currentPlayer.hand.length === 0) {
+        if (this.currentPlayer.cards.length === 0) {
             throw new RuleError('Sans carte en main, impossible d\'échanger : piochez plutôt.');
         }
         const card = this.deck.takeDiscard();
@@ -736,8 +738,8 @@ class Dutch {
                 throw new RuleError(`${owner.name} a dit Dutch : ses cartes sont protégées.`);
             }
         }
-        const indexA = ownerA.hand.findIndex(c => c.id === cardIdA);
-        const indexB = ownerB.hand.findIndex(c => c.id === cardIdB);
+        const indexA = ownerA.hand.findIndex(c => c?.id === cardIdA);
+        const indexB = ownerB.hand.findIndex(c => c?.id === cardIdB);
         const cardA = ownerA.hand[indexA];
         ownerA.hand[indexA] = ownerB.hand[indexB];
         ownerB.hand[indexB] = cardA;

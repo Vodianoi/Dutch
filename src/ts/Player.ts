@@ -24,9 +24,10 @@ class Player {
     public readonly color: string;
 
     /**
-     *  Player's hand, face down
+     *  Player's hand, face down, by position. A card that leaves the hand leaves a hole (null)
+     *  so that the other cards keep their place: players remember their cards by position.
      */
-    public hand: Card[] = [];
+    public hand: (Card | null)[] = [];
 
     /**
      *  Total score across rounds
@@ -59,28 +60,37 @@ class Player {
 
     // region Public Methods
     /**
-     *  Sum of the points of the cards in hand
+     *  Cards in hand, without the holes
      */
-    public get handPoints(): number {
-        return this.hand.reduce((sum, card) => sum + card.points, 0);
-    }
-
-    public hasCard(cardId: string): boolean {
-        return this.hand.some(card => card.id === cardId);
-    }
-
-    public getCard(cardId: string): Card | undefined {
-        return this.hand.find(card => card.id === cardId);
+    public get cards(): Card[] {
+        return this.hand.filter((card): card is Card => card !== null);
     }
 
     /**
-     *  Remove a card from the hand and return it
+     *  Sum of the points of the cards in hand
+     */
+    public get handPoints(): number {
+        return this.cards.reduce((sum, card) => sum + card.points, 0);
+    }
+
+    public hasCard(cardId: string): boolean {
+        return this.hand.some(card => card?.id === cardId);
+    }
+
+    public getCard(cardId: string): Card | undefined {
+        return this.cards.find(card => card.id === cardId);
+    }
+
+    /**
+     *  Remove a card from the hand and return it; its place stays empty
      * @param cardId
      */
     public removeCard(cardId: string): Card | undefined {
-        const index = this.hand.findIndex(card => card.id === cardId);
+        const index = this.hand.findIndex(card => card?.id === cardId);
         if (index < 0) return undefined;
-        return this.hand.splice(index, 1)[0];
+        const card = this.hand[index]!;
+        this.hand[index] = null;
+        return card;
     }
 
     /**
@@ -90,15 +100,20 @@ class Player {
      * @returns the replaced card
      */
     public replaceCard(cardId: string, card: Card): Card | undefined {
-        const index = this.hand.findIndex(c => c.id === cardId);
+        const index = this.hand.findIndex(c => c?.id === cardId);
         if (index < 0) return undefined;
-        const old = this.hand[index];
+        const old = this.hand[index]!;
         this.hand[index] = card;
         return old;
     }
 
+    /**
+     *  A new card (penalty, Ace) takes the first empty place, or goes after the last card
+     */
     public addCard(card: Card) {
-        this.hand.push(card);
+        const hole = this.hand.indexOf(null);
+        if (hole >= 0) this.hand[hole] = card;
+        else this.hand.push(card);
     }
 
     /**

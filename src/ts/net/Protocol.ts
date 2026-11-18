@@ -6,7 +6,8 @@ import {Action, CardView, GameView, Notice} from '../View.js';
  *  Everything is plain JSON.
  */
 
-export const PROTOCOL_VERSION = 1;
+/** 2: hands have empty places (null) */
+export const PROTOCOL_VERSION = 2;
 
 export interface LobbyPlayer {
     name: string;
