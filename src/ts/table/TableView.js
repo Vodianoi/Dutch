@@ -295,6 +295,7 @@ export class TableView {
         this.bannerText.style.align = 'center';
         this.bannerText.text = '';
         this.bannerBox.position.set(L.banner.x, L.banner.y);
+        this.chrome.placeEmotes(L.emote);
         this.buttonsKey = '';
         this.seatKey = '';
         this.sync(true);
@@ -1168,7 +1169,11 @@ export class TableView {
         const bubble = new Container();
         const size = 34 * ui;
         bubble.addChild(new Graphics().circle(0, 0, size * .78).fill({ color: 0xffffff, alpha: .95 }).stroke({ width: 3, color: parseInt(message.color.slice(1), 16) }), Object.assign(new Text({ text: message.emote, style: { fontSize: size, fontFamily: EMOJI } }), { anchor: { x: .5, y: .5 } }));
-        const at = { x: clamp(seat.avatar.x + seat.avatar.r * .6, size, this.layout.w - size), y: Math.max(size, seat.avatar.y - seat.avatar.r - size * .6) };
+        // Own reactions fly out of the reactions button; the others' pop above their token
+        const from = message.seat === s.viewerId && this.layout.emote
+            ? { x: this.layout.emote.x, y: this.layout.emote.y - this.layout.emote.r }
+            : { x: seat.avatar.x + seat.avatar.r * .6, y: seat.avatar.y - seat.avatar.r };
+        const at = { x: clamp(from.x, size, this.layout.w - size), y: Math.max(size, from.y - size * .6) };
         bubble.position.set(at.x, at.y);
         this.fxLayer.addChild(bubble);
         this.live.textContent = `${message.name} : ${message.emote}`;

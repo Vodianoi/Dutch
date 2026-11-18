@@ -35,6 +35,9 @@ export class TableChrome {
     private chatDrawer: HTMLElement | null = null;
     private chatButton: HTMLButtonElement | null = null;
     private emotePop: HTMLElement | null = null;
+    private emoteButton: HTMLButtonElement | null = null;
+    /** Where the reactions button is next to the own token (null: in the top bar) */
+    private emoteSpot: { x: number; y: number; r: number } | null = null;
     private menu: HTMLElement | null = null;
     private unread = 0;
 
@@ -58,6 +61,7 @@ export class TableChrome {
         this.menu?.remove();
         this.chatDrawer?.remove();
         this.emotePop?.remove();
+        this.emoteButton?.remove();
         if (this.ownChat) this.chatBox?.destroy();
         else if (this.chatBox) {
             // Shared with the waiting room: shown again there
@@ -92,6 +96,7 @@ export class TableChrome {
         emoteButton.setAttribute('aria-expanded', 'false');
         emoteButton.textContent = '😀';
         emoteButton.addEventListener('click', () => this.toggleEmotes(emoteButton));
+        this.emoteButton = emoteButton;
         this.o.bar.append(emoteButton);
         if (chat.text) {
             const chatButton = document.createElement('button');
@@ -103,6 +108,52 @@ export class TableChrome {
             this.updateUnread();
             this.o.bar.append(chatButton);
         }
+    }
+
+    /**
+     *  The table found room next to the own token: the reactions button goes there, where the thumb is
+     *  (on phones, the top bar is far). Null: back in the top bar.
+     *  @param spot centre and radius, in pixels from the top left corner of the table screen
+     */
+    public placeEmotes(spot: { x: number; y: number; r: number } | null) {
+        const button = this.emoteButton;
+        if (!button) return;
+        this.emoteSpot = spot;
+        if (spot) {
+            button.classList.add('seat-emote-button');
+            Object.assign(button.style, {left: `${spot.x - spot.r}px`, top: `${spot.y - spot.r}px`, width: `${spot.r * 2}px`, height: `${spot.r * 2}px`});
+            // Right after the top bar in the reading order
+            if (button.parentElement !== this.o.screen) {
+                const bar = this.o.bar.closest('.table-bar');
+                if (bar?.parentElement === this.o.screen) bar.after(button);
+                else this.o.screen.append(button);
+            }
+        } else {
+            button.classList.remove('seat-emote-button');
+            button.removeAttribute('style');
+            if (button.parentElement !== this.o.bar) {
+                // Back after the Menu button
+                const menu = this.o.bar.firstElementChild;
+                if (menu) menu.after(button);
+                else this.o.bar.append(button);
+            }
+        }
+        if (this.emotePop) this.placePop(this.emotePop);
+    }
+
+    /** The reactions open above the button next to the own token, or under the top bar */
+    private placePop(pop: HTMLElement) {
+        const spot = this.emoteSpot;
+        pop.classList.toggle('from-seat', !!spot);
+        if (!spot) {
+            pop.removeAttribute('style');
+            return;
+        }
+        const height = this.o.screen.clientHeight;
+        // Above the button if there is room, otherwise below it
+        if (spot.y - spot.r > height / 2) Object.assign(pop.style, {top: 'auto', bottom: `${height - spot.y + spot.r + 8}px`});
+        else Object.assign(pop.style, {top: `${spot.y + spot.r + 8}px`, bottom: 'auto'});
+        pop.style.left = `${Math.max(10, spot.x - spot.r)}px`;
     }
 
     private toggleEmotes(opener: HTMLButtonElement) {
@@ -137,6 +188,7 @@ export class TableChrome {
             }
         });
         this.o.screen.append(pop);
+        this.placePop(pop);
         this.emotePop = pop;
         opener.setAttribute('aria-expanded', 'true');
         pop.querySelector<HTMLElement>('button')?.focus();
