@@ -54,6 +54,7 @@ Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes l
 * Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
 * Le tour se termine avec « Fin du tour » ou « Dutch ! », seulement après avoir joué et résolu les effets.
 * Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
+* Les joueurs sont assis autour de la table : soi-même en bas (le premier joueur sur un écran partagé), les autres dans le sens des aiguilles d'une montre, dans l'ordre du jeu. Les places ne bougent pas pendant la partie. Sur téléphone, les autres joueurs sont au-dessus du milieu de la table.
 * Les cartes de chaque joueur sont posées en carré (2 rangées) et gardent leur place : une carte jetée laisse un emplacement vide, pour se souvenir de la position de ses cartes. Une carte reçue (pénalité, As) prend le premier emplacement vide.
 * Quand la pioche est vide, la pile de rejet (sauf la carte visible) est mélangée pour refaire la pioche.
 * Variante optionnelle au lancement : chacun regarde ses 2 dernières cartes en début de ronde.

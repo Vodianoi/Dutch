@@ -317,19 +317,6 @@ input.invalid {
     }
 }
 
-/* The table: felt with a wooden rail */
-.table-area {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 14px;
-    border: 10px solid;
-    border-color: var(--rail-light) var(--rail) var(--rail-dark) var(--rail);
-    border-radius: 28px;
-    background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.06), transparent 65%);
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08), inset 0 12px 30px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.3);
-}
-
 .status {
     display: flex;
     flex-direction: column;
@@ -515,13 +502,6 @@ input.invalid {
     border-left: 2px dashed rgba(255, 255, 255, 0.4);
 }
 
-.players {
-    display: grid;
-    /* Square hands are narrow: more players side by side */
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-    gap: 12px;
-}
-
 @media (max-width: 480px) {
     :root {
         --card-w: 62px;
@@ -531,12 +511,6 @@ input.invalid {
     body {
         padding-left: 12px;
         padding-right: 12px;
-    }
-
-    .table-area {
-        border-width: 6px;
-        border-radius: 20px;
-        padding: 8px;
     }
 
     .center {
@@ -1470,6 +1444,230 @@ details.rules summary {
     list-style: none;
 }
 /* endregion Settings and player colours */
+
+/* region Table board: players sit around an oval table */
+/* The side panel (scores, rules, log) goes under the table unless the screen is very wide */
+.board {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    align-items: start;
+    position: static;
+}
+
+@media (min-width: 1500px) {
+    .board {
+        grid-template-columns: minmax(0, 1fr) 300px;
+    }
+
+    .side {
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 12px;
+    }
+}
+
+.table-board {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+        "left top right"
+        "left center right"
+        "left bottom right";
+    gap: 14px;
+    padding: 8px 4px;
+    align-items: center;
+}
+
+/* The table itself: felt with a wooden rail, under the seats that sit on its edge */
+.table-board::before {
+    content: '';
+    position: absolute;
+    inset: 70px 24px;
+    border-radius: 50% / 42%;
+    border: 14px solid;
+    border-color: var(--rail-light) var(--rail) var(--rail-dark) var(--rail);
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light), var(--felt) 55%, #17603c);
+    box-shadow:
+        inset 0 0 0 3px rgba(255, 255, 255, 0.08),
+        inset 0 18px 40px rgba(0, 0, 0, 0.35),
+        0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.table-board > * {
+    position: relative;
+}
+
+.seats {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+}
+
+.seats:empty {
+    display: none;
+}
+
+.seats-left {
+    grid-area: left;
+    flex-direction: column;
+}
+
+.seats-right {
+    grid-area: right;
+    flex-direction: column;
+}
+
+.seats-top {
+    grid-area: top;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.seats-bottom {
+    grid-area: bottom;
+}
+
+.table-center {
+    grid-area: center;
+    justify-self: center;
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 8px;
+}
+
+/* On the felt: the piles need no extra background */
+.table-center .center {
+    background: transparent;
+    box-shadow: none;
+    padding: 4px 0;
+}
+
+.turn-actions {
+    justify-content: center;
+}
+
+/* A seat: compact block on the edge of the table, readable over the felt */
+.seat {
+    --card-w: 58px;
+    --card-h: 82px;
+    padding: 10px 12px;
+    gap: 6px;
+    background: var(--surface-strong);
+    max-width: 100%;
+}
+
+.seat .card {
+    font-size: 11px;
+}
+
+.seat header {
+    gap: 6px;
+}
+
+.seat .avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+}
+
+.seat h2 {
+    font-size: 16px;
+}
+
+.seat .score {
+    font-size: 14px;
+}
+
+.seat .badge {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.seat .hand {
+    gap: 12px 8px;
+}
+
+/* This device's seat (or the first player on a shared screen): bigger cards */
+.seat-bottom {
+    --card-w: 80px;
+    --card-h: 113px;
+    padding: 12px 16px;
+}
+
+.seat-bottom .card {
+    font-size: 15px;
+}
+
+.seat-bottom h2 {
+    font-size: 19px;
+}
+
+/* Phones: the other players in turn order above the middle of the table, this device at the bottom */
+@media (max-width: 760px) {
+    .table-board {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas: none;
+        gap: 10px;
+        padding: 0;
+    }
+
+    .table-board::before {
+        display: none;
+    }
+
+    .seats {
+        display: contents;
+    }
+
+    .seat {
+        order: var(--turn);
+        --card-w: 44px;
+        --card-h: 62px;
+        padding: 8px 10px;
+    }
+
+    .seat .card {
+        font-size: 10px;
+    }
+
+    .table-center {
+        order: 50;
+        /* no named areas on phones: reset the desktop placement */
+        grid-area: auto;
+        grid-column: 1 / -1;
+        padding: 0;
+        max-width: none;
+    }
+
+    .table-center .center {
+        background: rgba(0, 0, 0, 0.2);
+        box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.25);
+        padding: 14px 8px 10px;
+        border-radius: 18px;
+    }
+
+    .seat-bottom {
+        order: 99;
+        grid-column: 1 / -1;
+        --card-w: 70px;
+        --card-h: 99px;
+    }
+
+    .seat-bottom .card {
+        font-size: 13px;
+    }
+}
+/* endregion Table board */
 
 /* region Test version (dev branch, published under /dev/) */
 .site-header {

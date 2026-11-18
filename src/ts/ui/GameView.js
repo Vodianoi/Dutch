@@ -77,13 +77,24 @@ class GameView {
         if (!running || state.activeEffect || state.currentPlayerIndex !== this.lastTurn)
             this.confirmDutch = false;
         this.lastTurn = state.currentPlayerIndex;
-        // Online, the player of this device is shown first
+        // Players sit around the table: this device's player at the bottom (player 1 on a shared screen),
+        // the others clockwise in turn order. Seats never move, so everybody remembers who sits where.
         const players = state.players.slice();
-        if (state.viewerId !== null) {
-            const me = players.findIndex(p => p.id === state.viewerId);
-            players.unshift(...players.splice(me, 1));
-        }
-        const board = el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(state), this.renderCenter(state), el('section', { class: 'players', 'aria-label': 'Joueurs' }, ...players.map(p => this.renderPlayer(state, p)))), el('aside', { class: 'side' }, this.renderScores(state), this.renderRules(state), this.renderLog(state)));
+        const bottom = Math.max(0, players.findIndex(p => p.id === (state.viewerId ?? 0)));
+        const [me, ...others] = [...players.slice(bottom), ...players.slice(0, bottom)];
+        const seats = seatLayout(others.length);
+        const left = others.slice(0, seats.sides);
+        const top = others.slice(seats.sides, seats.sides + seats.top);
+        const right = others.slice(seats.sides + seats.top);
+        const seat = (side, list) => el('div', { class: `seats seats-${side}` }, ...list.map(p => {
+            const node = this.renderPlayer(state, p, side);
+            // On phones the seats are one list in turn order (see styles.css)
+            node.style.setProperty('--turn', String(p === me ? 99 : others.indexOf(p)));
+            return node;
+        }));
+        const board = el('div', { class: 'board' }, el('section', { class: `table-board sides-${seats.sides}`, 'aria-label': 'Table de jeu' }, 
+        // Left side is filled from the bottom up (clockwise)
+        seat('left', left.slice().reverse()), seat('top', top), seat('right', right), el('div', { class: 'table-center' }, this.renderStatus(state), this.renderCenter(state), this.renderTurnActions(state)), seat('bottom', [me])), el('aside', { class: 'side' }, this.renderScores(state), this.renderRules(state), this.renderLog(state)));
         this.root.appendChild(board);
         if (this.message) {
             this.root.appendChild(el('div', { class: `toast ${this.message.kind}` }, icon(this.message.kind === 'error' ? 'cross' : 'info'), el('span', {}, this.message.text)));
@@ -489,7 +500,48 @@ class GameView {
             return 'Remplacer par la carte en main';
         return 'Jeter sur le rejet';
     }
-    renderPlayer(state, player) {
+    /**
+     *  "Dutch !" / "Fin du tour" in the middle of the table, for the player whose turn it is
+     *  (on this device). In the middle so they are always at the same place, whoever plays.
+     */
+    renderTurnActions(state) {
+        const running = state.phase === 'draw' || state.phase === 'drawn' || state.phase === 'played';
+        const current = state.currentPlayerIndex;
+        if (!running || state.activeEffect || !this.mine(state, current))
+            return null;
+        const actions = el('div', { class: 'actions turn-actions' });
+        if (this.confirmDutch) {
+            actions.append(el('p', { class: 'confirm-text' }, 'Dire « Dutch » ? Les autres joueurs jouent un dernier tour.'), el('button', { class: 'secondary', 'data-key': 'cancel-dutch', onclick: () => {
+                    this.confirmDutch = false;
+                    this.pendingFocus = 'dutch';
+                    this.render();
+                } }, 'Annuler'), el('button', { class: 'dutch-button', 'data-key': 'confirm-dutch', onclick: () => {
+                    this.confirmDutch = false;
+                    this.dispatch({ type: 'endTurn', playerId: current, dutch: true });
+                } }, icon('dutch'), 'Oui, Dutch !'));
+            return actions;
+        }
+        if (!state.isFinalRound) {
+            actions.appendChild(el('button', {
+                class: 'dutch-button',
+                'data-key': 'dutch',
+                disabled: !state.canEndTurn,
+                onclick: () => {
+                    this.confirmDutch = true;
+                    this.pendingFocus = 'confirm-dutch';
+                    this.render();
+                },
+            }, icon('dutch'), 'Dutch !'));
+        }
+        actions.appendChild(el('button', {
+            class: 'primary end-turn',
+            'data-key': 'end-turn',
+            disabled: !state.canEndTurn,
+            onclick: () => this.dispatch({ type: 'endTurn', playerId: current, dutch: false }),
+        }, 'Fin du tour', icon('next')));
+        return actions;
+    }
+    renderPlayer(state, player, side) {
         const running = state.phase === 'draw' || state.phase === 'drawn' || state.phase === 'played';
         const isCurrent = running && player.id === state.currentPlayerIndex;
         const effect = state.activeEffect;
@@ -498,7 +550,7 @@ class GameView {
         const effectMine = !!effect && this.mine(state, effect.playerId);
         const isViewer = state.viewerId === player.id;
         const move = this.activeMove;
-        const classes = ['player', 'panel'];
+        const classes = ['player', 'panel', 'seat', `seat-${side}`];
         if (isCurrent)
             classes.push('current');
         if (immune)
@@ -548,38 +600,6 @@ class GameView {
         const actions = el('div', { class: 'actions' });
         if (state.phase === 'peek' && !player.ready && mine) {
             actions.appendChild(el('button', { class: 'primary peek', 'data-key': `peek-${player.id}`, onclick: () => this.dispatch({ type: 'peek', playerId: player.id }) }, icon('eye'), 'Regarder mes 2 cartes'));
-        }
-        if (isCurrent && !effect && mine) {
-            if (this.confirmDutch) {
-                actions.append(el('p', { class: 'confirm-text' }, 'Dire «\u00a0Dutch\u00a0» ? Les autres joueurs jouent un dernier tour.'), el('button', { class: 'secondary', 'data-key': 'cancel-dutch', onclick: () => {
-                        this.confirmDutch = false;
-                        this.pendingFocus = 'dutch';
-                        this.render();
-                    } }, 'Annuler'), el('button', { class: 'dutch-button', 'data-key': 'confirm-dutch', onclick: () => {
-                        this.confirmDutch = false;
-                        this.dispatch({ type: 'endTurn', playerId: player.id, dutch: true });
-                    } }, icon('dutch'), 'Oui, Dutch !'));
-            }
-            else {
-                if (!state.isFinalRound) {
-                    actions.appendChild(el('button', {
-                        class: 'dutch-button',
-                        'data-key': 'dutch',
-                        disabled: !state.canEndTurn,
-                        onclick: () => {
-                            this.confirmDutch = true;
-                            this.pendingFocus = 'confirm-dutch';
-                            this.render();
-                        },
-                    }, icon('dutch'), 'Dutch !'));
-                }
-                actions.appendChild(el('button', {
-                    class: 'primary end-turn',
-                    'data-key': 'end-turn',
-                    disabled: !state.canEndTurn,
-                    onclick: () => this.dispatch({ type: 'endTurn', playerId: player.id, dutch: false }),
-                }, 'Fin du tour', icon('next')));
-            }
         }
         if (effect?.type === 'ACE' && effectMine && !immune) {
             actions.appendChild(el('button', {
@@ -653,6 +673,14 @@ function isFocusable(node) {
 }
 function initial(name) {
     return (name.trim()[0] ?? '?').toUpperCase();
+}
+/**
+ *  Where the other players sit, clockwise from the bottom (this device):
+ *  up to 3 across the top; beyond, the sides take 1 to 3 players each
+ */
+function seatLayout(others) {
+    const sides = others <= 3 ? 0 : others <= 5 ? 1 : others <= 8 ? 2 : 3;
+    return { sides, top: others - 2 * sides };
 }
 /** A distinct, dark enough color per seat (the white initial on it stays readable) */
 function seatColor(id) {
