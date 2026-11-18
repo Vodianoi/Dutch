@@ -45,6 +45,8 @@ python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 
 Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`.
 
+Chaque push et chaque pull request est vérifié par GitHub Actions (`.github/workflows/ci.yml`) : compilation TypeScript sans erreur, tests (`npm test`) et fichiers `.js` versionnés à jour par rapport aux `.ts` (sinon : `npm run build` puis commit des `.js`).
+
 * Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
 * Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
 
