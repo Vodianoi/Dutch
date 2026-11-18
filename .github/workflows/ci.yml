@@ -1,0 +1,52 @@
+# Checks every push and pull request:
+# - the TypeScript compiles without errors
+# - the game tests pass (node --test)
+# - the compiled .js files committed for GitHub Pages match the .ts sources
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push on the same branch cancels the older run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build and test
+        run: npm test
+
+      - name: Compiled .js are up to date
+        run: |
+          if ! git diff --quiet -- '*.js'; then
+            echo "::error::The committed .js files do not match the .ts sources. Run 'npm run build' and commit the .js files."
+            git diff --stat -- '*.js'
+            exit 1
+          fi
+          untracked=$(git ls-files --others --exclude-standard -- '*.js')
+          if [ -n "$untracked" ]; then
+            echo "::error::New .js files produced by the build are not committed:"
+            echo "$untracked"
+            exit 1
+          fi
