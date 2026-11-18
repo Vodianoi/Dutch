@@ -22,7 +22,56 @@ export function computeLayout(w, h, top, order, cardsPerPlayer) {
     const cols = Math.ceil(cardsPerPlayer / 2);
     const portrait = h > w * 1.05;
     const ui = clamp(Math.min(w, h) / 640, .85, 1.3);
-    return portrait ? portraitLayout(w, h, top, order, cols, ui) : landscapeLayout(w, h, top, order, cols, ui);
+    const layout = portrait ? portraitLayout(w, h, top, order, cols, ui) : landscapeLayout(w, h, top, order, cols, ui);
+    layout.emote = emoteSpot(layout, top, order[0]);
+    return layout;
+}
+/** Radius of the reactions button (44 px: big enough to tap) */
+export const EMOTE_R = 22;
+/** Space taken by a token with its name and score */
+export function nameRect(seat, ui) {
+    const a = seat.avatar;
+    return seat.label === 'right'
+        ? { x1: a.x - a.r, y1: a.y - a.r, x2: a.x + a.r + 8 + seat.labelW, y2: a.y + a.r }
+        : { x1: a.x - Math.max(a.r, seat.labelW / 2), y1: a.y - a.r, x2: a.x + Math.max(a.r, seat.labelW / 2), y2: a.y + a.r + 36 * ui };
+}
+/**
+ *  The reactions button goes next to the own name, where the thumb is: under the name and score, else above
+ *  the token (room left for the « DUTCH » badge), else on its left, else right of the hand. The first place free of everything else wins.
+ */
+function emoteSpot(layout, top, me) {
+    const seat = layout.seats.get(me);
+    if (!seat)
+        return null;
+    const R = EMOTE_R, a = seat.avatar;
+    const obstacles = layout.zones.map(z => z.rect);
+    for (const [id, other] of layout.seats) {
+        if (id !== me)
+            obstacles.push(other.block, nameRect(other, layout.ui));
+    }
+    // The own token, the name and score under it, and the hand (penalty rows grow upwards)
+    const name = nameRect(seat, layout.ui);
+    obstacles.push({ x1: a.x - a.r, y1: a.y - a.r, x2: a.x + a.r, y2: a.y + a.r }, { ...name, y1: a.y + a.r });
+    obstacles.push({ ...seat.block, y1: seat.block.y1 - handH(seat.cw, 1) });
+    const candidates = [
+        // Under the name and score
+        { x: a.x, y: name.y2 + 4 + R },
+        // On the left of the token, above the name
+        { x: a.x - a.r - 8 - R, y: a.y - 6 },
+        // Above the token, room left for the « DUTCH » badge
+        { x: a.x, y: a.y - a.r - 26 - R },
+        // On the right of the hand
+        { x: seat.block.x2 + 10 + R, y: a.y },
+    ];
+    for (const c of candidates) {
+        const box = { x1: c.x - R, y1: c.y - R, x2: c.x + R, y2: c.y + R };
+        if (box.x1 < 4 || box.x2 > layout.w - 4 || box.y1 < top + 4 || box.y2 > layout.h - 4)
+            continue;
+        if (obstacles.some(o => overlaps(box, o, 2)))
+            continue;
+        return { ...c, r: R };
+    }
+    return null;
 }
 /** Own seat: hand at the bottom, token on its left with the name under it */
 function ownSeat(id, w, y, my, cols, ui) {
@@ -166,6 +215,7 @@ function portraitRows(w, h, top, order, cols, ui, rows) {
             { name: 'buttons', rect: { x1: 12, y1: buttonsY - buttonsH / 2 + 4, x2: w - 12, y2: buttonsY + buttonsH / 2 - 4 } },
         ],
         cramped: false,
+        emote: null,
     };
 }
 function landscapeLayout(w, h, top, order, cols, ui) {
@@ -256,6 +306,7 @@ function landscapeLayout(w, h, top, order, cols, ui) {
             buttons: { x: (zone.x1 + zone.x2) / 2, y: best.center.held.y, vertical: true, scale: Math.min(ui, centerH / 112) },
             zones: [{ name: 'centre', rect: best.center.rect }],
             cramped: !best.ok,
+            emote: null,
         };
     };
     // Own cards as big as the height allows; opponents the biggest that fit; own cards smaller if they get too small

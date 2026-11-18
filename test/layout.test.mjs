@@ -63,3 +63,34 @@ test('cards stay big enough to read and tap', () => {
         for (const [id, seat] of lay.seats) if (id) assert.ok(seat.cw >= 14, `${w}x${h} ${n}p: player ${id} cards ${seat.cw.toFixed(0)}px`);
     }
 });
+
+test('the reactions button sits next to the own token, on nothing else, and fits on phones', () => {
+    const problems = [];
+    for (const [w, h] of SIZES) for (let n = 2; n <= 10; n++) for (const cards of [3, 4, 5, 6]) for (const extra of [0, 1, 2]) {
+        const {lay, list} = boxes(w, h, n, cards, extra);
+        if (lay.cramped) continue;
+        const e = lay.emote;
+        const tag = `${w}x${h} ${n}p ${cards}c +${extra}`;
+        // Upright phones: always next to the name, where the thumb is
+        if (!e) {
+            if (h > w) problems.push(`${tag}: no room`);
+            continue;
+        }
+        const box = {x1: e.x - e.r, y1: e.y - e.r, x2: e.x + e.r, y2: e.y + e.r};
+        if (e.r < 22) problems.push(`${tag}: too small to tap`);
+        if (box.x1 < 0 || box.x2 > w || box.y1 < TOP || box.y2 > h) problems.push(`${tag}: off screen`);
+        const me = lay.seats.get(0).avatar;
+        const own = list.find(b => b.name === 'name 0');
+        // Own token: the disc, and the name and score under it (the sides of the disc are free)
+        const precise = [
+            ...list.filter(b => b !== own),
+            {name: 'own token', x1: me.x - me.r, y1: me.y - me.r, x2: me.x + me.r, y2: me.y + me.r},
+            {name: 'own name', x1: own.x1, y1: me.y + me.r, x2: own.x2, y2: own.y2},
+        ];
+        for (const b of precise) if (hit(box, b)) problems.push(`${tag}: covers ${b.name}`);
+        // At the own place: on the row of the token, between its left side and just right of the own hand
+        const block = lay.seats.get(0).block;
+        if (Math.abs(e.y - me.y) > 110 || e.x < me.x - 80 || e.x > block.x2 + 60) problems.push(`${tag}: far from the own token`);
+    }
+    assert.deepEqual(problems.slice(0, 30), [], `${problems.length} problems`);
+});
