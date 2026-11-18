@@ -38,6 +38,8 @@ export class CardSprite extends Container {
         this.glowLevel = 0;
         this.liftValue = 0;
         this.flipTimeline = null;
+        /** Move to its place, while it runs (or waits for its delay) */
+        this.moveTween = null;
         this.view = view;
         this.shadow = centered(new Sprite(art.shadow));
         this.glow = centered(new Sprite(art.glow));
@@ -128,9 +130,12 @@ export class CardSprite extends Container {
             this.lift = 0;
             return;
         }
-        if (previous && Math.hypot(previous.x - target.x, previous.y - target.y) < .5
+        // Same place as before: nothing to do, unless the card was moved away from it (dropped after a drag)
+        const travelling = !!this.moveTween && this.moveTween.progress() < 1;
+        const inPlace = travelling || Math.hypot(this.x - target.x, this.y - target.y) < .5;
+        if (previous && inPlace && Math.hypot(previous.x - target.x, previous.y - target.y) < .5
             && previous.scale === target.scale && previous.rotation === target.rotation) {
-            if (!gsap.isTweening(this))
+            if (!travelling)
                 this.zIndex = target.z;
             return;
         }
@@ -139,7 +144,7 @@ export class CardSprite extends Container {
         gsap.killTweensOf(this);
         gsap.killTweensOf(this.scale);
         this.zIndex = 1000 + target.z;
-        gsap.to(this, {
+        this.moveTween = gsap.to(this, {
             x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power3.inOut',
             onStart: () => {
                 if (distance > 6)
@@ -156,6 +161,12 @@ export class CardSprite extends Container {
         else {
             this.lift = 0;
         }
+    }
+    /** Picked up by a finger: stops where it is */
+    pickUp() {
+        gsap.killTweensOf(this);
+        gsap.killTweensOf(this.scale);
+        this.moveTween = null;
     }
     /** Back to its place (after a drag that went nowhere) */
     settle() {

@@ -56,6 +56,8 @@ export class CardSprite extends Container {
     private glowLevel = 0;
     private liftValue = 0;
     private flipTimeline: gsap.core.Timeline | null = null;
+    /** Move to its place, while it runs (or waits for its delay) */
+    private moveTween: gsap.core.Tween | null = null;
 
     constructor(view: CardView, private readonly art: Art) {
         super();
@@ -151,9 +153,12 @@ export class CardSprite extends Container {
             this.lift = 0;
             return;
         }
-        if (previous && Math.hypot(previous.x - target.x, previous.y - target.y) < .5
+        // Same place as before: nothing to do, unless the card was moved away from it (dropped after a drag)
+        const travelling = !!this.moveTween && this.moveTween.progress() < 1;
+        const inPlace = travelling || Math.hypot(this.x - target.x, this.y - target.y) < .5;
+        if (previous && inPlace && Math.hypot(previous.x - target.x, previous.y - target.y) < .5
             && previous.scale === target.scale && previous.rotation === target.rotation) {
-            if (!gsap.isTweening(this)) this.zIndex = target.z;
+            if (!travelling) this.zIndex = target.z;
             return;
         }
         const distance = Math.hypot(this.x - target.x, this.y - target.y);
@@ -161,7 +166,7 @@ export class CardSprite extends Container {
         gsap.killTweensOf(this);
         gsap.killTweensOf(this.scale);
         this.zIndex = 1000 + target.z;
-        gsap.to(this, {
+        this.moveTween = gsap.to(this, {
             x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power3.inOut',
             onStart: () => {
                 if (distance > 6) sfx.slide();
@@ -176,6 +181,13 @@ export class CardSprite extends Container {
         } else {
             this.lift = 0;
         }
+    }
+
+    /** Picked up by a finger: stops where it is */
+    public pickUp() {
+        gsap.killTweensOf(this);
+        gsap.killTweensOf(this.scale);
+        this.moveTween = null;
     }
 
     /** Back to its place (after a drag that went nowhere) */
