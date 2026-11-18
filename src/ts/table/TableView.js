@@ -116,7 +116,7 @@ export class TableView {
         const app = new Application();
         await app.init({
             resizeTo: this.host, antialias: true, autoDensity: true,
-            resolution: Math.min(devicePixelRatio || 1, 3), background: '#0a0705',
+            resolution: Math.min(devicePixelRatio || 1, 2), background: '#0a0705',
         });
         if (this.destroyed) {
             app.destroy(true, { children: true });

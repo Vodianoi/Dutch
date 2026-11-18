@@ -14,8 +14,7 @@ Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
 Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
 
-Prototype PixiJS (table dessinée en WebGL, vous contre 3 robots, sur le moteur du jeu) : https://vodianoi.github.io/Dutch/dev/proto/. Code dans `proto/` et `src/ts/proto/` ; PixiJS et GSAP sont chargés depuis un CDN (versions fixées dans `proto/index.html`), les paquets npm ne servent qu'aux types.
-
+* **Contre l'ordinateur** : vous jouez contre 1 à 9 adversaires de l'ordinateur. Ils ne voient pas vos cartes et ne retiennent que celles qu'on leur a montrées. La partie est enregistrée à chaque coup : l'accueil propose de la reprendre.
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
 * **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »). Réservé aux tests : proposé sur la version de test et en développement (localhost), pas sur le vrai site.
 
@@ -47,16 +46,17 @@ Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque
 * Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
 * Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
 
-Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes (seulement sur un même écran).
+La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et animée avec [GSAP](https://gsap.com), chargés depuis un CDN (versions fixées dans `index.html`) ; les paquets npm ne servent qu'aux types. Code de la table : `src/ts/table/`. Ajouter `?classic` à l'URL affiche l'ancien écran de jeu (HTML), et `?debug` ajoute au menu une case « Voir toutes les cartes » (sans le jeu en ligne côté joueur).
 
 **Comment jouer à l'écran**
 
-* Le joueur dont c'est le tour clique sur la pioche ou sur la pile de rejet, puis sur la carte de sa main à remplacer (ou sur « Jeter » pour défausser la carte piochée).
-* À tout moment, n'importe quel joueur peut cliquer sur une de ses cartes pour la jeter si elle a la même valeur que la carte visible du rejet. En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* Le joueur dont c'est le tour touche la pioche ou la pile de rejet, puis la carte de sa main à remplacer (ou la pile de rejet pour jeter la carte piochée). On peut aussi faire glisser la carte piochée sur une de ses cartes ou sur la pile de rejet.
+* À tout moment, un joueur peut jeter une de ses cartes si elle a la même valeur que la carte visible du rejet : en la faisant glisser sur la pile de rejet, ou en la touchant puis en appuyant sur « Jeter sur la défausse ». En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* Le bouton « Menu » donne les règles de la partie, les réglages de l'appareil (sons, vibrations, animations rapides, dos des cartes) et permet de quitter la partie.
 * Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
-* Le tour se termine avec « Fin du tour » ou « Dutch ! », seulement après avoir joué et résolu les effets.
+* Le tour se termine avec « Finir mon tour » ou « Dutch ! » (à confirmer d'une deuxième pression), seulement après avoir joué et résolu les effets.
 * Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
-* Les joueurs sont assis autour de la table : soi-même en bas (le premier joueur sur un écran partagé), les autres dans le sens des aiguilles d'une montre, dans l'ordre du jeu. Les places ne bougent pas pendant la partie. Sur téléphone, les autres joueurs sont au-dessus du milieu de la table.
+* Les joueurs sont assis autour de la table : soi-même en bas (le premier joueur sur un écran partagé), les autres dans le sens des aiguilles d'une montre, dans l'ordre du jeu. Les places ne bougent pas pendant la partie. Sur téléphone tenu droit, les autres joueurs sont sur une ou deux rangées au-dessus du milieu de la table.
 * Les cartes de chaque joueur sont posées en carré (2 rangées) et gardent leur place : une carte jetée laisse un emplacement vide, pour se souvenir de la position de ses cartes. Une carte reçue (pénalité, As) prend le premier emplacement vide.
 * Quand la pioche est vide, la pile de rejet (sauf la carte visible) est mélangée pour refaire la pioche.
 * Variante optionnelle au lancement : chacun regarde ses 2 dernières cartes en début de ronde.
