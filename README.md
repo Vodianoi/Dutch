@@ -14,7 +14,7 @@ Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
 Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
 
-Prototype 3D (Three.js : vraie table sous une lampe, cartes retournées en 3D, contre l'ordinateur) : https://vodianoi.github.io/Dutch/dev/proto3d/. Code dans `proto3d/` et `src/ts/proto3d/`.
+Table en 3D (prototype, style vieux casino) : dans le menu d'une partie, « Table en 3D » ; ou https://vodianoi.github.io/Dutch/dev/?table=3d. Chaque appareil choisit sa table, même dans une partie en ligne. Code dans `src/ts/table3d/` (Three.js, chargé seulement par les appareils qui l'utilisent).
 
 * **Contre l'ordinateur** : vous jouez contre 1 à 9 adversaires de l'ordinateur. Ils ne voient pas vos cartes et ne retiennent que celles qu'on leur a montrées. La partie est enregistrée à chaque coup : l'accueil propose de la reprendre.
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.

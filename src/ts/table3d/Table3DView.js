@@ -615,23 +615,93 @@ export class Table3DView {
         const handW = cols * CARD_W + (cols - 1) * GAP;
         const handD = 2 * CARD_H + GAP;
         const f = .69;
-        // Room along the table for each player: the hands get smaller when the table is crowded
+        // The players are spread at equal distances along the oval (equal angles would crowd its ends).
+        // Each seat needs its hand and its chip: the hands get smaller when the table is crowded,
+        // the own hand is bigger and takes a bigger share of the oval.
         const a = this.rx * f, b = this.rz * f;
-        const perimeter = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
-        const room = perimeter / n;
-        const others = clamp((room - .25) / (handW + .75), .42, 1);
+        const steps = 720;
+        const arc = [0];
+        const at = (t) => new THREE.Vector2(a * Math.cos(t), b * Math.sin(t));
+        for (let i = 1; i <= steps; i++) {
+            const t0 = Math.PI / 2 + (i - 1) / steps * Math.PI * 2, t1 = Math.PI / 2 + i / steps * Math.PI * 2;
+            arc.push(arc[i - 1] + at(t0).distanceTo(at(t1)));
+        }
+        const perimeter = arc[steps];
+        const angleAt = (distance) => {
+            const d = ((distance % perimeter) + perimeter) % perimeter;
+            let i = arc.findIndex(v => v >= d);
+            if (i <= 0)
+                i = 1;
+            const k = (d - arc[i - 1]) / (arc[i] - arc[i - 1] || 1);
+            return Math.PI / 2 + (i - 1 + k) / steps * Math.PI * 2;
+        };
+        const need = handW + .78;
+        const ownMax = this.upright ? 1.3 : 1.15;
+        let otherScale = clamp((perimeter - n * .22) / (need * (n - 1 + 1.5)), .4, 1);
         // Radial room: hands must stay between the rail and the piles
-        const radial = clamp((Math.min(this.rx, this.rz) * .62 - 1) / handD * 1.6, .45, 1);
-        const otherScale = Math.min(others, radial);
-        const ownScale = this.upright ? clamp(otherScale * 1.6, 1, 1.32) : clamp(otherScale * 1.35, .95, 1.15);
-        order.forEach((id, index) => {
+        otherScale = Math.min(otherScale, clamp((Math.min(this.rx, this.rz) * .62 - 1) / handD * 1.6, .45, 1));
+        let ownScale = clamp(otherScale * 1.5, Math.min(1, ownMax), ownMax);
+        const chipW = (scale) => 2 * (.2 + .04 * scale) + .14;
+        const place = () => {
+            const ownShare = ownScale * need + .3, otherShare = otherScale * need + .22;
+            // What is left of the oval is shared between the seats
+            const stretch = n > 1 ? Math.max(1, perimeter / (ownShare + (n - 1) * otherShare)) : 1;
+            return order.map((id, index) => {
+                const along = index === 0 ? 0 : (ownShare / 2 + (index - .5) * otherShare) * stretch;
+                const angle = angleAt(along);
+                const scale = index === 0 ? ownScale : otherScale;
+                // Own hand closer to the rail: room for the piles and the held card
+                const radius = index === 0 ? .74 : f;
+                const pos = new THREE.Vector3(this.rx * radius * Math.cos(angle), 0, this.rz * radius * Math.sin(angle));
+                return { id, index, pos, yaw: Math.atan2(pos.x, pos.z), scale };
+            });
+        };
+        // Footprint of a seat on the table (hand, chip on its left), turned like the seat
+        const footprint = (p) => {
+            const w = handW * p.scale, d = handD * p.scale, c = chipW(p.scale);
+            const corners = [[-w / 2 - c, -d / 2], [w / 2 + .06, -d / 2], [w / 2 + .06, d / 2], [-w / 2 - c, d / 2]];
+            return corners.map(([x, z]) => this.local(p, x, z));
+        };
+        const overlap = (a, b) => {
+            // Separating axis test for two turned rectangles
+            for (const poly of [a, b]) {
+                for (let i = 0; i < 2; i++) {
+                    const e = poly[i + 1].clone().sub(poly[i]);
+                    const axis = new THREE.Vector2(-e.z, e.x).normalize();
+                    const project = (p) => p.map(v => v.x * axis.x + v.z * axis.y);
+                    const pa = project(a), pb = project(b);
+                    if (Math.max(...pa) < Math.min(...pb) || Math.max(...pb) < Math.min(...pa))
+                        return false;
+                }
+            }
+            return true;
+        };
+        let placed = place();
+        // Shrink the hands until no two seats overlap (the own hand last)
+        for (let tries = 0; tries < 30; tries++) {
+            const shapes = placed.map(footprint);
+            let clash = false, ownClash = false;
+            for (let i = 0; i < shapes.length && !clash; i++) {
+                for (let j = i + 1; j < shapes.length; j++) {
+                    if (overlap(shapes[i], shapes[j])) {
+                        clash = true;
+                        ownClash = i === 0;
+                        break;
+                    }
+                }
+            }
+            if (!clash)
+                break;
+            if (ownClash && ownScale > Math.max(.9, otherScale))
+                ownScale *= .95;
+            else if (otherScale > .32)
+                otherScale *= .95;
+            else
+                ownScale *= .95;
+            placed = place();
+        }
+        placed.forEach(({ id, index, pos, yaw, scale }) => {
             const p = s.players[id];
-            const angle = Math.PI / 2 + index * 2 * Math.PI / n;
-            const scale = index === 0 ? ownScale : otherScale;
-            // Own hand closer to the rail: room for the piles and the held card
-            const radius = index === 0 ? .74 : f;
-            const pos = new THREE.Vector3(this.rx * radius * Math.cos(angle), 0, this.rz * radius * Math.sin(angle));
-            const yaw = Math.atan2(pos.x, pos.z);
             const seat = { pos, yaw };
             // Clay chip on the left of the hand, the name above it
             const chip = new THREE.Group();
@@ -644,7 +714,7 @@ export class Table3DView {
             chip.add(disc);
             chip.position.copy(this.local(seat, -(handW * scale / 2 + r + .14), handD * scale * .2, .035));
             const labelEl = document.createElement('div');
-            labelEl.className = 'table3d-tag';
+            labelEl.className = scale < .62 && index ? 'table3d-tag small' : 'table3d-tag';
             const label = new CSS2DObject(labelEl);
             label.position.copy(chip.position).add(new THREE.Vector3(0, .22, 0));
             label.center.set(.5, 1);
@@ -654,7 +724,7 @@ export class Table3DView {
             ring.scale.set(handW * scale / 2 + .3, handD * scale / 2 + .3, 1);
             ring.position.copy(pos).setY(.004);
             this.scene.add(chip, label, ring);
-            this.seats.set(id, { id, pos, yaw, scale, compact: false, chip, label, labelEl, ring });
+            this.seats.set(id, { id, pos, yaw, scale, compact: false, corners: footprint({ pos, yaw, scale }), chip, label, labelEl, ring });
         });
     }
     // endregion
@@ -681,25 +751,27 @@ export class Table3DView {
         const w = this.screen.clientWidth || innerWidth, h = this.screen.clientHeight || innerHeight;
         const aspect = w / h;
         const camera = this.camera;
-        const elevation = aspect < .8 ? 1.08 : aspect < 1.3 ? .98 : .88;
+        // Short screens (phone held sideways): more from above, the height is precious
+        const short = h < 500;
+        const elevation = aspect < .8 ? 1.08 : short ? 1.12 : aspect < 1.3 ? .98 : .88;
         const dir = new THREE.Vector3(0, Math.sin(elevation), Math.cos(elevation));
         const look = new THREE.Vector3(0, 0, aspect < .8 ? .45 : .3);
         // What must be on the screen: every hand and chip, the piles; on a wide screen the whole table
         const points = [new THREE.Vector3(DECK_X - .5, 0, PILES_Z - .6), new THREE.Vector3(DISCARD_X + 1.6, 0, PILES_Z + .6)];
         for (const seat of this.seats.values()) {
-            const r = Math.max(CARD_W, CARD_H) * 1.5 * seat.scale;
-            for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]])
-                points.push(seat.pos.clone().add(new THREE.Vector3(x * r, 0, z * r)));
-            points.push(seat.chip.position.clone().add(new THREE.Vector3(0, .5, 0)));
+            points.push(...seat.corners);
+            // The name tag stands above the chip
+            points.push(seat.chip.position.clone().add(new THREE.Vector3(0, .45, 0)));
         }
-        if (!this.upright) {
+        // Big screens show the whole table; on phones the cards matter more than the rail
+        if (!this.upright && !short) {
             for (let i = 0; i < 24; i++) {
                 const a = i / 24 * Math.PI * 2;
                 points.push(new THREE.Vector3((this.rx + RAIL * .3) * Math.cos(a), 0, (this.rz + RAIL * .3) * Math.sin(a)));
             }
         }
         // Room for the top bar and the banner at the top, the buttons at the bottom
-        const top = 1 - 2 * (104 / h), bottom = -1 + 2 * (78 / h);
+        const top = 1 - 2 * ((short ? 50 : 104) / h), bottom = -1 + 2 * ((short ? 64 : 78) / h);
         let distance = 12;
         for (let i = 0; i < 8; i++) {
             camera.position.copy(look).addScaledVector(dir, distance);
@@ -955,12 +1027,14 @@ export class Table3DView {
     keepBubblesInside() {
         const w = this.screen.clientWidth, h = this.screen.clientHeight;
         const actions = this.actionsEl.getBoundingClientRect();
+        // Under the instructions plaque
+        const ceiling = Math.max(96, this.bannerEl.getBoundingClientRect().bottom - this.screen.getBoundingClientRect().top + 6);
         for (const el of this.bubbles) {
             const r = el.getBoundingClientRect();
             const sx = parseFloat(el.dataset.sx ?? '0'), sy = parseFloat(el.dataset.sy ?? '0');
             const left = r.left - sx, top = r.top - sy;
             const dx = Math.min(0, w - 8 - (left + r.width)) + Math.max(0, 8 - left);
-            let dy = Math.max(0, 96 - top);
+            let dy = Math.max(0, ceiling - top);
             if (actions.height && top + r.height + dy > actions.top - 6)
                 dy = actions.top - 6 - (top + r.height);
             if (Math.abs(dx - sx) > .5 || Math.abs(dy - sy) > .5) {

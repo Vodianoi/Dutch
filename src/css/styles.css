@@ -2299,12 +2299,22 @@ button:hover:not(:disabled) {
 }
 
 /* Instructions: an engraved brass plaque */
+@media (max-width: 480px) {
+    .table3d-banner {
+        font-size: 14px;
+        padding: 6px 14px;
+    }
+}
+
 .table3d-banner {
     position: absolute;
     top: calc(54px + env(safe-area-inset-top));
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: calc(100% - 24px);
+    /* Centred with margins (left: 50% would leave it only half the width to lay out its text) */
+    left: 12px;
+    right: 12px;
+    margin-inline: auto;
+    width: fit-content;
+    max-width: 640px;
     padding: 8px 20px;
     border-radius: 6px;
     background: linear-gradient(180deg, #e9cf8d, #c9a050 45%, #a07a32);
@@ -2520,3 +2530,29 @@ button:hover:not(:disabled) {
     }
 }
 /* endregion 3D table */
+
+/* Crowded table: smaller name tags */
+.table3d-tag.small {
+    padding: 2px 7px 3px;
+    font-size: 11px;
+}
+
+.table3d-tag.small small {
+    font-size: 10px;
+}
+
+/* Short screens (phone held sideways): the instructions go in the top bar */
+@media (max-height: 500px) {
+    .table3d-banner {
+        top: calc(5px + env(safe-area-inset-top));
+        left: 180px;
+        right: 180px;
+        max-width: none;
+        padding: 5px 12px;
+        font-size: 13px;
+    }
+
+    .table3d-button {
+        min-height: 42px;
+    }
+}
