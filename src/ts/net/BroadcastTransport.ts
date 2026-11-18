@@ -44,16 +44,22 @@ class BroadcastConnection extends ConnectionBase implements Connection {
     }
 
     public handle(packet: Packet) {
-        if (packet.kind === 'msg') this.receive(JSON.parse(packet.data));
-        else if (packet.kind === 'close' || packet.kind === 'host-closed') this.closedByPeer();
+        if (packet.kind === 'msg') {
+            this.receive(JSON.parse(packet.data));
+        } else if ((packet.kind === 'close' || packet.kind === 'host-closed') && !this.closed) {
+            this.closedByPeer();
+            // Closed by the other side: release our end too (the channel of a player)
+            this.onLocalClose();
+        }
     }
 }
 
 class BroadcastHost implements HostTransport {
     private readonly connections = new Map<string, BroadcastConnection>();
     private listeners: ((connection: Connection) => void)[] = [];
+    private suspended = false;
 
-    constructor(public readonly code: string, private readonly channel: BroadcastChannel) {
+    constructor(public readonly code: string, private channel: BroadcastChannel) {
         channel.onmessage = (e: MessageEvent<Packet>) => this.handle(e.data);
     }
 
@@ -61,7 +67,25 @@ class BroadcastHost implements HostTransport {
         this.listeners.push(listener);
     }
 
+    /** Like a page that goes away: every connection drops */
+    public suspend() {
+        if (this.suspended) return;
+        this.suspended = true;
+        this.channel.postMessage({kind: 'host-closed'} satisfies Packet);
+        this.channel.close();
+        this.connections.clear();
+    }
+
+    public resume() {
+        if (!this.suspended) return;
+        this.suspended = false;
+        this.channel = new BroadcastChannel(channelName(this.code));
+        this.channel.onmessage = (e: MessageEvent<Packet>) => this.handle(e.data);
+    }
+
     public close() {
+        if (this.suspended) return;
+        this.suspended = true;
         this.channel.postMessage({kind: 'host-closed'} satisfies Packet);
         this.channel.close();
     }

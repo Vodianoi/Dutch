@@ -105,17 +105,103 @@ class PeerConnection extends ConnectionBase implements Connection {
         this.onLocalClose();
     }
 
-    /** The peer object itself failed (network lost) */
-    public lost() {
-        this.closedByPeer();
+}
+
+/**
+ *  Register `id` on the public server.
+ *  Errors only reject while opening: once open, the caller decides what to do with them
+ *  (a phone going to sleep gives "network" errors that must not end the game).
+ */
+function openPeer(Peer: PeerConstructor, id: string, code: string): Promise<PeerInstance> {
+    return new Promise((resolve, reject) => {
+        const peer = new Peer(id, {debug: 1});
+        let open = false;
+        const timer = setTimeout(() => {
+            peer.destroy();
+            reject(new TransportError('Le serveur de mise en relation ne répond pas.'));
+        }, CONNECT_TIMEOUT_MS);
+        peer.on('open', () => {
+            open = true;
+            clearTimeout(timer);
+            resolve(peer);
+        });
+        peer.on('error', error => {
+            if (open) return;
+            clearTimeout(timer);
+            peer.destroy();
+            reject(Object.assign(describe(error, code), {type: error.type}));
+        });
+    });
+}
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** After a reload, the server can keep the old registration of the room code for a few seconds */
+const RECLAIM_ATTEMPTS = 12;
+const RECLAIM_DELAY_MS = 2500;
+/** How often the host checks that it is still registered on the public server */
+const WATCH_MS = 5000;
+
+/**
+ *  Open `code`, waiting while the server still holds it for our previous page
+ */
+async function reclaim(Peer: PeerConstructor, code: string): Promise<PeerInstance> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await openPeer(Peer, ID_PREFIX + code, code);
+        } catch (e) {
+            const taken = (e as { type?: string }).type === 'unavailable-id';
+            const network = ['network', 'server-error', 'socket-error', 'socket-closed'].includes((e as { type?: string }).type ?? '');
+            if ((!taken && !network) || attempt >= RECLAIM_ATTEMPTS - 1) throw e;
+            await wait(RECLAIM_DELAY_MS);
+        }
     }
 }
 
+/**
+ *  Room on the public server. It survives the network hiccups of a phone:
+ *  - disconnected from the server (sleep, network change): reconnect, the games in progress go on
+ *  - peer destroyed (fatal error, page suspended): open the same code again
+ */
 class PeerHost implements HostTransport {
     private listeners: ((connection: Connection) => void)[] = [];
+    private peer: PeerInstance;
+    private closed = false;
+    private suspended = false;
+    private reviving = false;
+    private readonly watch: ReturnType<typeof setInterval>;
 
-    constructor(public readonly code: string, private readonly peer: PeerInstance) {
+    constructor(public readonly code: string, peer: PeerInstance, private readonly Peer: PeerConstructor) {
+        this.peer = peer;
+        this.attach(peer);
+        this.watch = setInterval(() => this.check(), WATCH_MS);
+    }
+
+    public onConnection(listener: (connection: Connection) => void) {
+        this.listeners.push(listener);
+    }
+
+    public suspend() {
+        if (this.closed) return;
+        this.suspended = true;
+        this.peer.destroy();
+    }
+
+    public resume() {
+        if (this.closed) return;
+        this.suspended = false;
+        this.check();
+    }
+
+    public close() {
+        this.closed = true;
+        clearInterval(this.watch);
+        this.peer.destroy();
+    }
+
+    private attach(peer: PeerInstance) {
         peer.on('connection', dataConnection => {
+            if (peer !== this.peer) return;
             const accept = () => {
                 const connection = new PeerConnection(dataConnection);
                 this.listeners.forEach(l => l(connection));
@@ -124,47 +210,56 @@ class PeerHost implements HostTransport {
             else dataConnection.on('open', accept);
         });
         // Losing the public server doesn't cut the games in progress, but new players
-        // can't join anymore: reconnect to it
-        peer.on('disconnected', () => {
-            if (!peer.destroyed) setTimeout(() => !peer.destroyed && peer.disconnected && peer.reconnect(), 1000);
-        });
+        // (and players coming back) can't reach us: reconnect to it
+        peer.on('disconnected', () => setTimeout(() => this.check(), 1000));
+        peer.on('close', () => setTimeout(() => this.check(), 1000));
+        // Errors after opening are not fatal by themselves: check() repairs what needs to be
+        peer.on('error', () => setTimeout(() => this.check(), 1000));
     }
 
-    public onConnection(listener: (connection: Connection) => void) {
-        this.listeners.push(listener);
+    private check() {
+        if (this.closed || this.suspended || this.reviving) return;
+        if (this.peer.destroyed) {
+            this.revive();
+        } else if (this.peer.disconnected) {
+            try {
+                this.peer.reconnect();
+            } catch {
+                this.peer.destroy();
+                this.revive();
+            }
+        }
     }
 
-    public close() {
-        this.peer.destroy();
+    private async revive() {
+        this.reviving = true;
+        try {
+            const peer = await reclaim(this.Peer, this.code);
+            if (this.closed || this.suspended) {
+                peer.destroy();
+                return;
+            }
+            this.peer = peer;
+            this.attach(peer);
+        } catch (e) {
+            console.warn('Dutch: the room could not be opened again, retrying', e);
+        } finally {
+            this.reviving = false;
+        }
     }
 }
 
 export class PeerTransport implements TransportFactory {
     public async host(code?: string): Promise<HostTransport> {
         const Peer = await loadPeerJs();
+        // Given code: the room is being reopened (page reloaded), wait for the server to free it
+        if (code) return new PeerHost(code, await reclaim(Peer, code), Peer);
         for (let attempt = 0; attempt < 5; attempt++) {
-            const candidate = code ?? randomCode();
+            const candidate = randomCode();
             try {
-                const peer = await new Promise<PeerInstance>((resolve, reject) => {
-                    const peer = new Peer(ID_PREFIX + candidate, {debug: 1});
-                    const timer = setTimeout(() => {
-                        peer.destroy();
-                        reject(new TransportError('Le serveur de mise en relation ne répond pas.'));
-                    }, CONNECT_TIMEOUT_MS);
-                    peer.on('open', () => {
-                        clearTimeout(timer);
-                        resolve(peer);
-                    });
-                    peer.on('error', error => {
-                        clearTimeout(timer);
-                        peer.destroy();
-                        reject(Object.assign(describe(error, candidate), {type: error.type}));
-                    });
-                });
-                return new PeerHost(candidate, peer);
+                return new PeerHost(candidate, await openPeer(Peer, ID_PREFIX + candidate, candidate), Peer);
             } catch (e) {
-                const taken = (e as { type?: string }).type === 'unavailable-id';
-                if (!taken || code) throw e;
+                if ((e as { type?: string }).type !== 'unavailable-id') throw e;
             }
         }
         throw new TransportError('Impossible de créer la partie.');
@@ -182,12 +277,14 @@ export class PeerTransport implements TransportFactory {
             };
             const timer = setTimeout(() => fail(new TransportError('La connexion à la partie a échoué (délai dépassé).')), CONNECT_TIMEOUT_MS);
             peer.on('error', error => {
-                if (connection) connection.lost();
-                else fail(describe(error, code));
+                // Once connected, the game goes directly between the devices: a problem with the
+                // public server doesn't matter. A dead connection is seen by the heartbeat.
+                if (!connection) fail(describe(error, code));
             });
             peer.on('open', () => {
                 const dataConnection = peer.connect(ID_PREFIX + code, {reliable: true, serialization: 'json'});
                 dataConnection.on('open', () => {
+                    if (connection) return;
                     clearTimeout(timer);
                     connection = new PeerConnection(dataConnection, () => peer.destroy());
                     connection.onClose(() => peer.destroy());
