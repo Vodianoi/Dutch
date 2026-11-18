@@ -1,4 +1,4 @@
-import Dutch, {RuleError} from '../Dutch.js';
+import Dutch, {DutchSnapshot, RuleError} from '../Dutch.js';
 import {Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
 import {Action, applyAction, buildView, faceUp, GameView} from '../View.js';
 import {ClientMessage, cleanName, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken} from './Protocol.js';
@@ -11,9 +11,24 @@ interface Seat {
     lastSeen: number;
 }
 
+/**
+ *  Everything needed to reopen the room after the host's page went away (reload, tab discarded…):
+ *  the players and their tokens (so they get their seat back) and the game itself
+ */
+export interface HostSnapshot {
+    v: 1;
+    code: string;
+    seats: { name: string; token: string }[];
+    game: DutchSnapshot | null;
+}
+
 export interface HostOptions {
     heartbeatMs?: number;
     timeoutMs?: number;
+    /** Reopen a saved room (same players, same game) */
+    restore?: HostSnapshot;
+    /** Called after every change, to save the room */
+    persist?: (snapshot: HostSnapshot) => void;
 }
 
 export interface StartOptions {
@@ -26,6 +41,7 @@ export interface StartOptions {
  *  - The engine runs here; this device is seat 0
  *  - Each player gets only his own view (buildView) and his own private reveals
  *  - Actions received from a connection are always played for the seat of that connection
+ *  - The room is saved after every change and can be reopened (players reconnect with their token)
  */
 export class Host implements Session {
     public readonly viewerId = 0;
@@ -36,18 +52,31 @@ export class Host implements Session {
     private readonly transport: HostTransport;
     private readonly seats: Seat[];
     private readonly events = new Emitter<SessionEvent>();
+    private readonly heartbeatMs: number;
     private readonly timeoutMs: number;
     private readonly heartbeat: ReturnType<typeof setInterval>;
+    private readonly persistTo: ((snapshot: HostSnapshot) => void) | undefined;
+    private lastTick = Date.now();
     private game: Dutch | null = null;
     private unsubscribeGame: (() => void) | null = null;
     private closed = false;
 
     constructor(transport: HostTransport, hostName: string, options: HostOptions = {}) {
         this.transport = transport;
+        this.heartbeatMs = options.heartbeatMs ?? 4000;
         this.timeoutMs = options.timeoutMs ?? 15000;
-        this.seats = [{name: cleanName(hostName, 'Hôte'), token: randomToken(), connection: null, lastSeen: Date.now()}];
+        this.persistTo = options.persist;
+        const saved = options.restore;
+        if (saved) {
+            this.seats = saved.seats.map(s => ({name: s.name, token: s.token, connection: null, lastSeen: 0}));
+            if (saved.game) this.attach(Dutch.restore(saved.game));
+        } else {
+            this.seats = [{name: cleanName(hostName, 'Hôte'), token: randomToken(), connection: null, lastSeen: Date.now()}];
+        }
         transport.onConnection(connection => this.accept(connection));
-        this.heartbeat = setInterval(() => this.tick(), options.heartbeatMs ?? 4000);
+        this.heartbeat = setInterval(() => this.tick(), this.heartbeatMs);
+        if (this.game) this.broadcastState();
+        else this.persist();
     }
 
     // region Public
@@ -86,21 +115,7 @@ export class Host implements Session {
             deckCount: options.deckCount,
             peekVariant: options.peekVariant,
         });
-        this.game = game;
-        this.unsubscribeGame = game.on(event => {
-            if (event.type === 'change') {
-                this.broadcastState();
-                return;
-            }
-            const card = findHandCard(game, event.cardId);
-            if (!card) return;
-            const message: HostMessage = {t: 'reveal', card: faceUp(card)};
-            this.seats.forEach((seat, i) => {
-                if (!event.public && i !== event.playerId) return;
-                if (i === 0) this.events.emit({type: 'reveal', card: message.card});
-                else this.send(seat, message);
-            });
-        });
+        this.attach(game);
         this.broadcastLobby();
         game.startRound();
     }
@@ -128,12 +143,52 @@ export class Host implements Session {
         // Not available online: it would show the cards of the other players
     }
 
+    public snapshot(): HostSnapshot {
+        return {
+            v: 1,
+            code: this.code,
+            seats: this.seats.map(s => ({name: s.name, token: s.token})),
+            game: this.game ? this.game.snapshot() : null,
+        };
+    }
+
+    /**
+     *  The page goes away (closed, reloaded, discarded): the connections drop but the game is not over,
+     *  the players keep trying to reconnect until this page (or its reload) reopens the room
+     */
+    public suspend() {
+        if (this.closed) return;
+        this.persist();
+        for (const seat of this.seats) {
+            const connection = seat.connection;
+            seat.connection = null;
+            connection?.close();
+        }
+        this.transport.suspend();
+    }
+
+    /**
+     *  The page is visible again: reopen the room if needed, and give everybody time to answer
+     *  (their connections may have been frozen together with this page)
+     */
+    public resume() {
+        if (this.closed) return;
+        this.transport.resume();
+        this.forgiveSilence();
+    }
+
+    /**
+     *  End of the game for everybody (the host left on purpose)
+     */
     public close() {
         if (this.closed) return;
         this.closed = true;
         clearInterval(this.heartbeat);
         this.unsubscribeGame?.();
-        for (const seat of this.seats) seat.connection?.close();
+        for (const seat of this.seats) {
+            this.send(seat, {t: 'ended', reason: 'L\'hôte a quitté la partie.'});
+            seat.connection?.close();
+        }
         this.transport.close();
     }
     // endregion
@@ -187,7 +242,7 @@ export class Host implements Session {
             // Same player coming back (page reloaded, phone woke up...)
             const previous = seat.connection;
             seat.connection = connection;
-            previous?.close();
+            if (previous && previous !== connection) previous.close();
         } else {
             if (this.game) return refuse('La partie a déjà commencé.');
             if (this.seats.length >= MAX_PLAYERS) return refuse('La partie est complète (10 joueurs).');
@@ -218,11 +273,25 @@ export class Host implements Session {
         }
     }
 
+    private forgiveSilence() {
+        const now = Date.now();
+        this.lastTick = now;
+        for (const seat of this.seats) seat.lastSeen = now;
+    }
+
     /**
-     *  Heartbeat: detect players who vanished without closing the connection
+     *  Heartbeat: detect players who vanished without closing the connection.
+     *  If this page itself was asleep (phone locked, browser in the background), the players were
+     *  not silent: we were. Give them a fresh delay instead of dropping everybody.
      */
     private tick() {
         const now = Date.now();
+        const slept = now - this.lastTick > this.heartbeatMs * 2.5;
+        this.lastTick = now;
+        if (slept) {
+            this.forgiveSilence();
+            this.transport.resume();
+        }
         for (const seat of this.seats) {
             if (!seat.connection) continue;
             if (now - seat.lastSeen > this.timeoutMs) {
@@ -237,6 +306,24 @@ export class Host implements Session {
     // endregion
 
     // region Game
+    private attach(game: Dutch) {
+        this.game = game;
+        this.unsubscribeGame = game.on(event => {
+            if (event.type === 'change') {
+                this.broadcastState();
+                return;
+            }
+            const card = findHandCard(game, event.cardId);
+            if (!card) return;
+            const message: HostMessage = {t: 'reveal', card: faceUp(card)};
+            this.seats.forEach((seat, i) => {
+                if (!event.public && i !== event.playerId) return;
+                if (i === 0) this.events.emit({type: 'reveal', card: message.card});
+                else this.send(seat, message);
+            });
+        });
+    }
+
     private run(action: Action, fromHost: boolean) {
         if (!this.game) return {text: 'La partie n\'a pas commencé.', kind: 'error' as const};
         if (action.type === 'nextRound' && !fromHost) return {text: 'Seul l\'hôte lance la ronde suivante.', kind: 'error' as const};
@@ -253,9 +340,19 @@ export class Host implements Session {
         seat.connection?.send(message);
     }
 
+    private persist() {
+        if (!this.persistTo || this.closed) return;
+        try {
+            this.persistTo(this.snapshot());
+        } catch (e) {
+            console.warn('Dutch: the game could not be saved', e);
+        }
+    }
+
     private broadcastLobby() {
         const lobby = this.lobby;
         this.seats.forEach((seat, i) => this.send(seat, {t: 'lobby', lobby, you: i}));
+        this.persist();
         this.events.emit({type: 'lobby'});
     }
 
@@ -267,6 +364,7 @@ export class Host implements Session {
             if (i === 0) this.state = buildView(game, 0, {connected});
             else this.send(seat, {t: 'state', state: buildView(game, i, {connected})});
         });
+        this.persist();
         this.events.emit({type: 'state'});
     }
     // endregion

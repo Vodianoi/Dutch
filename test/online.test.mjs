@@ -179,3 +179,118 @@ test('a full online round can be played to the scores', async () => {
         close();
     }
 });
+
+// region Robustness: phones lose the connection all the time
+const fast = {retryDelaysMs: [0, 50, 100], welcomeTimeoutMs: 500};
+
+test('a player reconnects on his own when the connection drops, and keeps his seat', async () => {
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-drop', fast);
+    const statuses = [];
+    hugo.on(e => e.type === 'connection' && statuses.push(e.status));
+    try {
+        host.start({deckCount: 1});
+        await until(() => hugo.state);
+        const hand = hugo.state.players[1].hand.map(c => c.id);
+        // The host's page goes away for a moment (tab in the background, network change...)
+        host.suspend();
+        await until(() => hugo.status === 'reconnecting');
+        await wait(150);
+        host.resume();
+        await until(() => hugo.status === 'online');
+        assert.deepEqual(statuses, ['reconnecting', 'online']);
+        await until(() => host.state.players[1].connected);
+        assert.equal(hugo.state.viewerId, 1);
+        assert.deepEqual(hugo.state.players[1].hand.map(c => c.id), hand);
+        // and can play again
+        host.dispatch({type: 'drawFromPile', playerId: 0});
+        await until(() => hugo.state.phase === 'drawn');
+    } finally {
+        hugo.leave();
+        host.close();
+    }
+});
+
+test('the host page is reloaded: the saved game is reopened and the players come back', async () => {
+    let saved = null;
+    const first = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, persist: s => saved = s});
+    const code = first.code;
+    const hugo = await Client.join(transport, code, 'Hugo', 'token-hugo-reload', fast);
+    const axel = await Client.join(transport, code, 'Axel', 'token-axel-reload', fast);
+    let second = null;
+    try {
+        first.start({deckCount: 1});
+        await until(() => hugo.state && axel.state);
+        first.dispatch({type: 'drawFromPile', playerId: 0});
+        await until(() => hugo.state.phase === 'drawn');
+        const before = JSON.stringify(saved.game);
+        // The page dies (no goodbye to the players), then the reloaded page reopens the room
+        first.suspend();
+        await until(() => hugo.status === 'reconnecting' && axel.status === 'reconnecting');
+        second = new Host(await transport.host(code), 'Eddy', {heartbeatMs: 100000, restore: JSON.parse(JSON.stringify(saved))});
+        await until(() => hugo.status === 'online' && axel.status === 'online');
+        await until(() => second.state.players.every(p => p.connected));
+        assert.equal(JSON.stringify(second.snapshot().game), before);
+        assert.equal(hugo.state.phase, 'drawn');
+        assert.deepEqual(second.lobby.players.map(p => p.name), ['Eddy', 'Hugo', 'Axel']);
+        // The game goes on where it was
+        second.dispatch({type: 'discardDrawn', playerId: 0});
+        await until(() => axel.state.phase !== 'drawn');
+    } finally {
+        hugo.leave();
+        axel.leave();
+        second?.close();
+        first.close();
+    }
+});
+
+test('when the host quits on purpose, the players are told and stop reconnecting', async () => {
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-end', fast);
+    const events = [];
+    hugo.on(e => events.push(e));
+    host.start({deckCount: 1});
+    await until(() => hugo.state);
+    host.close();
+    await until(() => events.some(e => e.type === 'closed'));
+    assert.match(events.find(e => e.type === 'closed').reason, /quitté/);
+    assert.ok(!events.some(e => e.type === 'connection'));
+});
+
+test('a player stops trying after the give-up delay', async () => {
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-giveup', {...fast, giveUpMs: 300});
+    const events = [];
+    hugo.on(e => events.push(e));
+    try {
+        host.start({deckCount: 1});
+        await until(() => hugo.state);
+        host.suspend();
+        await until(() => events.some(e => e.type === 'closed'), 4000);
+        assert.match(events.find(e => e.type === 'closed').reason, /ne revient pas/);
+    } finally {
+        host.close();
+    }
+});
+
+test('after the host page slept, the players are not dropped for being silent', async () => {
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, timeoutMs: 1000});
+    const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-sleep', fast);
+    try {
+        host.start({deckCount: 1});
+        await until(() => hugo.state);
+        // The page was frozen for a minute: no tick, no pong received
+        host['lastTick'] = Date.now() - 1000000;
+        host['seats'][1].lastSeen = Date.now() - 60000;
+        host['tick']();
+        assert.equal(host.state.players[1].connected, true);
+        // but a player really silent after that is dropped
+        host['seats'][1].lastSeen = Date.now() - 60000;
+        host['tick']();
+        await until(() => host.state.players[1].connected === false);
+    } finally {
+        hugo.leave();
+        host.close();
+    }
+});
+// endregion

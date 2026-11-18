@@ -17,7 +17,11 @@ export type SessionEvent =
     | { type: 'reveal'; card: CardView }
     | { type: 'notice'; notice: Notice }
     | { type: 'lobby' }
+    /** Online player: connection to the host lost (reconnecting on its own) or back */
+    | { type: 'connection'; status: ConnectionStatus }
     | { type: 'closed'; reason: string };
+
+export type ConnectionStatus = 'online' | 'reconnecting';
 
 export interface Session {
     /** Seat of this device, null on a shared screen */

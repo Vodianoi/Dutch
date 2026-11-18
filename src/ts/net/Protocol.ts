@@ -26,6 +26,8 @@ export type HostMessage =
     | { t: 'reveal'; card: CardView }
     | { t: 'notice'; notice: Notice }
     | { t: 'refused'; reason: string }
+    /** The host ended the game on purpose: don't try to reconnect */
+    | { t: 'ended'; reason: string }
     | { t: 'ping' };
 
 /** Player -> host */

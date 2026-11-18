@@ -325,3 +325,25 @@ test('random full games always terminate with consistent card count', () => {
         assert.ok(game.players.some(p => p.score >= 100));
     }
 });
+
+test('a game saved as JSON is restored exactly and can go on', () => {
+    const game = new Dutch({players: ['Eddy', 'Hugo', 'Axel'], deckCount: 1});
+    game.startRound();
+    game.drawFromPile(0);
+    game.swapDrawn(0, game.players[0].hand[2].id);
+    while (game.activeEffect) game.skipEffect(game.activeEffect.playerId);
+    game.endTurn(0, true);
+    game.drawFromPile(1);
+
+    const saved = JSON.parse(JSON.stringify(game.snapshot()));
+    const copy = Dutch.restore(saved);
+    assert.deepEqual(JSON.parse(JSON.stringify(copy.snapshot())), saved);
+    assert.equal(copy.phase, 'drawn');
+    assert.equal(copy.dutchCallerId, 0);
+    assert.equal(copy.drawn.card.id, game.drawn.card.id);
+    // both games play on the same way
+    copy.discardDrawn(1);
+    game.discardDrawn(1);
+    assert.deepEqual(copy.snapshot().discardPile, game.snapshot().discardPile);
+    assert.equal(copy.lastMove.seq, game.lastMove.seq);
+});

@@ -9,8 +9,17 @@ import GameView from './GameView.js';
 import { renderLobby } from './LobbyView.js';
 import { renderSetup } from './SetupView.js';
 import { clear, el } from './dom.js';
+const HOST_KEY = 'dutch-host';
+/** Which room this tab hosts: a reload of this tab reopens it */
+const HOST_TAB_KEY = 'dutch-host-room';
+/** A saved room is offered back for this long */
+const HOST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 /**
- *  Screens and sessions: home, local game, online lobby and game, connection lost
+ *  Screens and sessions: home, local game, online lobby and game, connection lost.
+ *
+ *  Online games survive phones: leaving the page or locking the screen doesn't end the game.
+ *  - The host saves the room after every change; reloading (or reopening) the page reopens it with the same code
+ *  - Players reconnect on their own and get their seat back (their token is kept on the device)
  */
 export class App {
     constructor(root) {
@@ -19,6 +28,8 @@ export class App {
         this.cleanup = [];
         /** Dialog shown above the game (outside of the root re-rendered by the game) */
         this.dialog = null;
+        /** "Reconnexion…" banner of an online player */
+        this.banner = null;
         this.root = root;
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
@@ -26,25 +37,39 @@ export class App {
         this.transport = this.localTransport ? new BroadcastTransport() : new PeerTransport();
         window.addEventListener('beforeunload', e => {
             if (this.session instanceof Host && this.session.started) {
-                // Closing the host's page ends the game for everybody
+                // The game is saved, but the other players wait for this page to come back
                 e.preventDefault();
                 e.returnValue = '';
             }
         });
-        // Tell the other devices right away when this page goes away
+        // Leaving the page doesn't end the game: the connections drop, the game waits for the page to come back
         window.addEventListener('pagehide', () => {
-            if (this.session instanceof Host)
-                this.session.close();
-            if (this.session instanceof Client)
-                this.session.leave();
+            if (this.session instanceof Host || this.session instanceof Client)
+                this.session.suspend();
         });
+        window.addEventListener('pageshow', e => {
+            if (e.persisted)
+                this.resumeSession();
+        });
+        // Screen unlocked, browser back in the foreground: check the connections right away
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible')
+                this.resumeSession();
+        });
+        window.addEventListener('online', () => this.resumeSession());
     }
     start() {
         const code = new URLSearchParams(location.search).get('room');
         if (code) {
+            // This device hosts this room: reopen it (page reloaded, tab discarded by the phone…)
+            const saved = this.savedHost(code);
+            if (saved) {
+                this.resumeHost(saved);
+                return;
+            }
             const name = this.savedName();
             const token = this.storedToken(code);
-            // Page reloaded during a game: join again automatically
+            // Page reloaded or link opened again during a game: join again automatically
             if (name && token) {
                 this.join(code, name);
                 return;
@@ -52,14 +77,38 @@ export class App {
         }
         this.home({ code: code ?? undefined });
     }
+    resumeSession() {
+        if (this.session instanceof Host || this.session instanceof Client)
+            this.session.resume();
+    }
     // region Home
     home(initial = {}) {
         this.reset();
         this.setRoomInUrl(initial.code ?? null);
+        const saved = this.savedHost();
+        if (saved && !initial.busy) {
+            initial = {
+                ...initial,
+                resume: {
+                    code: saved.snapshot.code,
+                    players: saved.snapshot.seats.map(s => s.name),
+                    started: !!saved.snapshot.game,
+                },
+            };
+        }
         renderSetup(this.root, {
             onLocal: options => this.playLocal(options),
             onHost: name => this.host(name),
             onJoin: (code, name) => this.join(code, name),
+            onResume: () => {
+                const again = this.savedHost();
+                if (again)
+                    this.resumeHost(again);
+            },
+            onForget: () => {
+                this.forgetHost();
+                this.home();
+            },
         }, initial);
     }
     reset() {
@@ -67,11 +116,15 @@ export class App {
         this.cleanup = [];
         this.dialog?.remove();
         this.dialog = null;
+        this.showBanner(false);
         this.root.removeAttribute('inert');
         this.view?.destroy();
         this.view = null;
-        if (this.session instanceof Host)
+        if (this.session instanceof Host) {
+            // Leaving the room from the app: the game is over for everybody
             this.session.close();
+            this.forgetHost();
+        }
         if (this.session instanceof Client)
             this.session.leave();
         this.session = null;
@@ -103,14 +156,37 @@ export class App {
         this.home({ busy: 'Création de la partie…' });
         let host;
         try {
-            host = new Host(await this.transport.host(), name);
+            const transport = await this.transport.host();
+            host = new Host(transport, name, { persist: snapshot => this.saveHost(name, snapshot) });
         }
         catch (e) {
             this.home({ error: e.message });
             return;
         }
+        this.runHost(host);
+    }
+    /**
+     *  Reopen a saved room with the same code: the players reconnect on their own
+     */
+    async resumeHost(saved) {
+        const code = saved.snapshot.code;
+        this.home({ busy: `Reprise de la partie ${code}…`, code });
+        let host;
+        try {
+            const transport = await this.transport.host(code);
+            host = new Host(transport, saved.name, { restore: saved.snapshot, persist: snapshot => this.saveHost(saved.name, snapshot) });
+        }
+        catch (e) {
+            this.home({ error: `Impossible de reprendre la partie ${code} : ${e.message}` });
+            return;
+        }
+        this.runHost(host);
+    }
+    runHost(host) {
         this.reset();
         this.session = host;
+        this.setRoomInUrl(host.code);
+        this.markHostTab(host.code);
         let lobbyError;
         const lobby = () => {
             if (host.started)
@@ -132,7 +208,7 @@ export class App {
             });
         };
         this.cleanup.push(host.on(event => {
-            if (event.type === 'lobby') {
+            if (event.type === 'lobby' || event.type === 'state') {
                 if (host.started) {
                     if (!this.view)
                         this.showGame(host, () => host.newGame());
@@ -144,7 +220,10 @@ export class App {
                 }
             }
         }));
-        lobby();
+        if (host.started)
+            this.showGame(host, () => host.newGame());
+        else
+            lobby();
     }
     // endregion
     // region Online: player
@@ -184,19 +263,39 @@ export class App {
         this.cleanup.push(client.on(event => {
             if (event.type === 'lobby' || event.type === 'state')
                 update();
+            if (event.type === 'connection')
+                this.showBanner(event.status === 'reconnecting', () => {
+                    this.forgetToken(code);
+                    this.home();
+                });
             if (event.type === 'closed')
                 this.connectionLost(code, name, event.reason);
         }));
         update();
     }
+    /**
+     *  Banner while an online player reconnects: the game stays on screen, actions wait
+     */
+    showBanner(show, onQuit) {
+        if (!show) {
+            this.banner?.remove();
+            this.banner = null;
+            return;
+        }
+        if (this.banner)
+            return;
+        this.banner = el('div', { class: 'net-banner', role: 'status' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }), el('span', {}, el('strong', {}, 'Reconnexion… '), 'La partie reprend dès que l\'hôte est là.'), onQuit ? el('button', { class: 'secondary', onclick: onQuit }, 'Quitter') : null);
+        document.body.appendChild(this.banner);
+    }
     connectionLost(code, name, reason) {
+        this.showBanner(false);
         this.dialog?.remove();
-        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title' }, el('h2', { id: 'lost-title' }, 'Connexion perdue'), el('p', {}, reason), el('p', { class: 'hint' }, 'Si la partie continue chez l\'hôte, vous retrouverez votre place et vos cartes.'), el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, 'Se reconnecter'), el('button', { class: 'secondary', onclick: () => {
+        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title' }, el('h2', { id: 'lost-title' }, 'Partie interrompue'), el('p', {}, reason), el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, 'Réessayer'), el('button', { class: 'secondary', onclick: () => {
                 this.forgetToken(code);
                 this.home();
             } }, 'Retour à l\'accueil')));
         document.body.appendChild(this.dialog);
-        // The game behind the dialog can not be used until the connection is back
+        // The game behind the dialog can not be used anymore
         this.root.setAttribute('inert', '');
         this.dialog.querySelector('#reconnect')?.focus();
     }
@@ -224,9 +323,63 @@ export class App {
             url.searchParams.delete('room');
         history.replaceState(null, '', url);
     }
+    // endregion
+    // region Storage
+    /**
+     *  Room hosted by this device (for `code` if given), if recent enough.
+     *  Between tabs of one browser (?transport=local), only the tab that created the room reopens it.
+     */
+    savedHost(code) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(HOST_KEY) ?? 'null');
+            if (!saved?.snapshot || saved.snapshot.v !== 1)
+                return null;
+            if (Date.now() - saved.savedAt > HOST_MAX_AGE_MS)
+                return null;
+            if (code && saved.snapshot.code !== code)
+                return null;
+            if (this.localTransport && sessionStorage.getItem(HOST_TAB_KEY) !== saved.snapshot.code)
+                return null;
+            return saved;
+        }
+        catch {
+            return null;
+        }
+    }
+    saveHost(name, snapshot) {
+        try {
+            localStorage.setItem(HOST_KEY, JSON.stringify({ savedAt: Date.now(), name, snapshot }));
+        }
+        catch {
+            // Storage full or refused: the game goes on, it just can't be reopened
+        }
+    }
+    forgetHost() {
+        try {
+            localStorage.removeItem(HOST_KEY);
+            sessionStorage.removeItem(HOST_TAB_KEY);
+        }
+        catch {
+            // ignore
+        }
+    }
+    markHostTab(code) {
+        try {
+            sessionStorage.setItem(HOST_TAB_KEY, code);
+        }
+        catch {
+            // ignore
+        }
+    }
+    /**
+     *  The token gives a player his seat back. It is kept for the tab (sessionStorage) and for the
+     *  device (localStorage, so that opening the link again in a new tab works), except between tabs
+     *  of one browser in development where each tab is a different player.
+     */
     storedToken(code) {
         try {
-            return sessionStorage.getItem(`dutch-token-${code}`);
+            return sessionStorage.getItem(`dutch-token-${code}`)
+                ?? (this.localTransport ? null : localStorage.getItem(`dutch-token-${code}`));
         }
         catch {
             return null;
@@ -235,6 +388,8 @@ export class App {
     storeToken(code, token) {
         try {
             sessionStorage.setItem(`dutch-token-${code}`, token);
+            if (!this.localTransport)
+                localStorage.setItem(`dutch-token-${code}`, token);
         }
         catch {
             // ignore: reconnecting will just need a new seat
@@ -243,6 +398,7 @@ export class App {
     forgetToken(code) {
         try {
             sessionStorage.removeItem(`dutch-token-${code}`);
+            localStorage.removeItem(`dutch-token-${code}`);
         }
         catch {
             // ignore

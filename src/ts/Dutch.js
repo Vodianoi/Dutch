@@ -1,5 +1,8 @@
+import Card from './Card.js';
 import Deck from './Deck.js';
 import Player from './Player.js';
+const cardData = (card) => ({ id: card.id, value: card.value, suit: card.suit });
+const toCard = (data) => new Card(data.id, data.value, data.suit);
 /**
  *  Thrown when an action is not allowed by the rules; the message is shown to the players
  */
@@ -64,6 +67,87 @@ class Dutch {
         this.peekVariant = options.peekVariant ?? false;
         this.rng = options.rng ?? Math.random;
         this.deck = new Deck(this.deckCount, this.rng);
+    }
+    // endregion
+    // region Snapshot
+    snapshot() {
+        const move = this.lastMove;
+        const result = this.lastResult;
+        return {
+            v: 1,
+            players: this.players.map(p => ({
+                name: p.name, hand: p.hand.map(cardData), score: p.score,
+                roundScores: p.roundScores.slice(), ready: p.ready, locked: p.locked,
+            })),
+            deckCount: this.deckCount,
+            cardsPerPlayer: this.cardsPerPlayer,
+            targetScore: this.targetScore,
+            dutchPenalty: this.dutchPenalty,
+            peekVariant: this.peekVariant,
+            drawPile: this.deck.drawPile.map(cardData),
+            discardPile: this.deck.discardPile.map(cardData),
+            phase: this.phase,
+            round: this.round,
+            currentPlayerIndex: this.currentPlayerIndex,
+            firstPlayerIndex: this.firstPlayerIndex,
+            drawn: this.drawn ? { card: cardData(this.drawn.card), source: this.drawn.source } : null,
+            effects: this.effects.map(e => ({ type: e.type, playerId: e.playerId, card: cardData(e.card) })),
+            dutchCallerId: this.dutchCallerId,
+            finalTurnsLeft: this.finalTurnsLeft,
+            log: this.log.map(entry => ({ ...entry })),
+            lastMove: move ? { ...move, playerIds: move.playerIds.slice(), cardIds: move.cardIds.slice(), card: move.card ? cardData(move.card) : undefined } : null,
+            moveSeq: this.moveSeq,
+            lastResult: result ? {
+                ...result,
+                scores: result.scores.map(s => ({ ...s })),
+                winners: result.winners.slice(),
+                hands: Object.fromEntries(Object.entries(result.hands).map(([id, hand]) => [id, hand.map(cardData)])),
+            } : null,
+        };
+    }
+    /**
+     *  Rebuild a game saved with snapshot(). Listeners are not saved: subscribe again.
+     */
+    static restore(data, rng) {
+        if (!data || data.v !== 1)
+            throw new RuleError('Sauvegarde de partie invalide.');
+        const game = new Dutch({
+            players: data.players.map(p => p.name),
+            deckCount: data.deckCount,
+            cardsPerPlayer: data.cardsPerPlayer,
+            targetScore: data.targetScore,
+            dutchPenalty: data.dutchPenalty,
+            peekVariant: data.peekVariant,
+            rng,
+        });
+        data.players.forEach((saved, i) => {
+            const player = game.players[i];
+            player.hand = saved.hand.map(toCard);
+            player.score = saved.score;
+            player.roundScores = saved.roundScores.slice();
+            player.ready = saved.ready;
+            player.locked = saved.locked;
+        });
+        game.deck.drawPile = data.drawPile.map(toCard);
+        game.deck.discardPile = data.discardPile.map(toCard);
+        game.phase = data.phase;
+        game.round = data.round;
+        game.currentPlayerIndex = data.currentPlayerIndex;
+        game.firstPlayerIndex = data.firstPlayerIndex;
+        game.drawn = data.drawn ? { card: toCard(data.drawn.card), source: data.drawn.source } : null;
+        game.effects = data.effects.map(e => ({ type: e.type, playerId: e.playerId, card: toCard(e.card) }));
+        game.dutchCallerId = data.dutchCallerId;
+        game.finalTurnsLeft = data.finalTurnsLeft;
+        game.log = data.log.map(entry => ({ ...entry }));
+        const move = data.lastMove;
+        game.lastMove = move ? { ...move, card: move.card ? toCard(move.card) : undefined } : null;
+        game.moveSeq = data.moveSeq;
+        const result = data.lastResult;
+        game.lastResult = result ? {
+            ...result,
+            hands: Object.fromEntries(Object.entries(result.hands).map(([id, hand]) => [id, hand.map(toCard)])),
+        } : null;
+        return game;
     }
     // endregion
     // region Getters

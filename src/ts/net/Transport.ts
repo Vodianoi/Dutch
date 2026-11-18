@@ -15,6 +15,11 @@ export interface HostTransport {
     /** Room code the other players type to join */
     readonly code: string;
     onConnection(listener: (connection: Connection) => void): void;
+    /** Page hidden for good (pagehide): free the room code so a reload of this page can take it back */
+    suspend(): void;
+    /** Page back (or woke up): make sure the room is reachable again, with the same code */
+    resume(): void;
+    /** End of the room */
     close(): void;
 }
 

@@ -27,10 +27,14 @@ class BroadcastConnection extends ConnectionBase {
         this.onLocalClose();
     }
     handle(packet) {
-        if (packet.kind === 'msg')
+        if (packet.kind === 'msg') {
             this.receive(JSON.parse(packet.data));
-        else if (packet.kind === 'close' || packet.kind === 'host-closed')
+        }
+        else if ((packet.kind === 'close' || packet.kind === 'host-closed') && !this.closed) {
             this.closedByPeer();
+            // Closed by the other side: release our end too (the channel of a player)
+            this.onLocalClose();
+        }
     }
 }
 class BroadcastHost {
@@ -39,12 +43,32 @@ class BroadcastHost {
         this.channel = channel;
         this.connections = new Map();
         this.listeners = [];
+        this.suspended = false;
         channel.onmessage = (e) => this.handle(e.data);
     }
     onConnection(listener) {
         this.listeners.push(listener);
     }
+    /** Like a page that goes away: every connection drops */
+    suspend() {
+        if (this.suspended)
+            return;
+        this.suspended = true;
+        this.channel.postMessage({ kind: 'host-closed' });
+        this.channel.close();
+        this.connections.clear();
+    }
+    resume() {
+        if (!this.suspended)
+            return;
+        this.suspended = false;
+        this.channel = new BroadcastChannel(channelName(this.code));
+        this.channel.onmessage = (e) => this.handle(e.data);
+    }
     close() {
+        if (this.suspended)
+            return;
+        this.suspended = true;
         this.channel.postMessage({ kind: 'host-closed' });
         this.channel.close();
     }

@@ -42,7 +42,7 @@ export function renderSetup(root, handlers, initial = {}) {
     const switchMode = (mode) => {
         setup.mode = mode;
         saveSetup(setup);
-        initial = { code: initial.code };
+        initial = { code: initial.code, resume: initial.resume };
         draw();
     };
     // region Online
@@ -87,7 +87,8 @@ export function renderSetup(root, handlers, initial = {}) {
         };
         codeInput.addEventListener('keydown', e => e.key === 'Enter' && join());
         const busy = !!initial.busy;
-        return el('div', { class: 'setup-online' }, el('div', { class: 'stack' }, el('label', { for: 'online-name' }, 'Votre nom'), nameInput, nameError), el('div', { class: 'online-choices' }, el('div', { class: 'choice' }, el('h3', {}, 'Créer une partie'), el('p', { class: 'hint' }, 'Vous recevez un code à partager avec les autres joueurs.'), el('button', { id: 'create-room', class: 'primary', disabled: busy, onclick: create }, 'Créer')), el('div', { class: 'choice' }, el('h3', {}, 'Rejoindre'), codeInput, codeError, el('button', { id: 'join-room', class: 'primary', disabled: busy, onclick: join }, 'Rejoindre'))), initial.busy ? el('p', { class: 'message info', role: 'status' }, initial.busy) : null, initial.error ? el('p', { class: 'message error', role: 'alert' }, initial.error) : null, el('p', { class: 'hint' }, 'Chacun joue sur son appareil et ne voit que ses cartes. ', 'La partie tourne sur l\'appareil de celui qui la crée : il doit garder la page ouverte.'));
+        const resume = initial.resume;
+        return el('div', { class: 'setup-online' }, resume && !busy ? el('section', { class: 'resume', 'aria-labelledby': 'resume-title' }, el('h3', { id: 'resume-title' }, resume.started ? 'Votre partie est en cours' : 'Votre salle d\'attente est ouverte'), el('p', { class: 'hint' }, `Partie ${resume.code} avec ${resume.players.join(', ')}. `, 'Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.'), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.() }, 'Reprendre la partie'), el('button', { class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.() }, 'Abandonner'))) : null, el('div', { class: 'stack' }, el('label', { for: 'online-name' }, 'Votre nom'), nameInput, nameError), el('div', { class: 'online-choices' }, el('div', { class: 'choice' }, el('h3', {}, 'Créer une partie'), el('p', { class: 'hint' }, 'Vous recevez un code à partager avec les autres joueurs.'), el('button', { id: 'create-room', class: 'primary', disabled: busy, onclick: create }, 'Créer')), el('div', { class: 'choice' }, el('h3', {}, 'Rejoindre'), codeInput, codeError, el('button', { id: 'join-room', class: 'primary', disabled: busy, onclick: join }, 'Rejoindre'))), initial.busy ? el('p', { class: 'message info', role: 'status' }, initial.busy) : null, initial.error ? el('p', { class: 'message error', role: 'alert' }, initial.error) : null, el('p', { class: 'hint' }, 'Chacun joue sur son appareil et ne voit que ses cartes. ', 'La partie tourne sur l\'appareil de celui qui la crée : il doit garder la page ouverte.'));
     };
     // endregion
     // region Local
