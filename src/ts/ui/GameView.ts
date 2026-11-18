@@ -298,7 +298,8 @@ class GameView {
                 return;
             case 'closed':
             case 'lobby':
-                // Handled by the App (connection lost dialog, back to the lobby)
+            case 'connection':
+                // Handled by the App (connection lost dialog, back to the lobby, reconnection banner)
                 return;
         }
         this.render();

@@ -41,12 +41,18 @@ export interface SetupHandlers {
     onHost(name: string): void;
     /** Join an online game */
     onJoin(code: string, name: string): void;
+    /** Reopen the room this device was hosting */
+    onResume?(): void;
+    /** Forget the room this device was hosting */
+    onForget?(): void;
 }
 
 export interface SetupInitial {
     code?: string;
     error?: string;
     busy?: string;
+    /** Room this device was hosting and can reopen (the page was closed during the game) */
+    resume?: { code: string; players: string[]; started: boolean };
 }
 
 /**
@@ -73,7 +79,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
     const switchMode = (mode: 'online' | 'local') => {
         setup.mode = mode;
         saveSetup(setup);
-        initial = {code: initial.code};
+        initial = {code: initial.code, resume: initial.resume};
         draw();
     };
 
@@ -118,7 +124,15 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         codeInput.addEventListener('keydown', e => e.key === 'Enter' && join());
 
         const busy = !!initial.busy;
+        const resume = initial.resume;
         return el('div', {class: 'setup-online'},
+            resume && !busy ? el('section', {class: 'resume', 'aria-labelledby': 'resume-title'},
+                el('h3', {id: 'resume-title'}, resume.started ? 'Votre partie est en cours' : 'Votre salle d\'attente est ouverte'),
+                el('p', {class: 'hint'}, `Partie ${resume.code} avec ${resume.players.join(', ')}. `,
+                    'Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.'),
+                el('div', {class: 'resume-actions'},
+                    el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, 'Reprendre la partie'),
+                    el('button', {class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.()}, 'Abandonner'))) : null,
             el('div', {class: 'stack'}, el('label', {for: 'online-name'}, 'Votre nom'), nameInput, nameError),
             el('div', {class: 'online-choices'},
                 el('div', {class: 'choice'},
