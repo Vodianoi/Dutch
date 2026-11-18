@@ -1,4 +1,5 @@
 import Dutch, { RuleError } from '../Dutch.js';
+import { assignColors, checkSettings, cleanSettings, isPlayerColor } from '../Settings.js';
 import { Emitter, findHandCard } from '../Session.js';
 import { applyAction, buildView, faceUp } from '../View.js';
 import { cleanName, MAX_PLAYERS, PROTOCOL_VERSION, randomToken } from './Protocol.js';
@@ -26,12 +27,16 @@ export class Host {
         this.persistTo = options.persist;
         const saved = options.restore;
         if (saved) {
-            this.seats = saved.seats.map(s => ({ name: s.name, token: s.token, connection: null, lastSeen: 0 }));
+            const colors = assignColors(saved.seats.map(s => s.color));
+            this.seats = saved.seats.map((s, i) => ({ name: s.name, color: colors[i], token: s.token, connection: null, lastSeen: 0 }));
+            this.settings = cleanSettings(saved.settings ?? options.settings);
             if (saved.game)
                 this.attach(Dutch.restore(saved.game));
         }
         else {
-            this.seats = [{ name: cleanName(hostName, 'Hôte'), token: randomToken(), connection: null, lastSeen: Date.now() }];
+            const color = assignColors([options.color])[0];
+            this.seats = [{ name: cleanName(hostName, 'Hôte'), color, token: randomToken(), connection: null, lastSeen: Date.now() }];
+            this.settings = cleanSettings(options.settings);
         }
         transport.onConnection(connection => this.accept(connection));
         this.heartbeat = setInterval(() => this.tick(), this.heartbeatMs);
@@ -51,11 +56,21 @@ export class Host {
         return {
             code: this.code,
             started: this.started,
-            players: this.seats.map((seat, i) => ({ name: seat.name, connected: this.isConnected(i) })),
+            settings: this.settings,
+            players: this.seats.map((seat, i) => ({ name: seat.name, color: seat.color, connected: this.isConnected(i) })),
         };
     }
     on(listener) {
         return this.events.on(listener);
+    }
+    /**
+     *  Rules chosen in the lobby: shown to every player before the game starts
+     */
+    setSettings(settings) {
+        if (this.game)
+            return;
+        this.settings = cleanSettings({ ...this.settings, ...settings });
+        this.broadcastLobby();
     }
     /**
      *  Deal the cards to everybody in the lobby
@@ -70,10 +85,14 @@ export class Host {
         }
         if (this.seats.length < 2)
             throw new RuleError('Il faut au moins 2 joueurs.');
+        this.settings = cleanSettings({ ...this.settings, ...options });
+        const problem = checkSettings(this.seats.length, this.settings);
+        if (problem)
+            throw new RuleError(problem);
         const game = new Dutch({
+            ...this.settings,
             players: this.seats.map(s => s.name),
-            deckCount: options.deckCount,
-            peekVariant: options.peekVariant,
+            playerColors: this.seats.map(s => s.color),
         });
         this.attach(game);
         this.broadcastLobby();
@@ -105,7 +124,8 @@ export class Host {
         return {
             v: 1,
             code: this.code,
-            seats: this.seats.map(s => ({ name: s.name, token: s.token })),
+            seats: this.seats.map(s => ({ name: s.name, token: s.token, color: s.color })),
+            settings: this.settings,
             game: this.game ? this.game.snapshot() : null,
         };
     }
@@ -210,7 +230,9 @@ export class Host {
                 return refuse('La partie a déjà commencé.');
             if (this.seats.length >= MAX_PLAYERS)
                 return refuse('La partie est complète (10 joueurs).');
-            seat = { name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), token: hello.token, connection, lastSeen: 0 };
+            const wanted = isPlayerColor(hello.color) && !this.seats.some(s => s.color === hello.color) ? hello.color : null;
+            const color = wanted ?? assignColors([...this.seats.map(s => s.color), null])[this.seats.length];
+            seat = { name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), color, token: hello.token, connection, lastSeen: 0 };
             this.seats.push(seat);
         }
         seat.lastSeen = Date.now();

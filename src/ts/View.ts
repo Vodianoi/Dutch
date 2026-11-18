@@ -1,5 +1,6 @@
 import Card, {Suit, Value} from './Card.js';
 import Dutch, {EffectType, LogEntry, MoveType, Phase, RuleError} from './Dutch.js';
+import {GameSettings} from './Settings.js';
 
 /**
  *  What one player is allowed to see of the game.
@@ -18,6 +19,7 @@ export interface CardView {
 export interface PlayerView {
     id: number;
     name: string;
+    color: string;
     score: number;
     roundScores: number[];
     ready: boolean;
@@ -54,6 +56,8 @@ export interface GameView {
     phase: Phase;
     round: number;
     targetScore: number;
+    /** Rules of this game */
+    settings: GameSettings;
     currentPlayerIndex: number;
     dutchCallerId: number | null;
     isFinalRound: boolean;
@@ -134,6 +138,14 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
         phase: game.phase,
         round: game.round,
         targetScore: game.targetScore,
+        settings: {
+            deckCount: game.deckCount,
+            cardsPerPlayer: game.cardsPerPlayer,
+            targetScore: game.targetScore,
+            dutchPenalty: game.dutchPenalty,
+            peekVariant: game.peekVariant,
+            effects: game.effectsEnabled.slice(),
+        },
         currentPlayerIndex: game.currentPlayerIndex,
         dutchCallerId: game.dutchCallerId,
         isFinalRound: game.isFinalRound,
@@ -148,6 +160,7 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
         players: game.players.map(p => ({
             id: p.id,
             name: p.name,
+            color: p.color,
             score: p.score,
             roundScores: p.roundScores.slice(),
             ready: p.ready,

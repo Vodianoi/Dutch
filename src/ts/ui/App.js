@@ -7,7 +7,7 @@ import { PeerTransport } from '../net/PeerTransport.js';
 import { randomToken } from '../net/Protocol.js';
 import GameView from './GameView.js';
 import { renderLobby } from './LobbyView.js';
-import { renderSetup } from './SetupView.js';
+import { loadSetup, renderSetup } from './SetupView.js';
 import { clear, el } from './dom.js';
 const HOST_KEY = 'dutch-host';
 /** Which room this tab hosts: a reload of this tab reopens it */
@@ -98,7 +98,7 @@ export class App {
         }
         renderSetup(this.root, {
             onLocal: options => this.playLocal(options),
-            onHost: name => this.host(name),
+            onHost: (name, color, settings) => this.host(name, color, settings),
             onJoin: (code, name) => this.join(code, name),
             onResume: () => {
                 const again = this.savedHost();
@@ -152,12 +152,12 @@ export class App {
     }
     // endregion
     // region Online: host
-    async host(name) {
+    async host(name, color, settings) {
         this.home({ busy: 'Création de la partie…' });
         let host;
         try {
             const transport = await this.transport.host();
-            host = new Host(transport, name, { persist: snapshot => this.saveHost(name, snapshot) });
+            host = new Host(transport, name, { color, settings, persist: snapshot => this.saveHost(name, snapshot) });
         }
         catch (e) {
             this.home({ error: e.message });
@@ -204,6 +204,7 @@ export class App {
                         lobby();
                     }
                 },
+                onSettings: settings => host.setSettings(settings),
                 onLeave: () => this.home(),
             });
         };
@@ -232,7 +233,8 @@ export class App {
         const token = this.storedToken(code) ?? randomToken();
         let client;
         try {
-            client = await Client.join(this.transport, code, name, token);
+            // The colour chosen on the home screen (the host gives another one if it is taken)
+            client = await Client.join(this.transport, code, name, token, { color: loadSetup().onlineColor });
         }
         catch (e) {
             this.forgetToken(code);

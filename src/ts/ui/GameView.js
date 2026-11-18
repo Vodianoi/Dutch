@@ -1,6 +1,7 @@
 import { toCard } from '../View.js';
 import { renderCard } from './CardView.js';
 import { clear, el } from './dom.js';
+import { describeSettings } from '../Settings.js';
 import { icon } from './icons.js';
 import { cardTag, comesFromPile, de, describeMove } from './moves.js';
 const REVEAL_MS = 2500;
@@ -38,6 +39,8 @@ class GameView {
         this.pendingFocus = null;
         /** Round result already shown (focus moved into it once) */
         this.resultShown = null;
+        /** "Règles de la partie" panel opened by the player (kept across re-renders) */
+        this.rulesOpen = false;
         this.lastInstruction = '';
         this.root = root;
         this.session = session;
@@ -80,7 +83,7 @@ class GameView {
             const me = players.findIndex(p => p.id === state.viewerId);
             players.unshift(...players.splice(me, 1));
         }
-        const board = el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(state), this.renderCenter(state), el('section', { class: 'players', 'aria-label': 'Joueurs' }, ...players.map(p => this.renderPlayer(state, p)))), el('aside', { class: 'side' }, this.renderScores(state), this.renderLog(state)));
+        const board = el('div', { class: 'board' }, el('div', { class: 'table-area' }, this.renderStatus(state), this.renderCenter(state), el('section', { class: 'players', 'aria-label': 'Joueurs' }, ...players.map(p => this.renderPlayer(state, p)))), el('aside', { class: 'side' }, this.renderScores(state), this.renderRules(state), this.renderLog(state)));
         this.root.appendChild(board);
         if (this.message) {
             this.root.appendChild(el('div', { class: `toast ${this.message.kind}` }, icon(this.message.kind === 'error' ? 'cross' : 'info'), el('span', {}, this.message.text)));
@@ -578,12 +581,20 @@ class GameView {
                 onclick: () => this.dispatch({ type: 'aceGive', playerId: effect.playerId, targetId: player.id }),
             }, icon('gift'), isViewer || (state.viewerId === null && player.id === effect.playerId) ? 'Me donner une carte' : `Donner une carte à ${player.name}`));
         }
-        return el('div', { class: classes.join(' '), id: `player-${player.id}`, role: 'group', 'aria-label': isViewer ? `${player.name} (vous)` : player.name }, el('header', {}, el('span', { class: 'avatar', 'aria-hidden': 'true', style: { background: seatColor(player.id) } }, initial(player.name)), el('h2', {}, player.name, isViewer ? el('small', {}, ' (vous)') : null), el('span', { class: 'score' }, `${player.score} pts`), isCurrent ? el('span', { class: 'badge turn' }, isViewer ? 'À vous' : 'À son tour') : null, immune ? el('span', { class: 'badge dutch' }, 'Dutch · protégé') : null, player.locked ? el('span', { class: 'badge locked' }, 'Bloqué ce tour') : null, state.phase === 'peek' && player.ready ? el('span', { class: 'badge turn' }, 'Prêt') : null, !player.connected ? el('span', { class: 'badge locked' }, 'Déconnecté') : null), hand, actions);
+        return el('div', { class: classes.join(' '), id: `player-${player.id}`, role: 'group', 'aria-label': isViewer ? `${player.name} (vous)` : player.name }, el('header', {}, el('span', { class: 'avatar', 'aria-hidden': 'true', style: { background: player.color ?? seatColor(player.id) } }, initial(player.name)), el('h2', {}, player.name, isViewer ? el('small', {}, ' (vous)') : null), el('span', { class: 'score' }, `${player.score} pts`), isCurrent ? el('span', { class: 'badge turn' }, isViewer ? 'À vous' : 'À son tour') : null, immune ? el('span', { class: 'badge dutch' }, 'Dutch · protégé') : null, player.locked ? el('span', { class: 'badge locked' }, 'Bloqué ce tour') : null, state.phase === 'peek' && player.ready ? el('span', { class: 'badge turn' }, 'Prêt') : null, !player.connected ? el('span', { class: 'badge locked' }, 'Déconnecté') : null), hand, actions);
     }
     renderScores(state) {
         const rounds = Math.max(0, ...state.players.map(p => p.roundScores.length));
         const best = Math.min(...state.players.map(p => p.score));
         return el('section', { class: 'scores panel' }, el('h3', {}, 'Scores ', el('small', {}, `fin à ${state.targetScore}`)), el('div', { class: 'table-scroll' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Joueur'), ...Array.from({ length: rounds }, (_, i) => el('th', { scope: 'col' }, `R${i + 1}`)), el('th', { scope: 'col' }, 'Total'))), el('tbody', {}, ...state.players.map(p => el('tr', { class: p.id === state.viewerId ? 'me' : '' }, el('th', { scope: 'row' }, p.name), ...p.roundScores.map(s => el('td', {}, s)), el('td', { class: 'total' }, p.score, rounds > 0 && p.score === best ? el('span', { class: 'lead' }, icon('star'), el('span', { class: 'sr-only' }, ' (en tête)')) : null)))))));
+    }
+    /**
+     *  Rules chosen for this game, folded by default
+     */
+    renderRules(state) {
+        const details = el('details', { class: 'rules panel', open: this.rulesOpen }, el('summary', {}, el('h3', {}, 'Règles de la partie')), el('ul', {}, ...describeSettings(state.settings).map(line => el('li', {}, line))));
+        details.addEventListener('toggle', () => this.rulesOpen = details.open);
+        return details;
     }
     /**
      *  Game log (issue #6), latest first

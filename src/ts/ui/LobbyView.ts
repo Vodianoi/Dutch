@@ -1,4 +1,5 @@
 import {LobbyState} from '../net/Protocol.js';
+import {checkSettings, colorName, describeSettings, GameSettings} from '../Settings.js';
 import {gameOptions, loadSetup, saveSetup} from './SetupView.js';
 import {clear, el} from './dom.js';
 
@@ -8,20 +9,27 @@ export interface LobbyProps {
     isHost: boolean;
     link: string;
     error?: string;
-    onStart?(options: { deckCount: number; peekVariant: boolean }): void;
+    /** Host: the rules changed (shown to everybody right away) */
+    onSettings?(settings: GameSettings): void;
+    onStart?(settings: GameSettings): void;
     onLeave(): void;
 }
 
 /**
- *  Waiting room of an online game: code and link to share, players, options (host)
+ *  Waiting room of an online game: code and link to share, players, rules (chosen by the host, seen by all)
  */
 export function renderLobby(root: HTMLElement, props: LobbyProps) {
+    // The lobby is drawn again when a player arrives or the rules change: keep the focused field
+    const focusedId = root.contains(document.activeElement) ? document.activeElement?.id : undefined;
     clear(root);
     const {lobby, isHost} = props;
-    const setup = loadSetup();
-    const options = gameOptions(setup, () => {
-        Object.assign(setup, options.read());
+    const options = gameOptions(lobby.settings, () => {
+        const settings = options.read();
+        // Remembered as the rules of the next game created on this device
+        const setup = loadSetup();
+        setup.settings = settings;
         saveSetup(setup);
+        props.onSettings?.(settings);
     });
 
     const copy = async (button: HTMLButtonElement) => {
@@ -42,18 +50,26 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
 
     const players = el('ol', {class: 'lobby-players'},
         ...lobby.players.map((p, i) => el('li', {class: p.connected ? '' : 'offline'},
+            el('span', {class: 'color-dot', style: {background: p.color}, role: 'img', 'aria-label': colorName(p.color)}),
             p.name,
             i === 0 ? el('span', {class: 'badge turn'}, 'Hôte') : null,
             i === props.you ? el('span', {class: 'badge you'}, 'Vous') : null)));
 
     const enough = lobby.players.length >= 2;
+    const problem = checkSettings(lobby.players.length, lobby.settings);
     const startButton = el('button', {
-        id: 'start-online', class: 'primary', disabled: !enough,
+        id: 'start-online', class: 'primary', disabled: !enough || !!problem,
         onclick: () => props.onStart?.(options.read()),
     }, enough ? `Distribuer les cartes (${lobby.players.length} joueurs)` : 'En attente d\'un autre joueur…');
 
     const copyButton = el('button', {class: 'secondary', id: 'copy-link'}, 'Partager le lien');
     copyButton.addEventListener('click', () => copy(copyButton));
+
+    const rules = isHost
+        ? options.element
+        : el('section', {class: 'rules', 'aria-labelledby': 'rules-title'},
+            el('h3', {id: 'rules-title'}, 'Règles de la partie'),
+            el('ul', {}, ...describeSettings(lobby.settings).map(line => el('li', {}, line))));
 
     root.appendChild(el('section', {class: 'lobby panel'},
         el('h2', {}, 'Salle d\'attente'),
@@ -65,10 +81,13 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             copyButton),
         el('h3', {}, `Joueurs (${lobby.players.length}/10)`),
         players,
-        isHost ? options.element : null,
+        rules,
+        isHost && problem ? el('p', {class: 'message error', role: 'alert'}, problem) : null,
         props.error ? el('p', {class: 'message error', role: 'alert'}, props.error) : null,
         isHost
             ? startButton
             : el('p', {class: 'hint waiting'}, `En attente de ${lobby.players[0]?.name ?? 'l\'hôte'} pour commencer…`),
         el('button', {class: 'secondary', id: 'leave', onclick: props.onLeave}, 'Quitter')));
+
+    if (focusedId) document.getElementById(focusedId)?.focus();
 }
