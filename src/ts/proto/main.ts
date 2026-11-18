@@ -577,7 +577,8 @@ async function main() {
         discardZone.hitArea = new Rectangle(layout.discard.x - zw / 2, layout.discard.y - zh / 2, zw, zh);
 
         bannerText.style.fontSize = 15 * layout.ui;
-        bannerText.style.wordWrap = true;
+        // Landscape: one line in the top band (shrunk to fit), portrait: wrapped above the piles
+        bannerText.style.wordWrap = layout.portrait;
         bannerText.style.wordWrapWidth = Math.min(layout.banner.maxW, 520) - 32;
         bannerText.style.align = 'center';
         bannerBox.position.set(layout.banner.x, layout.banner.y);
@@ -764,12 +765,13 @@ async function main() {
             text = g.dutchCallerId === null ? 'Finissez votre tour… ou annoncez Dutch !' : 'Finissez votre tour';
         } else {
             text = `Tour de ${cur.name}`;
-            if (g.canThrow(YOU)) text += ' · même valeur que la défausse ? Glissez-la dessus';
+            if (g.canThrow(YOU)) text += ' · une carte identique ? Glissez-la sur la défausse';
         }
         if (g.isFinalRound && g.isRoundRunning) text = `Dernier tour · ${text}`;
         if (bannerText.text === text) return;
         bannerText.text = text;
-        const w = Math.min(bannerText.width + 32, layout.banner.maxW);
+        bannerBox.scale.set(Math.min(1, layout.banner.maxW / (bannerText.width + 32)));
+        const w = bannerText.width + 32;
         const h = bannerText.height + 14;
         bannerBg.clear().roundRect(-w / 2, -h / 2, w, h, h / 2).fill({color: 0x0a0705, alpha: .55}).stroke({width: 1, color: 0xffecbe, alpha: .2});
         gsap.fromTo(bannerBox, {alpha: .3}, {alpha: 1, duration: .3});
@@ -876,6 +878,8 @@ async function main() {
             if (entry.kind === 'dutch' && actor) dutchBanner(actor.name);
             // Own routine moves are not announced: you just did them
             if (actor?.id === YOU && entry.kind === 'info') continue;
+            // "Dutch" already has its big banner
+            if (entry.kind === 'dutch') continue;
             const color = actor ? parseInt(actor.color.slice(1), 16) : GOLD;
             chip(actor ? actor.id : null, entry.message, color);
         }
