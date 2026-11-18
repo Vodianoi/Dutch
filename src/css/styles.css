@@ -2010,7 +2010,7 @@ button {
     margin: 0;
 }
 
-.chat-emotes, .chat-quick {
+.chat-emotes {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -2030,17 +2030,6 @@ button {
 
 .emote-button:active {
     transform: scale(.92);
-}
-
-.quick-line {
-    min-height: 36px;
-    padding: 4px 12px;
-    font-size: 14px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, .06);
-    color: var(--cream);
-    box-shadow: none;
 }
 
 .chat-form {

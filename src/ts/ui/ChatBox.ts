@@ -1,9 +1,9 @@
-import {ChatMessage, EMOTES, MAX_CHAT_LENGTH, QUICK_LINES} from '../net/Protocol.js';
+import {ChatMessage, EMOTES, MAX_CHAT_LENGTH} from '../net/Protocol.js';
 import {Chat, Session} from '../Session.js';
 import {el} from './dom.js';
 
 /**
- *  Chat panel: messages, emotes, ready-made sentences and a text field.
+ *  Chat panel: messages, emotes and a text field.
  *  The same element moves from the waiting room to the game (the text being typed is kept).
  */
 export class ChatBox {
@@ -22,7 +22,6 @@ export class ChatBox {
         const emotes = el('div', {class: 'chat-emotes', role: 'group', 'aria-label': 'Réactions'},
             ...EMOTES.map(emote => el('button', {type: 'button', class: 'emote-button', 'aria-label': `Envoyer ${emote}`, onclick: () => chat.emote(emote)}, emote)));
         let form: HTMLElement | null = null;
-        let quick: HTMLElement | null = null;
         if (chat.text) {
             const input = el('input', {
                 type: 'text', id: 'chat-input', class: 'chat-input', maxlength: String(MAX_CHAT_LENGTH),
@@ -36,12 +35,10 @@ export class ChatBox {
                 chat.send(text);
                 input.value = '';
             }}, input, el('button', {type: 'submit', class: 'primary chat-send'}, 'Envoyer'));
-            quick = el('div', {class: 'chat-quick', role: 'group', 'aria-label': 'Messages rapides'},
-                ...QUICK_LINES.map(line => el('button', {type: 'button', class: 'quick-line', onclick: () => chat.send(line)}, line)));
         }
         this.element = el('section', {class: 'chat', 'aria-label': chat.text ? 'Discussion' : 'Réactions'},
             el('h3', {class: 'chat-title'}, chat.text ? 'Discussion' : 'Réactions'),
-            this.list, this.empty, emotes, quick, form);
+            this.list, this.empty, emotes, form);
         chat.messages.forEach(m => this.add(m));
         this.unsubscribe = session.on(event => {
             if (event.type !== 'chat') return;

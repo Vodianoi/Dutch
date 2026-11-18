@@ -6,8 +6,6 @@
 export const PROTOCOL_VERSION = 2;
 /** Emotes: reactions anybody can send in one tap */
 export const EMOTES = ['👍', '😂', '😮', '😬', '😡', '🎉', '🤔', '😎', '🙏', '🔥'];
-/** Ready-made sentences, for a quick answer during the game */
-export const QUICK_LINES = ['Bien joué !', 'Aïe…', 'Allez, vite !', 'Bonne chance !', 'Dutch bientôt…', 'GG !'];
 export const MAX_CHAT_LENGTH = 140;
 /** Messages kept by the host and sent again to a player who comes back */
 export const CHAT_HISTORY = 60;
