@@ -1103,6 +1103,8 @@ export class Table3DView {
     }
 
     private static readonly SKIP = /^(C'est au tour|Au tour|Dernier tour de|— Ronde|Chaque joueur|Fin de la ronde|Partie terminée)/;
+    /** Said to screen readers only: the cards show it (everybody looks at his first cards at the same time) */
+    private static readonly QUIET = /regarde ses 2 dernières cartes/;
 
     private readLog(s: GameView) {
         const log = s.log;
@@ -1121,6 +1123,10 @@ export class Table3DView {
         this.lastLog = end ? {round: end.round, message: end.message} : null;
         for (const entry of fresh.slice(-5)) {
             if (Table3DView.SKIP.test(entry.message) || entry.kind === 'dutch') continue;
+            if (Table3DView.QUIET.test(entry.message)) {
+                this.live.textContent = entry.message;
+                continue;
+            }
             const actor = s.players.find(p => entry.message.startsWith(p.name)) ?? s.players.find(p => entry.message.includes(p.name));
             if (actor && s.viewerId === actor.id && entry.kind === 'info') continue;
             this.bubble(actor ? actor.id : null, entry.message, actor?.color ?? '#e8c374');

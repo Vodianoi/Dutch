@@ -836,6 +836,8 @@ export class TableView {
     }
 
     private static readonly SKIP = /^(C'est au tour|Au tour|Dernier tour de|— Ronde|Chaque joueur|Fin de la ronde|Partie terminée)/;
+    /** Said to screen readers only: the cards show it (everybody looks at his first cards at the same time) */
+    private static readonly QUIET = /regarde ses 2 dernières cartes/;
 
     /** New lines of the game log, shown next to the player concerned */
     private readLog(s: GameView) {
@@ -859,6 +861,10 @@ export class TableView {
         this.lastLog = end ? {round: end.round, message: end.message} : null;
         for (const entry of fresh.slice(-6)) {
             if (TableView.SKIP.test(entry.message) || entry.kind === 'dutch') continue;
+            if (TableView.QUIET.test(entry.message)) {
+                this.live.textContent = entry.message;
+                continue;
+            }
             const actor = s.players.find(p => entry.message.startsWith(p.name)) ?? s.players.find(p => entry.message.includes(p.name));
             // This device's own routine moves are not announced: the player just did them
             if (actor && s.viewerId === actor.id && entry.kind === 'info') continue;

@@ -1073,6 +1073,10 @@ export class Table3DView {
         for (const entry of fresh.slice(-5)) {
             if (Table3DView.SKIP.test(entry.message) || entry.kind === 'dutch')
                 continue;
+            if (Table3DView.QUIET.test(entry.message)) {
+                this.live.textContent = entry.message;
+                continue;
+            }
             const actor = s.players.find(p => entry.message.startsWith(p.name)) ?? s.players.find(p => entry.message.includes(p.name));
             if (actor && s.viewerId === actor.id && entry.kind === 'info')
                 continue;
@@ -1377,3 +1381,5 @@ export class Table3DView {
     }
 }
 Table3DView.SKIP = /^(C'est au tour|Au tour|Dernier tour de|— Ronde|Chaque joueur|Fin de la ronde|Partie terminée)/;
+/** Said to screen readers only: the cards show it (everybody looks at his first cards at the same time) */
+Table3DView.QUIET = /regarde ses 2 dernières cartes/;
