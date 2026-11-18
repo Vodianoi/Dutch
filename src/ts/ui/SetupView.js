@@ -1,9 +1,10 @@
+import { scoped } from '../env.js';
 import { MAX_NAME_LENGTH } from '../net/Protocol.js';
 import { normalizeCode } from '../net/Transport.js';
 import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, EFFECT_LABELS, PLAYER_COLORS, } from '../Settings.js';
 import { clear, el } from './dom.js';
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
-const STORAGE_KEY = 'dutch-setup';
+const STORAGE_KEY = scoped('setup');
 export function loadSetup() {
     const fallback = {
         count: 4, names: DEFAULT_NAMES.slice(), colors: assignColors(DEFAULT_NAMES.map(() => null)),

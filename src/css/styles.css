@@ -1668,3 +1668,23 @@ details.rules summary {
     }
 }
 /* endregion Table board */
+
+/* region Test version (dev branch, published under /dev/) */
+.site-header {
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dev-badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--violet-strong);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 3px 0 #45229e;
+}
+/* endregion Test version */

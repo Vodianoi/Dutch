@@ -1,3 +1,4 @@
+import {scoped} from '../env.js';
 import {DutchOptions, EffectType} from '../Dutch.js';
 import {MAX_NAME_LENGTH} from '../net/Protocol.js';
 import {normalizeCode} from '../net/Transport.js';
@@ -7,7 +8,7 @@ import {
 import {clear, el} from './dom.js';
 
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
-const STORAGE_KEY = 'dutch-setup';
+const STORAGE_KEY = scoped('setup');
 
 interface SavedSetup {
     count: number;
