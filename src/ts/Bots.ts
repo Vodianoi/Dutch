@@ -14,11 +14,16 @@ export interface BotOptions {
     clearTimer?: (handle: unknown) => void;
 }
 
+/** A bot looks at his cards between these times after the deal (ms) */
+export const PEEK_MIN_MS = 1100;
+export const PEEK_SPREAD_MS = 1100;
+
 export class Bots {
     /** Cards each bot has seen (by card id) */
     private readonly known = new Map<number, Set<string>>();
     private turnTimer: unknown = null;
     private readonly throwTimers = new Map<number, unknown>();
+    private readonly peekTimers = new Map<number, unknown>();
     private stopped = false;
     private readonly speed: number;
     private readonly setTimer: (fn: () => void, ms: number) => unknown;
@@ -43,6 +48,8 @@ export class Bots {
         if (this.turnTimer !== null) this.clearTimer(this.turnTimer);
         this.throwTimers.forEach(t => this.clearTimer(t));
         this.throwTimers.clear();
+        this.peekTimers.forEach(t => this.clearTimer(t));
+        this.peekTimers.clear();
     }
 
     /**
@@ -54,13 +61,40 @@ export class Bots {
         this.turnTimer = null;
         const who = this.whoActs();
         if (who !== null) {
-            const wait = (this.game.phase === 'peek' ? 2400 : 0) + 850 + Math.random() * 650;
+            const wait = 850 + Math.random() * 650;
             this.turnTimer = this.setTimer(() => {
                 this.turnTimer = null;
                 this.act(who);
             }, wait * this.speed);
         }
+        this.planPeeks();
         this.planThrows();
+    }
+
+    /**
+     *  At the start of a round (variant), the bots look at their cards all at the same time,
+     *  each after a short time of his own: not instant, but no waiting for each bot in turn
+     */
+    private planPeeks() {
+        const g = this.game;
+        if (g.phase !== 'peek') {
+            // Ready for the next round
+            this.peekTimers.forEach(t => this.clearTimer(t));
+            this.peekTimers.clear();
+            return;
+        }
+        for (const id of this.ids) {
+            if (this.peekTimers.has(id) || g.players[id].ready) continue;
+            this.peekTimers.set(id, this.setTimer(() => {
+                if (this.stopped) return;
+                try {
+                    if (g.phase === 'peek' && !g.players[id].ready) g.peek(id);
+                } catch (e) {
+                    if (!(e instanceof RuleError)) throw e;
+                }
+                // Kept until the end of the phase: the bot doesn't look twice
+            }, (PEEK_MIN_MS + Math.random() * PEEK_SPREAD_MS) * this.speed));
+        }
     }
 
     private whoActs(): number | null {
@@ -68,7 +102,7 @@ export class Bots {
         // A card thrown while the players look at their cards can give an effect: it comes first
         const effect = g.activeEffect;
         if (effect) return this.ids.includes(effect.playerId) ? effect.playerId : null;
-        if (g.phase === 'peek') return this.ids.find(id => !g.players[id].ready) ?? null;
+        if (g.phase === 'peek') return null; // planPeeks()
         if (g.isRoundRunning && this.ids.includes(g.currentPlayerIndex)) return g.currentPlayerIndex;
         return null;
     }
@@ -88,7 +122,6 @@ export class Bots {
         try {
             const effect = g.activeEffect;
             if (effect) return this.useEffect(id, effect.type);
-            if (g.phase === 'peek') return void g.peek(id);
             const {known, unknown} = this.mine(id);
             const worst = known[0];
             if (g.phase === 'draw') {
