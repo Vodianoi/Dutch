@@ -1,8 +1,10 @@
 import Dutch, {DutchSnapshot, RuleError} from '../Dutch.js';
 import {assignColors, checkSettings, cleanSettings, GameSettings, isPlayerColor} from '../Settings.js';
-import {Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
+import {Chat, Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
 import {Action, applyAction, buildView, faceUp, GameView} from '../View.js';
-import {ClientMessage, cleanName, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken} from './Protocol.js';
+import {
+    CHAT_HISTORY, ChatMessage, cleanChatText, ClientMessage, cleanName, EMOTES, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken,
+} from './Protocol.js';
 import {Connection, HostTransport} from './Transport.js';
 
 interface Seat {
@@ -65,8 +67,22 @@ export class Host implements Session {
     private game: Dutch | null = null;
     private unsubscribeGame: (() => void) | null = null;
     private closed = false;
+    private readonly chatLog: ChatMessage[] = [];
+    private chatId = 0;
+    /** Recent messages of each player (flood limit) */
+    private readonly chatTimes = new Map<Seat, number[]>();
+    public readonly chat: Chat;
 
     constructor(transport: HostTransport, hostName: string, options: HostOptions = {}) {
+        const log = this.chatLog;
+        this.chat = {
+            get messages() {
+                return log;
+            },
+            text: true,
+            send: text => this.post(this.seats[0], {text}),
+            emote: emote => this.post(this.seats[0], {emote}),
+        };
         this.transport = transport;
         this.heartbeatMs = options.heartbeatMs ?? 4000;
         this.timeoutMs = options.timeoutMs ?? 15000;
@@ -216,6 +232,33 @@ export class Host implements Session {
     }
     // endregion
 
+    // region Chat
+    /**
+     *  A chat line or an emote from a seat: checked, kept and sent to everybody
+     */
+    private post(seat: Seat | undefined, content: { text?: unknown; emote?: unknown }) {
+        const index = seat ? this.seats.indexOf(seat) : -1;
+        if (!seat || index < 0 || this.closed) return;
+        const emote = typeof content.emote === 'string' && EMOTES.includes(content.emote) ? content.emote : null;
+        const text = cleanChatText(content.text);
+        if (content.emote !== undefined ? !emote : !text) return;
+        // At most 8 messages in 10 seconds per player
+        const now = Date.now();
+        const recent = (this.chatTimes.get(seat) ?? []).filter(t => now - t < 10000);
+        if (recent.length >= 8) return;
+        recent.push(now);
+        this.chatTimes.set(seat, recent);
+        const base = {id: ++this.chatId, seat: index, name: seat.name, color: seat.color, at: now};
+        const message: ChatMessage = emote ? {...base, emote} : {...base, text};
+        this.chatLog.push(message);
+        if (this.chatLog.length > CHAT_HISTORY) this.chatLog.shift();
+        this.seats.forEach((s, i) => {
+            if (i > 0) this.send(s, {t: 'chat', message});
+        });
+        this.events.emit({type: 'chat', message});
+    }
+    // endregion
+
     // region Connections
     private isConnected(seatIndex: number): boolean {
         return seatIndex === 0 || !!this.seats[seatIndex]?.connection;
@@ -238,6 +281,8 @@ export class Host implements Session {
             }
             if (seat.connection !== connection) return;
             seat.lastSeen = Date.now();
+            if (message.t === 'chat') this.post(seat, {text: message.text});
+            if (message.t === 'emote') this.post(seat, {emote: message.emote});
             if (message.t === 'action' && message.action && typeof message.action === 'object') {
                 const index = this.seats.indexOf(seat);
                 const notice = this.run({...message.action, playerId: index}, false);
@@ -276,6 +321,7 @@ export class Host implements Session {
         }
         seat.lastSeen = Date.now();
         this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat)});
+        if (this.chatLog.length) this.send(seat, {t: 'chatLog', messages: this.chatLog});
         if (this.game) this.broadcastState();
         else this.broadcastLobby();
         return seat;

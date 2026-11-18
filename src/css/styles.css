@@ -1952,3 +1952,180 @@ button {
     background: rgba(255, 209, 102, .08);
 }
 /* endregion New look */
+
+/* region Chat and emotes */
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, .22);
+}
+
+.chat-title {
+    margin: 0;
+    font-size: 17px;
+}
+
+.chat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overscroll-behavior: contain;
+}
+
+.chat-list:empty {
+    display: none;
+}
+
+.chat-line {
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+.chat-name {
+    font-weight: 800;
+    margin-right: 6px;
+}
+
+.chat-name::after {
+    content: ' :';
+}
+
+.chat-line.emote .chat-text {
+    font-size: 22px;
+    line-height: 1;
+    vertical-align: -3px;
+}
+
+.chat-empty {
+    margin: 0;
+}
+
+.chat-emotes, .chat-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.emote-button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .06);
+    box-shadow: none;
+}
+
+.emote-button:active {
+    transform: scale(.92);
+}
+
+.quick-line {
+    min-height: 36px;
+    padding: 4px 12px;
+    font-size: 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .06);
+    color: var(--cream);
+    box-shadow: none;
+}
+
+.chat-form {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-input {
+    flex: 1;
+    min-width: 0;
+}
+
+button.chat-send {
+    width: auto;
+    padding: 0 16px;
+}
+
+/* In the game: buttons in the top bar, emote strip, chat drawer */
+.table-bar-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.table-emote-button {
+    min-width: 44px;
+    justify-content: center;
+    font-size: 18px;
+    padding: 0 10px;
+}
+
+.table-menu-button .unread {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--danger-strong);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    display: inline-grid;
+    place-items: center;
+}
+
+.emote-pop {
+    position: absolute;
+    top: calc(52px + env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: 10px;
+    max-width: 360px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 16px;
+    background: rgba(18, 16, 13, .94);
+    border: 1px solid rgba(255, 209, 102, .35);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+    z-index: 5;
+}
+
+.chat-overlay {
+    z-index: var(--z-overlay);
+    align-items: flex-end;
+}
+
+.chat-drawer {
+    width: min(460px, 100vw);
+    max-height: min(560px, 85dvh);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+
+.chat-drawer .chat {
+    margin: 0 0 10px;
+    min-height: 0;
+    flex: 1;
+}
+
+.chat-drawer .chat-list {
+    max-height: none;
+    flex: 1;
+    min-height: 120px;
+}
+/* endregion Chat and emotes */

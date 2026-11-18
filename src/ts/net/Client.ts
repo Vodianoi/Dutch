@@ -1,6 +1,6 @@
-import {ConnectionStatus, Emitter, Session, SessionEvent} from '../Session.js';
+import {Chat, ConnectionStatus, Emitter, Session, SessionEvent} from '../Session.js';
 import {Action, GameView} from '../View.js';
-import {ClientMessage, HostMessage, LobbyState, PROTOCOL_VERSION} from './Protocol.js';
+import {CHAT_HISTORY, ChatMessage, ClientMessage, HostMessage, LobbyState, PROTOCOL_VERSION} from './Protocol.js';
 import {Connection, TransportError, TransportFactory} from './Transport.js';
 
 export interface ClientOptions {
@@ -35,6 +35,18 @@ export class Client implements Session {
     public lobby: LobbyState | null = null;
     public seat = -1;
     public status: ConnectionStatus = 'online';
+    private readonly chatLog: ChatMessage[] = [];
+    public readonly chat: Chat = (() => {
+        const log = this.chatLog;
+        return {
+            get messages() {
+                return log;
+            },
+            text: true,
+            send: (text: string) => this.send({t: 'chat', text}),
+            emote: (emote: string) => this.send({t: 'emote', emote}),
+        };
+    })();
 
     private readonly transport: TransportFactory;
     private readonly code: string;
@@ -291,6 +303,17 @@ export class Client implements Session {
                 break;
             case 'ping':
                 this.send({t: 'pong'});
+                break;
+            case 'chat':
+                if (!message.message || this.chatLog.some(m => m.id === message.message.id)) break;
+                this.chatLog.push(message.message);
+                if (this.chatLog.length > CHAT_HISTORY) this.chatLog.shift();
+                this.events.emit({type: 'chat', message: message.message});
+                break;
+            case 'chatLog':
+                if (!Array.isArray(message.messages)) break;
+                this.chatLog.splice(0, this.chatLog.length, ...message.messages.slice(-CHAT_HISTORY));
+                if (this.chatLog.length) this.events.emit({type: 'chat', message: this.chatLog[this.chatLog.length - 1], history: true});
                 break;
         }
     }

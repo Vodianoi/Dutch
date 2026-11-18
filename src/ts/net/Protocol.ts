@@ -23,6 +23,33 @@ export interface LobbyState {
     settings: GameSettings;
 }
 
+/**
+ *  Chat line or emote of a player, as everybody receives it.
+ *  Added without a new protocol version: older pages ignore these messages.
+ */
+export interface ChatMessage {
+    /** Increases for every message of the room */
+    id: number;
+    seat: number;
+    name: string;
+    color: string;
+    text?: string;
+    emote?: string;
+    at: number;
+}
+
+/** Emotes: reactions anybody can send in one tap */
+export const EMOTES = ['👍', '😂', '😮', '😬', '😡', '🎉', '🤔', '😎', '🙏', '🔥'];
+/** Ready-made sentences, for a quick answer during the game */
+export const QUICK_LINES = ['Bien joué !', 'Aïe…', 'Allez, vite !', 'Bonne chance !', 'Dutch bientôt…', 'GG !'];
+export const MAX_CHAT_LENGTH = 140;
+/** Messages kept by the host and sent again to a player who comes back */
+export const CHAT_HISTORY = 60;
+
+export function cleanChatText(text: unknown): string {
+    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().slice(0, MAX_CHAT_LENGTH) : '';
+}
+
 /** Host -> player */
 export type HostMessage =
     | { t: 'welcome'; seat: number }
@@ -33,13 +60,18 @@ export type HostMessage =
     | { t: 'refused'; reason: string }
     /** The host ended the game on purpose: don't try to reconnect */
     | { t: 'ended'; reason: string }
-    | { t: 'ping' };
+    | { t: 'ping' }
+    | { t: 'chat'; message: ChatMessage }
+    /** Messages so far, sent to a player who arrives or comes back */
+    | { t: 'chatLog'; messages: ChatMessage[] };
 
 /** Player -> host */
 export type ClientMessage =
     | { t: 'hello'; v: number; name: string; token: string; color?: string }
     | { t: 'action'; action: Action }
-    | { t: 'pong' };
+    | { t: 'pong' }
+    | { t: 'chat'; text: string }
+    | { t: 'emote'; emote: string };
 
 export const MAX_PLAYERS = 10;
 export const MAX_NAME_LENGTH = 16;

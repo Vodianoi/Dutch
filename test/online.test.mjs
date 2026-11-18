@@ -319,3 +319,55 @@ test('the host chooses the rules in the lobby, everybody sees them, and colours 
         host.close();
     }
 });
+
+test('chat: lines and emotes reach everybody, with the name and colour of the sender', async () => {
+    const {host, clients, events, close} = await setup();
+    try {
+        clients[0].chat.send('  Salut   tout le monde  ');
+        host.chat.emote('👍');
+        await until(() => clients[1].chat.messages.length === 2 && host.chat.messages.length === 2);
+        const line = clients[1].chat.messages.find(m => m.text);
+        const emote = clients[1].chat.messages.find(m => m.emote);
+        assert.equal(line.text, 'Salut tout le monde');
+        assert.equal(line.seat, 1);
+        assert.equal(line.name, 'Hugo');
+        assert.equal(line.color, host.lobby.players[1].color);
+        assert.equal(emote.emote, '👍');
+        assert.equal(emote.seat, 0);
+        assert.ok(events[0].some(e => e.type === 'chat' && e.message.text === 'Salut tout le monde'));
+    } finally {
+        close();
+    }
+});
+
+test('chat: the host refuses unknown emotes, empty lines and floods, and cuts long lines', async () => {
+    const {host, clients, close} = await setup(['Hugo']);
+    try {
+        clients[0].chat.emote('<script>');
+        clients[0].chat.send('   ');
+        clients[0].chat.send('x'.repeat(500));
+        for (let i = 0; i < 20; i++) clients[0].chat.send(`message ${i}`);
+        await wait(150);
+        assert.equal(host.chat.messages.length, 8, 'at most 8 messages in 10 seconds');
+        assert.equal(host.chat.messages[0].text.length, 140);
+        assert.ok(host.chat.messages.every(m => !m.emote));
+    } finally {
+        close();
+    }
+});
+
+test('chat: a player who arrives gets the messages so far', async () => {
+    const {host, clients, close} = await setup(['Hugo']);
+    try {
+        clients[0].chat.send('Premier');
+        await until(() => host.chat.messages.length === 1);
+        host.chat.send('Deuxième');
+        await until(() => host.chat.messages.length === 2);
+        const late = await Client.join(transport, host.code, 'Léa', `token-late-${Math.random()}`);
+        await until(() => late.chat.messages.length === 2);
+        assert.deepEqual(late.chat.messages.map(m => m.text), ['Premier', 'Deuxième']);
+        late.leave();
+    } finally {
+        close();
+    }
+});

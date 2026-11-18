@@ -1,6 +1,8 @@
 import {Application, Container, FederatedPointerEvent, Graphics, Rectangle, Sprite, Text, Texture} from 'pixi.js';
 import {gsap} from 'gsap';
+import {ChatMessage, EMOTES} from '../net/Protocol.js';
 import {Session, SessionEvent} from '../Session.js';
+import {ChatBox} from '../ui/ChatBox.js';
 import {describeSettings} from '../Settings.js';
 import {Action, CardView, GameView, PlayerView} from '../View.js';
 import {Art, BACK_COLORS, BackColor, CW, drawTable, makeArt, SANS, SERIF} from './art.js';
@@ -26,6 +28,8 @@ export interface TableOptions {
     /** Text of the confirmation before leaving, if leaving has consequences for the others */
     quitWarning?: string;
     debug?: boolean;
+    /** Chat of the online game, coming from the waiting room (otherwise the table makes its own if the session has a chat) */
+    chatBox?: ChatBox;
 }
 
 const arts = new Map<BackColor, Art>();
@@ -58,6 +62,12 @@ export class TableView {
     private readonly info: HTMLElement;
     private readonly live: HTMLElement;
     private menu: HTMLElement | null = null;
+    private chatBox: ChatBox | null = null;
+    private ownChat = false;
+    private chatDrawer: HTMLElement | null = null;
+    private chatButton: HTMLButtonElement | null = null;
+    private emotePop: HTMLElement | null = null;
+    private unread = 0;
     private app: Application | null = null;
     private art!: Art;
     private prefs: Prefs = loadPrefs();
@@ -124,7 +134,11 @@ export class TableView {
         menuButton.addEventListener('click', () => this.openMenu());
         this.info = document.createElement('span');
         this.info.className = 'table-info';
-        bar.append(menuButton, this.info);
+        const left = document.createElement('div');
+        left.className = 'table-bar-group';
+        left.append(menuButton);
+        bar.append(left, this.info);
+        if (session.chat) this.buildChat(left);
         this.live = document.createElement('div');
         this.live.className = 'sr-only';
         this.live.setAttribute('aria-live', 'polite');
@@ -169,6 +183,13 @@ export class TableView {
         this.revealed.forEach(r => clearTimeout(r.timer));
         clearTimeout(this.dutchTimer);
         this.menu?.remove();
+        if (this.ownChat) this.chatBox?.destroy();
+        else if (this.chatBox) {
+            // Shared with the waiting room: shown again there
+            this.chatBox.element.remove();
+            this.chatBox.element.hidden = false;
+        }
+        if (this.chatBox) this.chatBox.onMessage = null;
         document.body.classList.remove('in-game');
         if (this.app) {
             for (const s of this.sprites.values()) dispose(s);
@@ -191,6 +212,7 @@ export class TableView {
             }, REVEAL_MS)});
             this.requestSync();
         }
+        if (event.type === 'chat' && !event.history) this.showChat(event.message);
         if (event.type === 'notice') {
             if (event.notice.kind === 'error') sfx.bad();
             this.chip(this.bottomId(), event.notice.text, event.notice.kind === 'error' ? 0xff6b6b : GOLD);
@@ -721,7 +743,7 @@ export class TableView {
     // endregion
 
     // region Messages and effects
-    private chip(playerId: number | null, text: string, color: number) {
+    private chip(playerId: number | null, text: string, color: number, seconds = 2.8) {
         if (!this.app) return;
         const L = this.layout;
         const seat = playerId === null ? undefined : L.seats.get(playerId);
@@ -741,7 +763,7 @@ export class TableView {
         this.fxLayer.addChild(box);
         this.chips.set(key, box);
         gsap.from(box, {alpha: 0, y: box.y + 8, duration: .25, ease: 'back.out(2)'});
-        gsap.to(box, {alpha: 0, duration: .4, delay: 2.8, onComplete: () => {
+        gsap.to(box, {alpha: 0, duration: .4, delay: seconds, onComplete: () => {
             if (this.chips.get(key) === box) this.chips.delete(key);
             dispose(box);
         }});
@@ -1045,6 +1067,149 @@ export class TableView {
     private tapSeat(playerId: number) {
         const effect = this.state?.activeEffect;
         if (effect?.type === 'ACE' && this.mine(effect.playerId)) this.dispatch({type: 'aceGive', playerId: effect.playerId, targetId: playerId});
+    }
+    // endregion
+
+    // region Chat
+    private buildChat(bar: HTMLElement) {
+        const chat = this.session.chat!;
+        this.chatBox = this.options.chatBox ?? new ChatBox(chat, this.session);
+        this.ownChat = !this.options.chatBox;
+        const emoteButton = document.createElement('button');
+        emoteButton.type = 'button';
+        emoteButton.className = 'table-menu-button table-emote-button';
+        emoteButton.setAttribute('aria-label', 'Réactions');
+        emoteButton.setAttribute('aria-expanded', 'false');
+        emoteButton.textContent = '😀';
+        emoteButton.addEventListener('click', () => this.toggleEmotes(emoteButton));
+        bar.append(emoteButton);
+        if (chat.text) {
+            const chatButton = document.createElement('button');
+            chatButton.type = 'button';
+            chatButton.className = 'table-menu-button';
+            chatButton.setAttribute('aria-haspopup', 'dialog');
+            chatButton.addEventListener('click', () => this.openChat());
+            this.chatButton = chatButton;
+            this.updateUnread();
+            bar.append(chatButton);
+        }
+    }
+
+    private toggleEmotes(opener: HTMLButtonElement) {
+        if (this.emotePop) {
+            this.emotePop.remove();
+            this.emotePop = null;
+            opener.setAttribute('aria-expanded', 'false');
+            return;
+        }
+        const pop = document.createElement('div');
+        pop.className = 'emote-pop';
+        pop.setAttribute('role', 'group');
+        pop.setAttribute('aria-label', 'Réactions');
+        for (const emote of EMOTES) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'emote-button';
+            b.textContent = emote;
+            b.setAttribute('aria-label', `Envoyer ${emote}`);
+            b.addEventListener('click', () => {
+                unlockAudio();
+                this.session.chat?.emote(emote);
+                this.toggleEmotes(opener);
+                opener.focus();
+            });
+            pop.append(b);
+        }
+        pop.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                this.toggleEmotes(opener);
+                opener.focus();
+            }
+        });
+        this.screen.append(pop);
+        this.emotePop = pop;
+        opener.setAttribute('aria-expanded', 'true');
+        pop.querySelector<HTMLElement>('button')?.focus();
+    }
+
+    private openChat() {
+        if (this.chatDrawer || !this.chatBox) return;
+        const opener = document.activeElement as HTMLElement | null;
+        const drawer = document.createElement('div');
+        drawer.className = 'overlay chat-overlay';
+        const panel = document.createElement('section');
+        panel.className = 'panel chat-drawer';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        panel.setAttribute('aria-label', 'Discussion');
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'secondary chat-close';
+        close.textContent = 'Fermer';
+        const shut = () => {
+            drawer.remove();
+            this.chatDrawer = null;
+            this.screen.append(this.chatBox!.element);
+            this.chatBox!.element.hidden = true;
+            opener?.focus();
+        };
+        close.addEventListener('click', shut);
+        drawer.addEventListener('click', e => e.target === drawer && shut());
+        drawer.addEventListener('keydown', e => e.key === 'Escape' && shut());
+        this.chatBox.element.hidden = false;
+        panel.append(this.chatBox.element, close);
+        drawer.append(panel);
+        document.body.append(drawer);
+        this.chatDrawer = drawer;
+        this.unread = 0;
+        this.updateUnread();
+        this.chatBox.scrollToEnd();
+        this.chatBox.focus();
+    }
+
+    private updateUnread() {
+        if (!this.chatButton) return;
+        this.chatButton.textContent = '';
+        this.chatButton.append('Chat');
+        if (this.unread) {
+            const badge = document.createElement('span');
+            badge.className = 'unread';
+            badge.textContent = String(this.unread);
+            this.chatButton.append(badge);
+        }
+        this.chatButton.setAttribute('aria-label', this.unread ? `Discussion, ${this.unread} message${this.unread > 1 ? 's' : ''} non lu${this.unread > 1 ? 's' : ''}` : 'Discussion');
+    }
+
+    /** A message on the table: emotes pop above the player, text lines in a bubble next to him */
+    private showChat(message: ChatMessage) {
+        const s = this.state;
+        if (!this.app || !s || !this.layout) return;
+        if (message.text && message.seat !== s.viewerId && !this.chatDrawer) {
+            this.unread++;
+            this.updateUnread();
+        }
+        const seat = this.layout.seats.get(message.seat);
+        if (!seat || !s.players[message.seat]) return;
+        if (message.text) {
+            this.chip(message.seat, `« ${message.text} »`, parseInt(message.color.slice(1), 16), 4);
+            this.live.textContent = `${message.name} : ${message.text}`;
+            return;
+        }
+        if (!message.emote) return;
+        sfx.tap();
+        const ui = this.layout.ui;
+        const bubble = new Container();
+        const size = 34 * ui;
+        bubble.addChild(new Graphics().circle(0, 0, size * .78).fill({color: 0xffffff, alpha: .95}).stroke({width: 3, color: parseInt(message.color.slice(1), 16)}),
+            Object.assign(new Text({text: message.emote, style: {fontSize: size}}), {anchor: {x: .5, y: .5}}));
+        const at = {x: clamp(seat.avatar.x + seat.avatar.r * .6, size, this.layout.w - size), y: Math.max(size, seat.avatar.y - seat.avatar.r - size * .6)};
+        bubble.position.set(at.x, at.y);
+        this.fxLayer.addChild(bubble);
+        this.live.textContent = `${message.name} : ${message.emote}`;
+        gsap.timeline({onComplete: () => dispose(bubble)})
+            .from(bubble.scale, {x: 0, y: 0, duration: .35, ease: 'back.out(2.5)'})
+            .to(bubble, {y: at.y - 26 * ui, duration: 1.6, ease: 'sine.out'}, '+=.3')
+            .to(bubble, {alpha: 0, duration: .4}, '-=.4');
     }
     // endregion
 
