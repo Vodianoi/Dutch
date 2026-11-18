@@ -1,5 +1,6 @@
 import {LobbyState} from '../net/Protocol.js';
 import {checkSettings, colorName, describeSettings, GameSettings} from '../Settings.js';
+import {ChatBox} from './ChatBox.js';
 import {gameOptions, loadSetup, saveSetup} from './SetupView.js';
 import {clear, el} from './dom.js';
 
@@ -9,6 +10,8 @@ export interface LobbyProps {
     isHost: boolean;
     link: string;
     error?: string;
+    /** Chat of the room (kept from one drawing of the lobby to the next) */
+    chat?: ChatBox;
     /** Host: the rules changed (shown to everybody right away) */
     onSettings?(settings: GameSettings): void;
     onStart?(settings: GameSettings): void;
@@ -81,6 +84,7 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             copyButton),
         el('h3', {}, `Joueurs (${lobby.players.length}/10)`),
         players,
+        props.chat?.element ?? null,
         rules,
         isHost && problem ? el('p', {class: 'message error', role: 'alert'}, problem) : null,
         props.error ? el('p', {class: 'message error', role: 'alert'}, props.error) : null,
@@ -89,5 +93,6 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             : el('p', {class: 'hint waiting'}, `En attente de ${lobby.players[0]?.name ?? 'l\'hôte'} pour commencer…`),
         el('button', {class: 'secondary', id: 'leave', onclick: props.onLeave}, 'Quitter')));
 
+    props.chat?.scrollToEnd();
     if (focusedId) document.getElementById(focusedId)?.focus();
 }

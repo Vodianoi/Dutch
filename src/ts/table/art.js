@@ -9,6 +9,7 @@ export const CH = 336;
 const RADIUS = 18;
 export const SERIF = '"Playfair Display", Georgia, serif';
 export const SANS = 'Outfit, system-ui, sans-serif';
+export const EMOJI = '"Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
 const RED = '#c4202f';
 const BLACK = '#1c1c26';
 const SYMBOLS = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' };

@@ -59,3 +59,13 @@ test('solo: every change is saved and the game can be restored', () => {
     assert.equal(again.drawn.card.id, game.drawn.card.id);
     solo.close();
 });
+
+test('solo: emotes only, the player can send them and they are kept', () => {
+    const game = new Dutch({players: ['Moi', 'Léa']});
+    const solo = new SoloSession(game, undefined, {speed: 1000});
+    assert.equal(solo.chat.text, false);
+    solo.chat.emote('🎉');
+    solo.chat.emote('pas un emote');
+    assert.deepEqual(solo.chat.messages.map(m => [m.seat, m.emote]), [[0, '🎉']]);
+    solo.close();
+});

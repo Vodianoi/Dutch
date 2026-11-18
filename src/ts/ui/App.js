@@ -9,6 +9,7 @@ import { Host } from '../net/Host.js';
 import { PeerTransport } from '../net/PeerTransport.js';
 import { randomToken } from '../net/Protocol.js';
 import GameView from './GameView.js';
+import { ChatBox } from './ChatBox.js';
 import { renderLobby } from './LobbyView.js';
 import { loadSetup, renderSetup } from './SetupView.js';
 import { clear, el } from './dom.js';
@@ -29,6 +30,8 @@ const HOST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 export class App {
     constructor(root) {
         this.view = null;
+        /** Chat of the online game (waiting room, then game) */
+        this.chatBox = null;
         this.session = null;
         this.cleanup = [];
         /** Dialog shown above the game (outside of the root re-rendered by the game) */
@@ -144,6 +147,8 @@ export class App {
         this.root.removeAttribute('inert');
         this.view?.destroy();
         this.view = null;
+        this.chatBox?.destroy();
+        this.chatBox = null;
         if (this.session instanceof Host) {
             // Leaving the room from the app: the game is over for everybody
             this.session.close();
@@ -245,6 +250,7 @@ export class App {
     runHost(host) {
         this.reset();
         this.session = host;
+        this.chatBox = new ChatBox(host.chat, host);
         this.setRoomInUrl(host.code);
         this.markHostTab(host.code);
         let lobbyError;
@@ -252,7 +258,7 @@ export class App {
             if (host.started)
                 return;
             renderLobby(this.root, {
-                lobby: host.lobby, you: 0, isHost: true, link: this.link(host.code), error: lobbyError,
+                lobby: host.lobby, you: 0, isHost: true, link: this.link(host.code), error: lobbyError, chat: this.chatBox ?? undefined,
                 onStart: options => {
                     try {
                         host.start(options);
@@ -304,6 +310,7 @@ export class App {
         this.storeToken(code, token);
         this.reset();
         this.session = client;
+        this.chatBox = new ChatBox(client.chat, client);
         this.setRoomInUrl(code);
         const update = () => {
             if (client.state) {
@@ -317,7 +324,7 @@ export class App {
                 this.view?.destroy();
                 this.view = null;
                 renderLobby(this.root, {
-                    lobby: client.lobby, you: client.seat, isHost: false, link: this.link(code),
+                    lobby: client.lobby, you: client.seat, isHost: false, link: this.link(code), chat: this.chatBox ?? undefined,
                     onLeave: () => {
                         this.forgetToken(code);
                         this.home();
@@ -370,7 +377,7 @@ export class App {
         this.view?.destroy();
         this.view = this.classic
             ? new GameView(this.root, session, onNewGame, this.debug)
-            : new TableView(this.root, session, { onNewGame, onQuit, quitWarning, debug: this.debug });
+            : new TableView(this.root, session, { onNewGame, onQuit, quitWarning, debug: this.debug, chatBox: this.chatBox ?? undefined });
         this.view.render();
     }
     showHostGame(host) {

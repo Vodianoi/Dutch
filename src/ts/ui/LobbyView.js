@@ -45,9 +45,10 @@ export function renderLobby(root, props) {
     const rules = isHost
         ? options.element
         : el('section', { class: 'rules', 'aria-labelledby': 'rules-title' }, el('h3', { id: 'rules-title' }, 'Règles de la partie'), el('ul', {}, ...describeSettings(lobby.settings).map(line => el('li', {}, line))));
-    root.appendChild(el('section', { class: 'lobby panel' }, el('h2', {}, 'Salle d\'attente'), el('div', { class: 'room-code' }, el('span', { class: 'hint' }, 'Code de la partie'), el('strong', { id: 'lobby-code' }, lobby.code)), el('div', { class: 'share' }, el('input', { type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': 'Lien de la partie' }), copyButton), el('h3', {}, `Joueurs (${lobby.players.length}/10)`), players, rules, isHost && problem ? el('p', { class: 'message error', role: 'alert' }, problem) : null, props.error ? el('p', { class: 'message error', role: 'alert' }, props.error) : null, isHost
+    root.appendChild(el('section', { class: 'lobby panel' }, el('h2', {}, 'Salle d\'attente'), el('div', { class: 'room-code' }, el('span', { class: 'hint' }, 'Code de la partie'), el('strong', { id: 'lobby-code' }, lobby.code)), el('div', { class: 'share' }, el('input', { type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': 'Lien de la partie' }), copyButton), el('h3', {}, `Joueurs (${lobby.players.length}/10)`), players, props.chat?.element ?? null, rules, isHost && problem ? el('p', { class: 'message error', role: 'alert' }, problem) : null, props.error ? el('p', { class: 'message error', role: 'alert' }, props.error) : null, isHost
         ? startButton
         : el('p', { class: 'hint waiting' }, `En attente de ${lobby.players[0]?.name ?? 'l\'hôte'} pour commencer…`), el('button', { class: 'secondary', id: 'leave', onclick: props.onLeave }, 'Quitter')));
+    props.chat?.scrollToEnd();
     if (focusedId)
         document.getElementById(focusedId)?.focus();
 }

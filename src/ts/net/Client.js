@@ -1,5 +1,5 @@
 import { Emitter } from '../Session.js';
-import { PROTOCOL_VERSION } from './Protocol.js';
+import { CHAT_HISTORY, PROTOCOL_VERSION } from './Protocol.js';
 import { TransportError } from './Transport.js';
 /** Final answer of the host: no point in trying again */
 class Refused extends TransportError {
@@ -20,6 +20,18 @@ export class Client {
         this.lobby = null;
         this.seat = -1;
         this.status = 'online';
+        this.chatLog = [];
+        this.chat = (() => {
+            const log = this.chatLog;
+            return {
+                get messages() {
+                    return log;
+                },
+                text: true,
+                send: (text) => this.send({ t: 'chat', text }),
+                emote: (emote) => this.send({ t: 'emote', emote }),
+            };
+        })();
         this.events = new Emitter();
         this.connection = null;
         this.lastSeen = Date.now();
@@ -270,6 +282,21 @@ export class Client {
                 break;
             case 'ping':
                 this.send({ t: 'pong' });
+                break;
+            case 'chat':
+                if (!message.message || this.chatLog.some(m => m.id === message.message.id))
+                    break;
+                this.chatLog.push(message.message);
+                if (this.chatLog.length > CHAT_HISTORY)
+                    this.chatLog.shift();
+                this.events.emit({ type: 'chat', message: message.message });
+                break;
+            case 'chatLog':
+                if (!Array.isArray(message.messages))
+                    break;
+                this.chatLog.splice(0, this.chatLog.length, ...message.messages.slice(-CHAT_HISTORY));
+                if (this.chatLog.length)
+                    this.events.emit({ type: 'chat', message: this.chatLog[this.chatLog.length - 1], history: true });
                 break;
         }
     }
