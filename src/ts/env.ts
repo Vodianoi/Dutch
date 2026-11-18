@@ -14,12 +14,20 @@ export function scoped(name: string): string {
 }
 
 const host = typeof location !== 'undefined' ? location.hostname : '';
+const path = typeof location !== 'undefined' ? location.pathname : '';
 
 /** Development on this computer (local server or file) */
 export const IS_LOCAL = host === 'localhost' || host === '127.0.0.1' || host === '';
 
 /**
- *  "Sur cet écran" (everybody plays on one device): a testing tool, offered on the test version
- *  and on this computer, not on the real site
+ *  Testing tools are offered on the test version (/dev/) and on this computer, not on the real site
  */
-export const HOT_SEAT = IS_DEV || IS_LOCAL;
+export function hasTestTools(hostname: string, pathname: string): boolean {
+    return /\/dev\//.test(pathname) || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
+}
+
+/** "Sur cet écran" (everybody plays on one device): a testing tool */
+export const HOT_SEAT = hasTestTools(host, path);
+
+/** The 3D table (prototype): a testing tool, never on the real site */
+export const TABLE_3D = hasTestTools(host, path);
