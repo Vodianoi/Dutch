@@ -1,3 +1,4 @@
+import {GameSettings} from '../Settings.js';
 import {Action, CardView, GameView, Notice} from '../View.js';
 
 /**
@@ -9,6 +10,7 @@ export const PROTOCOL_VERSION = 1;
 
 export interface LobbyPlayer {
     name: string;
+    color: string;
     connected: boolean;
 }
 
@@ -16,6 +18,8 @@ export interface LobbyState {
     code: string;
     players: LobbyPlayer[];
     started: boolean;
+    /** Rules chosen by the host */
+    settings: GameSettings;
 }
 
 /** Host -> player */
@@ -32,7 +36,7 @@ export type HostMessage =
 
 /** Player -> host */
 export type ClientMessage =
-    | { t: 'hello'; v: number; name: string; token: string }
+    | { t: 'hello'; v: number; name: string; token: string; color?: string }
     | { t: 'action'; action: Action }
     | { t: 'pong' };
 

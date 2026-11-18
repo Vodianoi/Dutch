@@ -1,4 +1,5 @@
 import Dutch, {DutchSnapshot, RuleError} from '../Dutch.js';
+import {assignColors, checkSettings, cleanSettings, GameSettings, isPlayerColor} from '../Settings.js';
 import {Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
 import {Action, applyAction, buildView, faceUp, GameView} from '../View.js';
 import {ClientMessage, cleanName, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken} from './Protocol.js';
@@ -6,6 +7,7 @@ import {Connection, HostTransport} from './Transport.js';
 
 interface Seat {
     name: string;
+    color: string;
     token: string;
     connection: Connection | null;
     lastSeen: number;
@@ -18,7 +20,8 @@ interface Seat {
 export interface HostSnapshot {
     v: 1;
     code: string;
-    seats: { name: string; token: string }[];
+    seats: { name: string; token: string; color?: string }[];
+    settings?: GameSettings;
     game: DutchSnapshot | null;
 }
 
@@ -29,12 +32,13 @@ export interface HostOptions {
     restore?: HostSnapshot;
     /** Called after every change, to save the room */
     persist?: (snapshot: HostSnapshot) => void;
+    /** Rules shown in the lobby until the host changes them */
+    settings?: Partial<GameSettings>;
+    /** Colour of the host */
+    color?: string;
 }
 
-export interface StartOptions {
-    deckCount?: number;
-    peekVariant?: boolean;
-}
+export type StartOptions = Partial<GameSettings>;
 
 /**
  *  Online game, host side.
@@ -57,6 +61,7 @@ export class Host implements Session {
     private readonly heartbeat: ReturnType<typeof setInterval>;
     private readonly persistTo: ((snapshot: HostSnapshot) => void) | undefined;
     private lastTick = Date.now();
+    private settings: GameSettings;
     private game: Dutch | null = null;
     private unsubscribeGame: (() => void) | null = null;
     private closed = false;
@@ -68,10 +73,14 @@ export class Host implements Session {
         this.persistTo = options.persist;
         const saved = options.restore;
         if (saved) {
-            this.seats = saved.seats.map(s => ({name: s.name, token: s.token, connection: null, lastSeen: 0}));
+            const colors = assignColors(saved.seats.map(s => s.color));
+            this.seats = saved.seats.map((s, i) => ({name: s.name, color: colors[i], token: s.token, connection: null, lastSeen: 0}));
+            this.settings = cleanSettings(saved.settings ?? options.settings);
             if (saved.game) this.attach(Dutch.restore(saved.game));
         } else {
-            this.seats = [{name: cleanName(hostName, 'Hôte'), token: randomToken(), connection: null, lastSeen: Date.now()}];
+            const color = assignColors([options.color])[0];
+            this.seats = [{name: cleanName(hostName, 'Hôte'), color, token: randomToken(), connection: null, lastSeen: Date.now()}];
+            this.settings = cleanSettings(options.settings);
         }
         transport.onConnection(connection => this.accept(connection));
         this.heartbeat = setInterval(() => this.tick(), this.heartbeatMs);
@@ -92,12 +101,22 @@ export class Host implements Session {
         return {
             code: this.code,
             started: this.started,
-            players: this.seats.map((seat, i) => ({name: seat.name, connected: this.isConnected(i)})),
+            settings: this.settings,
+            players: this.seats.map((seat, i) => ({name: seat.name, color: seat.color, connected: this.isConnected(i)})),
         };
     }
 
     public on(listener: (event: SessionEvent) => void) {
         return this.events.on(listener);
+    }
+
+    /**
+     *  Rules chosen in the lobby: shown to every player before the game starts
+     */
+    public setSettings(settings: Partial<GameSettings>) {
+        if (this.game) return;
+        this.settings = cleanSettings({...this.settings, ...settings});
+        this.broadcastLobby();
     }
 
     /**
@@ -110,10 +129,13 @@ export class Host implements Session {
             if (!this.seats[i].connection) this.seats.splice(i, 1);
         }
         if (this.seats.length < 2) throw new RuleError('Il faut au moins 2 joueurs.');
+        this.settings = cleanSettings({...this.settings, ...options});
+        const problem = checkSettings(this.seats.length, this.settings);
+        if (problem) throw new RuleError(problem);
         const game = new Dutch({
+            ...this.settings,
             players: this.seats.map(s => s.name),
-            deckCount: options.deckCount,
-            peekVariant: options.peekVariant,
+            playerColors: this.seats.map(s => s.color),
         });
         this.attach(game);
         this.broadcastLobby();
@@ -147,7 +169,8 @@ export class Host implements Session {
         return {
             v: 1,
             code: this.code,
-            seats: this.seats.map(s => ({name: s.name, token: s.token})),
+            seats: this.seats.map(s => ({name: s.name, token: s.token, color: s.color})),
+            settings: this.settings,
             game: this.game ? this.game.snapshot() : null,
         };
     }
@@ -246,7 +269,9 @@ export class Host implements Session {
         } else {
             if (this.game) return refuse('La partie a déjà commencé.');
             if (this.seats.length >= MAX_PLAYERS) return refuse('La partie est complète (10 joueurs).');
-            seat = {name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), token: hello.token, connection, lastSeen: 0};
+            const wanted = isPlayerColor(hello.color) && !this.seats.some(s => s.color === hello.color) ? hello.color : null;
+            const color = wanted ?? assignColors([...this.seats.map(s => s.color), null])[this.seats.length];
+            seat = {name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), color, token: hello.token, connection, lastSeen: 0};
             this.seats.push(seat);
         }
         seat.lastSeen = Date.now();

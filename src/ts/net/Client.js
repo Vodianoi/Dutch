@@ -39,6 +39,7 @@ export class Client {
         this.welcomeTimeoutMs = options.welcomeTimeoutMs ?? 10000;
         this.retryDelaysMs = options.retryDelaysMs ?? [0, 1000, 2000, 4000, 8000];
         this.giveUpMs = options.giveUpMs ?? 10 * 60 * 1000;
+        this.color = options.color;
         this.watchdog = setInterval(() => {
             // Also true when this page was asleep: the connection is probably dead, check right away
             if (this.status === 'online' && Date.now() - this.lastSeen > this.timeoutMs)
@@ -163,7 +164,7 @@ export class Client {
             };
             this.welcomeListeners.push(done);
             this.lastSeen = Date.now();
-            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token });
+            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color });
         });
         this.attempts = 0;
         this.lostAt = 0;

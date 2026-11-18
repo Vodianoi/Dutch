@@ -294,3 +294,28 @@ test('after the host page slept, the players are not dropped for being silent', 
     }
 });
 // endregion
+
+test('the host chooses the rules in the lobby, everybody sees them, and colours are unique', async () => {
+    const [blue] = (await import('../src/ts/Settings.js')).PLAYER_COLORS.map(p => p.value);
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, color: blue, settings: {cardsPerPlayer: 5}});
+    const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-rules', {color: blue});
+    try {
+        await until(() => hugo.lobby);
+        assert.equal(hugo.lobby.settings.cardsPerPlayer, 5);
+        const colors = hugo.lobby.players.map(p => p.color);
+        assert.equal(colors[0], blue);
+        assert.notEqual(colors[1], blue);
+        host.setSettings({targetScore: 50, effects: ['ACE']});
+        await until(() => hugo.lobby.settings.targetScore === 50);
+        assert.deepEqual(hugo.lobby.settings.effects, ['ACE']);
+        host.start();
+        await until(() => hugo.state);
+        assert.equal(hugo.state.settings.cardsPerPlayer, 5);
+        assert.equal(hugo.state.players[1].hand.length, 5);
+        assert.equal(hugo.state.players[1].color, colors[1]);
+        assert.equal(host.snapshot().settings.targetScore, 50);
+    } finally {
+        hugo.leave();
+        host.close();
+    }
+});
