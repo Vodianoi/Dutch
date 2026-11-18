@@ -3,6 +3,7 @@ import Dutch, { RuleError } from '../Dutch.js';
 import { LocalSession } from '../Session.js';
 import { SoloSession } from '../SoloSession.js';
 import { TableView } from '../table/TableView.js';
+import { loadPrefs, savePrefs } from '../table/prefs.js';
 import { BroadcastTransport } from '../net/BroadcastTransport.js';
 import { Client } from '../net/Client.js';
 import { Host } from '../net/Host.js';
@@ -47,6 +48,13 @@ export class App {
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
         this.classic = params.has('classic');
+        // `?table=3d` / `?table=2d`: choose the table of this device (kept in its settings)
+        const table = params.get('table');
+        if (table === '3d' || table === '2d') {
+            const prefs = loadPrefs();
+            prefs.table = table;
+            savePrefs(prefs);
+        }
         this.localTransport = params.get('transport') === 'local';
         this.transport = this.localTransport ? new BroadcastTransport() : new PeerTransport();
         window.addEventListener('beforeunload', e => {
@@ -375,10 +383,43 @@ export class App {
     // region Helpers
     showGame(session, onNewGame, onQuit, quitWarning) {
         this.view?.destroy();
-        this.view = this.classic
-            ? new GameView(this.root, session, onNewGame, this.debug)
-            : new TableView(this.root, session, { onNewGame, onQuit, quitWarning, debug: this.debug, chatBox: this.chatBox ?? undefined });
-        this.view.render();
+        this.view = null;
+        if (this.classic) {
+            this.view = new GameView(this.root, session, onNewGame, this.debug);
+            this.view.render();
+            return;
+        }
+        const options = {
+            onNewGame, onQuit, quitWarning, debug: this.debug, chatBox: this.chatBox ?? undefined,
+            // Other table chosen in the menu: the same game, drawn by the other table
+            onTableChange: () => {
+                if (this.session === session)
+                    this.showGame(session, onNewGame, onQuit, quitWarning);
+            },
+        };
+        const flat = () => {
+            this.view = new TableView(this.root, session, options);
+            this.view.render();
+        };
+        if (loadPrefs().table !== '3d')
+            return flat();
+        // The 3D table (Three.js) is only loaded by the devices that use it
+        let cancelled = false;
+        const waiting = { render: () => undefined, destroy: () => cancelled = true };
+        this.view = waiting;
+        import('../table3d/Table3DView.js')
+            .then(module => {
+            if (cancelled || this.view !== waiting)
+                return;
+            this.view = new module.Table3DView(this.root, session, options);
+            this.view.render();
+        })
+            .catch(error => {
+            // No WebGL, or the 3D files didn't load: the flat table
+            console.warn('3D table unavailable', error);
+            if (!cancelled && this.view === waiting)
+                flat();
+        });
     }
     showHostGame(host) {
         this.showGame(host, () => host.newGame(), () => this.home(), 'Vous êtes l\'hôte : si vous quittez, la partie s\'arrête pour tout le monde. Quitter quand même ?');

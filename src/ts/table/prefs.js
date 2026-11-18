@@ -1,7 +1,7 @@
 import { scoped } from '../env.js';
-import { BACK_COLORS } from './art.js';
+import { BACK_COLORS } from './cardArt.js';
 const KEY = scoped('prefs');
-const DEFAULTS = { sound: true, vibration: true, speed: 'normal', back: 'red' };
+const DEFAULTS = { sound: true, vibration: true, speed: 'normal', back: 'red', table: '2d' };
 export function loadPrefs() {
     try {
         const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') ?? {};
@@ -10,6 +10,7 @@ export function loadPrefs() {
             vibration: typeof saved.vibration === 'boolean' ? saved.vibration : DEFAULTS.vibration,
             speed: saved.speed === 'fast' ? 'fast' : 'normal',
             back: saved.back in BACK_COLORS ? saved.back : DEFAULTS.back,
+            table: saved.table === '3d' ? '3d' : '2d',
         };
     }
     catch {
