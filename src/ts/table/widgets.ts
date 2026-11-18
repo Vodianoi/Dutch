@@ -59,8 +59,11 @@ export class SeatView extends Container {
     private lit = false;
     public readonly spot: Sprite;
 
+    private readonly fullName: string;
+
     constructor(public readonly playerId: number, private readonly color: string, name: string, art: Art) {
         super();
+        this.fullName = name;
         this.initial = label(name[0]?.toUpperCase() ?? '?', 16, 0xffffff, '800');
         this.initial.anchor.set(.5);
         this.nameText = label(name, 13, CREAM, '800');
@@ -83,6 +86,10 @@ export class SeatView extends Container {
         this.disc.clear().circle(0, 0, r).fill(this.color).stroke({width: 2, color: 0xffffff, alpha: .8});
         this.initial.style.fontSize = r * .85;
         this.nameText.style.fontSize = 13 * ui;
+        // Long names end with « … » to stay in their place
+        this.nameText.text = this.fullName;
+        const room = seat.label === 'below' ? Math.max(seat.labelW, 2 * r) : seat.labelW;
+        while (this.nameText.width > room && this.nameText.text.length > 2) this.nameText.text = this.nameText.text.slice(0, -2) + '…';
         this.scoreText.style.fontSize = 11.5 * ui;
         if (seat.label === 'right') {
             this.nameText.anchor.set(0, 1);
@@ -120,7 +127,8 @@ export class SeatView extends Container {
         this.pulse?.kill();
         if (lit) {
             this.ring.alpha = 1;
-            this.pulse = gsap.fromTo(this.ring.scale, {x: 1, y: 1}, {x: 1.12, y: 1.12, duration: .7, yoyo: true, repeat: -1, ease: 'sine.inOut'});
+            // A few pulses when the turn comes, then a steady ring
+            this.pulse = gsap.fromTo(this.ring.scale, {x: 1, y: 1}, {x: 1.14, y: 1.14, duration: .45, yoyo: true, repeat: 3, ease: 'sine.inOut'});
             gsap.to(this.spot, {alpha: .22, duration: .4});
         } else {
             this.ring.alpha = 0;

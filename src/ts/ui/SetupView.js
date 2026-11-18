@@ -1,7 +1,7 @@
 import { HOT_SEAT, scoped } from '../env.js';
 import { MAX_NAME_LENGTH } from '../net/Protocol.js';
 import { normalizeCode } from '../net/Transport.js';
-import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, EFFECT_LABELS, PLAYER_COLORS, } from '../Settings.js';
+import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, describeSettings, EFFECT_LABELS, PLAYER_COLORS, } from '../Settings.js';
 import { clear, el } from './dom.js';
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
 const STORAGE_KEY = scoped('setup');
@@ -154,7 +154,7 @@ export function renderSetup(root, handlers, initial = {}) {
             });
         };
         const resume = initial.soloResume;
-        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, 'Votre partie est en cours'), el('p', { class: 'hint' }, `Manche ${resume.round} contre ${resume.players.slice(1).join(', ')}.`), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, 'Reprendre la partie'), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, 'Abandonner'))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, 'Votre nom'), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, 'Contre ', bots), options.element, el('p', { class: 'hint' }, 'Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.'), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? 'Nouvelle partie' : 'Jouer'));
+        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, 'Votre partie est en cours'), el('p', { class: 'hint' }, `Manche ${resume.round} contre ${resume.players.slice(1).join(', ')}.`), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, 'Reprendre la partie'), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, 'Abandonner'))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, 'Votre nom'), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, 'Contre ', bots), folded(options), el('p', { class: 'hint' }, 'Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.'), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? 'Nouvelle partie' : 'Jouer'));
     };
     // endregion
     // region Local
@@ -205,7 +205,7 @@ export function renderSetup(root, handlers, initial = {}) {
                 playerColors: setup.colors.slice(0, setup.count),
             });
         };
-        return el('div', { class: 'setup-local' }, el('label', { class: 'inline-field' }, 'Nombre de joueurs ', countSelect), names, options.element, el('p', { class: 'hint' }, 'Tout le monde joue sur le même écran. ', 'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.'), error, el('button', { id: 'start', class: 'primary', onclick: start }, 'Distribuer les cartes'));
+        return el('div', { class: 'setup-local' }, el('label', { class: 'inline-field' }, 'Nombre de joueurs ', countSelect), names, folded(options), el('p', { class: 'hint' }, 'Tout le monde joue sur le même écran. ', 'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.'), error, el('button', { id: 'start', class: 'primary', onclick: start }, 'Distribuer les cartes'));
     };
     // endregion
     draw();
@@ -246,6 +246,16 @@ function colorButton(initial, taken, label, onPick) {
     });
     show();
     return button;
+}
+/**
+ *  Rules folded under a one-line summary (progressive disclosure): the main action stays in view
+ */
+function folded(options) {
+    const summary = el('span', { class: 'rules-summary' });
+    const update = () => summary.textContent = describeSettings(options.read()).slice(0, 3).join(' · ');
+    options.element.addEventListener('change', update);
+    update();
+    return el('details', { class: 'rules-details' }, el('summary', {}, el('strong', {}, 'Règles'), summary), options.element);
 }
 /**
  *  Rules of the game, shared by the local setup and the online lobby (host)

@@ -7,7 +7,7 @@ import {describeSettings} from '../Settings.js';
 import {Action, CardView, GameView, PlayerView} from '../View.js';
 import {Art, BACK_COLORS, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
 import {CardSprite, centered, dispose, Place, Target} from './CardSprite.js';
-import {clamp, computeLayout, jitter, Layout, Point, RATIO, slot} from './layout.js';
+import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, slot} from './layout.js';
 import {buzz, loadPrefs, Prefs, savePrefs} from './prefs.js';
 import {setMuted, sfx, unlockAudio} from './sound.js';
 import {button, ButtonKind, CREAM, GOLD, label, SeatView} from './widgets.js';
@@ -118,6 +118,9 @@ export class TableView {
     private readonly chips = new Map<number, Container>();
     private drag: { sprite: CardSprite; id: string; start: Point; offset: Point; moved: boolean; canDrag: boolean; lastX: number } | null = null;
     private syncQueued = false;
+    /** "Hold the phone upright" when the table is too crowded for a screen held sideways */
+    private readonly hint: HTMLElement;
+    private myTurnBefore = false;
 
     constructor(root: HTMLElement, private readonly session: Session, private readonly options: TableOptions) {
         document.body.classList.add('in-game');
@@ -143,7 +146,11 @@ export class TableView {
         this.live = document.createElement('div');
         this.live.className = 'sr-only';
         this.live.setAttribute('aria-live', 'polite');
-        this.screen.append(this.host, bar, this.live);
+        this.hint = document.createElement('p');
+        this.hint.className = 'table-hint';
+        this.hint.hidden = true;
+        this.hint.textContent = 'Tenez le téléphone droit pour mieux voir la table';
+        this.screen.append(this.host, bar, this.live, this.hint);
         root.replaceChildren(this.screen);
         this.applyPrefs();
         this.unsubscribe = session.on(event => this.onSessionEvent(event));
@@ -215,7 +222,10 @@ export class TableView {
         }
         if (event.type === 'chat' && !event.history) this.showChat(event.message);
         if (event.type === 'notice') {
-            if (event.notice.kind === 'error') sfx.bad();
+            if (event.notice.kind === 'error') {
+                sfx.bad();
+                buzz(this.prefs, 20);
+            }
             this.chip(this.bottomId(), event.notice.text, event.notice.kind === 'error' ? 0xff6b6b : GOLD);
         }
     }
@@ -259,7 +269,6 @@ export class TableView {
 
     private dispatch(action: Action) {
         unlockAudio();
-        buzz(this.prefs, 8);
         this.throwPick = null;
         this.session.dispatch(action);
     }
@@ -313,6 +322,7 @@ export class TableView {
         const top = bar ? bar.bottom - this.host.getBoundingClientRect().top : 44;
         this.layout = computeLayout(app.screen.width, app.screen.height, top, this.order(s), s.settings.cardsPerPlayer);
         const L = this.layout;
+        this.hint.hidden = !L.cramped;
         const old = this.tableSprite.texture;
         this.tableSprite.texture = Texture.from(drawTable(L.w, L.h, L.table, Math.min(app.renderer.resolution, 2)));
         this.tableSprite.width = L.w;
@@ -404,6 +414,11 @@ export class TableView {
                 sprite.zIndex = 900;
                 const id = view.id;
                 sprite.on('pointerdown', (e: FederatedPointerEvent) => this.pressCard(id, e));
+                const created = sprite;
+                created.on('pointerover', (e: FederatedPointerEvent) => {
+                    if (e.pointerType === 'mouse' && !this.drag && created.cursor === 'pointer') created.hover(true);
+                });
+                created.on('pointerout', () => created.hover(false));
                 this.cardsLayer.addChild(sprite);
                 this.sprites.set(view.id, sprite);
                 sprite.moveTo(target, delay, instant);
@@ -427,9 +442,10 @@ export class TableView {
                 const pos = slot(seat, index, p.hand.length, L.cols);
                 const up = !!card.value || this.revealed.has(card.id) || (roundOver && roundFaces.has(card.id));
                 const picked = this.throwPick === card.id;
+                const cw = cardWidth(seat, p.hand.length, L.cols);
                 put(card, {
-                    x: pos.x, y: pos.y - (picked ? seat.cw * .25 : 0), rotation: jitter(card.id) * .06,
-                    scale: seat.cw / CW * (picked ? 1.08 : 1), z: 10 + index + (picked ? 50 : 0), up,
+                    x: pos.x, y: pos.y - (picked ? cw * .25 : 0), rotation: jitter(card.id) * .06,
+                    scale: cw / CW * (picked ? 1.08 : 1), z: 10 + index + (picked ? 50 : 0), up,
                 }, {zone: 'hand', player: p.id, index}, dealDelay(seatIndex, index), roundOver ? .15 * seatIndex + index * .08 : 0);
             });
         }
@@ -523,6 +539,7 @@ export class TableView {
         }
         if (move.type === 'wrongThrow') {
             sfx.bad();
+            if (this.mine(move.playerId)) buzz(this.prefs, [40, 30, 40]);
             this.sprites.get(move.cardIds[0])?.shake(0xff9a9a);
         }
         if ((move.type === 'peek' || move.type === 'queenPeek') && !this.mine(move.playerId)) {
@@ -539,6 +556,10 @@ export class TableView {
         const myTurn = s.phase !== 'peek' && (s.phase === 'draw' || s.phase === 'drawn' || s.phase === 'played') && this.mine(cur);
         const myEffect = effect && this.mine(effect.playerId) ? effect.type : null;
         const canDraw = myTurn && s.phase === 'draw' && !effect && !s.isStuck;
+        // Your turn starts: a short vibration (not on a shared screen, where every turn is "yours")
+        const turnStarts = s.viewerId !== null && myTurn && s.phase === 'draw';
+        if (turnStarts && !this.myTurnBefore) buzz(this.prefs, 15);
+        this.myTurnBefore = turnStarts;
         const stack = Math.min(this.deckStack.length, Math.ceil(s.deckRemaining / 8));
         this.deckStack.forEach((sprite, i) => sprite.visible = i < stack);
         this.deckCount.text = s.deckRemaining ? `${s.deckRemaining}` : 'vide';
@@ -550,7 +571,7 @@ export class TableView {
             const seat = this.layout.seats.get(p.id)!;
             p.hand.forEach((_, index) => {
                 const pos = slot(seat, index, p.hand.length, this.layout.cols);
-                const w = seat.cw, h = w * RATIO;
+                const w = cardWidth(seat, p.hand.length, this.layout.cols), h = w * RATIO;
                 this.slots.roundRect(pos.x - w / 2, pos.y - h / 2, w, h, w * .08);
             });
         }
@@ -576,6 +597,7 @@ export class TableView {
             sprite.setGlow(glow);
             const draggable = (own && s.players[place.player].canThrow) || (place.zone === 'held' && myTurn);
             sprite.cursor = glow || draggable ? 'pointer' : 'default';
+            if (!glow && !draggable) sprite.hover(false);
         }
 
         for (const p of s.players) {
@@ -688,8 +710,8 @@ export class TableView {
         if (key === this.buttonsKey) return;
         this.buttonsKey = key;
         this.buttons.removeChildren().forEach(dispose);
-        const views = list.map(([text, kind, onTap]) => button(text, kind, L.ui, onTap));
-        const gap = 12 * L.ui;
+        const views = list.map(([text, kind, onTap]) => button(text, kind, L.buttons.scale, onTap));
+        const gap = 10 * L.buttons.scale;
         if (L.buttons.vertical) {
             const total = views.reduce((sum, v) => sum + v.height, 0) + gap * (views.length - 1);
             let y = L.buttons.y - total / 2;
@@ -732,7 +754,7 @@ export class TableView {
         const seat = this.layout.seats.get(owner)!;
         this.throwButton.position.set(
             clamp(target.x, 110, this.layout.w - 110),
-            target.y - seat.cw * RATIO / 2 - 28 * this.layout.ui);
+            target.y - cardWidth(seat, s.players[owner].hand.length, this.layout.cols) * RATIO / 2 - 28 * this.layout.ui);
         this.uiLayer.addChild(this.throwButton);
         gsap.from(this.throwButton, {alpha: 0, y: this.throwButton.y + 10, duration: .2});
     }
