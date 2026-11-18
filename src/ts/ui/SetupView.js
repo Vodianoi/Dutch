@@ -1,4 +1,4 @@
-import { scoped } from '../env.js';
+import { HOT_SEAT, scoped } from '../env.js';
 import { MAX_NAME_LENGTH } from '../net/Protocol.js';
 import { normalizeCode } from '../net/Transport.js';
 import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, EFFECT_LABELS, PLAYER_COLORS, } from '../Settings.js';
@@ -40,14 +40,15 @@ export function renderSetup(root, handlers, initial = {}) {
     const setup = loadSetup();
     while (setup.names.length < 10)
         setup.names.push(DEFAULT_NAMES[setup.names.length]);
-    if (initial.code)
+    // "Sur cet écran" is only for testing: the real site only offers online games
+    if (initial.code || !HOT_SEAT)
         setup.mode = 'online';
     const draw = () => {
         clear(root);
         const tabs = el('div', { class: 'tabs', role: 'group', 'aria-label': 'Mode de jeu' }, el('button', { class: setup.mode === 'online' ? 'tab active' : 'tab', id: 'tab-online',
             'aria-pressed': String(setup.mode === 'online'), onclick: () => switchMode('online') }, 'En ligne'), el('button', { class: setup.mode === 'local' ? 'tab active' : 'tab', id: 'tab-local',
             'aria-pressed': String(setup.mode === 'local'), onclick: () => switchMode('local') }, 'Sur cet écran'));
-        root.appendChild(el('section', { class: 'setup panel' }, tabs, setup.mode === 'online' ? online() : local()));
+        root.appendChild(el('section', { class: 'setup panel' }, HOT_SEAT ? tabs : null, setup.mode === 'online' ? online() : local()));
     };
     const switchMode = (mode) => {
         setup.mode = mode;

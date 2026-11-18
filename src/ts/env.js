@@ -11,3 +11,11 @@ export const IS_DEV = typeof location !== 'undefined' && /\/dev\//.test(location
 export function scoped(name) {
     return `${IS_DEV ? 'dutch-dev-' : 'dutch-'}${name}`;
 }
+const host = typeof location !== 'undefined' ? location.hostname : '';
+/** Development on this computer (local server or file) */
+export const IS_LOCAL = host === 'localhost' || host === '127.0.0.1' || host === '';
+/**
+ *  "Sur cet écran" (everybody plays on one device): a testing tool, offered on the test version
+ *  and on this computer, not on the real site
+ */
+export const HOT_SEAT = IS_DEV || IS_LOCAL;
