@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Dutch from '../src/ts/Dutch.js';
-import {Bots} from '../src/ts/Bots.js';
+import {Bots, PEEK_MIN_MS, PEEK_SPREAD_MS} from '../src/ts/Bots.js';
 import {SoloSession} from '../src/ts/SoloSession.js';
 
 const fast = {speed: 0, setTimer: (fn) => setImmediate(fn), clearTimer: (h) => clearImmediate(h)};
@@ -68,4 +68,47 @@ test('solo: emotes only, the player can send them and they are kept', () => {
     solo.chat.emote('pas un emote');
     assert.deepEqual(solo.chat.messages.map(m => [m.seat, m.emote]), [[0, '🎉']]);
     solo.close();
+});
+
+test('the bots look at their cards all at the same time, quickly but not instantly', () => {
+    const game = new Dutch({players: ['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9'], peekVariant: true});
+    const timers = [];
+    const bots = new Bots(game, game.players.map(p => p.id), {
+        setTimer: (fn, ms) => timers.push({fn, ms}) - 1,
+        clearTimer: () => {},
+    });
+    game.startRound();
+    assert.equal(game.phase, 'peek');
+    bots.schedule();
+    assert.equal(timers.length, 10, 'one timer per bot, all planned together');
+    for (const {ms} of timers) {
+        assert.ok(ms >= PEEK_MIN_MS && ms <= PEEK_MIN_MS + PEEK_SPREAD_MS, `waits ${ms} ms`);
+        assert.ok(ms >= 800, 'not instant');
+    }
+    // Planning again (any change) doesn't add a second peek for the same bot
+    bots.schedule();
+    assert.equal(timers.length, 10);
+    timers.splice(0).forEach(t => t.fn());
+    assert.equal(game.phase, 'draw', 'everybody has looked: the round goes on');
+    bots.stop();
+});
+
+test('the bots look again at the start of the next round', async () => {
+    const game = new Dutch({players: ['B0', 'B1', 'B2'], peekVariant: true, targetScore: 200});
+    const bots = new Bots(game, game.players.map(p => p.id), fast);
+    let rounds = 0;
+    await new Promise((resolve, reject) => {
+        game.on(event => {
+            if (event.type !== 'change') return;
+            if (game.phase === 'roundOver') {
+                if (++rounds === 2) return resolve();
+                return setImmediate(() => game.nextRound());
+            }
+            if (game.phase === 'gameOver') return reject(new Error('game over too soon'));
+            bots.schedule();
+        });
+        game.startRound();
+    });
+    bots.stop();
+    assert.equal(rounds, 2, 'the second round could start: every bot looked again');
 });
