@@ -9,6 +9,10 @@ import {clear, el} from './dom.js';
 
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
 const STORAGE_KEY = scoped('setup');
+/** Names of the computer players */
+export const BOT_NAMES = ['Léa', 'Hugo', 'Inès', 'Malo', 'Zoé', 'Nino', 'Jade', 'Sacha', 'Lina'];
+
+export type SetupMode = 'solo' | 'online' | 'local';
 
 interface SavedSetup {
     count: number;
@@ -18,13 +22,15 @@ interface SavedSetup {
     settings: GameSettings;
     onlineName: string;
     onlineColor: string;
-    mode: 'online' | 'local';
+    mode: SetupMode;
+    /** Computer players in a solo game */
+    botCount: number;
 }
 
 export function loadSetup(): SavedSetup {
     const fallback: SavedSetup = {
         count: 4, names: DEFAULT_NAMES.slice(), colors: assignColors(DEFAULT_NAMES.map(() => null)),
-        settings: cleanSettings(null), onlineName: '', onlineColor: PLAYER_COLORS[0].value, mode: 'online',
+        settings: cleanSettings(null), onlineName: '', onlineColor: PLAYER_COLORS[0].value, mode: 'solo', botCount: 3,
     };
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
@@ -33,7 +39,9 @@ export function loadSetup(): SavedSetup {
             const settings = cleanSettings(saved.settings ?? {deckCount: saved.deckCount, peekVariant: saved.peekVariant});
             const colors = assignColors(DEFAULT_NAMES.map((_, i) => Array.isArray(saved.colors) ? saved.colors[i] : null));
             const onlineColor = PLAYER_COLORS.some(c => c.value === saved.onlineColor) ? saved.onlineColor : fallback.onlineColor;
-            return {...fallback, ...saved, settings, colors, onlineColor};
+            const botCount = Number.isInteger(saved.botCount) && saved.botCount >= 1 && saved.botCount <= 9 ? saved.botCount : 3;
+            const mode: SetupMode = ['solo', 'online', 'local'].includes(saved.mode) ? saved.mode : 'solo';
+            return {...fallback, ...saved, settings, colors, onlineColor, botCount, mode};
         }
     } catch {
         // storage unavailable: use defaults
@@ -50,6 +58,12 @@ export function saveSetup(setup: SavedSetup) {
 }
 
 export interface SetupHandlers {
+    /** Against the computer: seat 0 is this device, the others are bots */
+    onSolo(options: DutchOptions): void;
+    /** Continue the solo game saved on this device */
+    onResumeSolo?(): void;
+    /** Forget the saved solo game */
+    onForgetSolo?(): void;
     /** Everybody on this screen */
     onLocal(options: DutchOptions): void;
     /** Create an online game */
@@ -68,6 +82,8 @@ export interface SetupInitial {
     busy?: string;
     /** Room this device was hosting and can reopen (the page was closed during the game) */
     resume?: { code: string; players: string[]; started: boolean };
+    /** Solo game saved on this device */
+    soloResume?: { round: number; players: string[] };
 }
 
 /**
@@ -76,26 +92,30 @@ export interface SetupInitial {
 export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial: SetupInitial = {}) {
     const setup = loadSetup();
     while (setup.names.length < 10) setup.names.push(DEFAULT_NAMES[setup.names.length]);
-    // "Sur cet écran" is only for testing: the real site only offers online games
-    if (initial.code || !HOT_SEAT) setup.mode = 'online';
+    // A room code in the link: join it. "Sur cet écran" is only for testing (not on the real site)
+    if (initial.code || initial.resume) setup.mode = 'online';
+    else if (setup.mode === 'local' && !HOT_SEAT) setup.mode = 'solo';
 
     const draw = () => {
         clear(root);
+        const tab = (mode: SetupMode, label: string) => el('button', {
+            class: setup.mode === mode ? 'tab active' : 'tab', id: `tab-${mode}`,
+            'aria-pressed': String(setup.mode === mode), onclick: () => switchMode(mode),
+        }, label);
         const tabs = el('div', {class: 'tabs', role: 'group', 'aria-label': 'Mode de jeu'},
-            el('button', {class: setup.mode === 'online' ? 'tab active' : 'tab', id: 'tab-online',
-                'aria-pressed': String(setup.mode === 'online'), onclick: () => switchMode('online')}, 'En ligne'),
-            el('button', {class: setup.mode === 'local' ? 'tab active' : 'tab', id: 'tab-local',
-                'aria-pressed': String(setup.mode === 'local'), onclick: () => switchMode('local')}, 'Sur cet écran'));
+            tab('solo', 'Contre l\'ordinateur'),
+            tab('online', 'En ligne'),
+            HOT_SEAT ? tab('local', 'Sur cet écran') : null);
 
         root.appendChild(el('section', {class: 'setup panel'},
-            HOT_SEAT ? tabs : null,
-            setup.mode === 'online' ? online() : local()));
+            tabs,
+            setup.mode === 'online' ? online() : setup.mode === 'solo' ? solo() : local()));
     };
 
-    const switchMode = (mode: 'online' | 'local') => {
+    const switchMode = (mode: SetupMode) => {
         setup.mode = mode;
         saveSetup(setup);
-        initial = {code: initial.code, resume: initial.resume};
+        initial = {code: initial.code, resume: initial.resume, soloResume: initial.soloResume};
         draw();
     };
 
@@ -172,6 +192,66 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             el('p', {class: 'hint'},
                 'Chacun joue sur son appareil et ne voit que ses cartes. ',
                 'La partie tourne sur l\'appareil de celui qui la crée. S\'il quitte l\'application, elle reprend quand il revient.'));
+    };
+    // endregion
+
+    // region Solo
+    const solo = () => {
+        const nameError = el('p', {class: 'field-error', id: 'solo-name-error'});
+        const error = el('p', {class: 'message error', role: 'alert', id: 'solo-error', hidden: true});
+        const nameInput = el('input', {
+            type: 'text', id: 'solo-name', 'aria-describedby': 'solo-name-error', maxlength: String(MAX_NAME_LENGTH),
+            value: setup.onlineName, placeholder: 'Votre prénom', autocomplete: 'nickname',
+        });
+        const color = colorButton(setup.onlineColor, () => [], 'Votre couleur', value => {
+            setup.onlineColor = value;
+            saveSetup(setup);
+        });
+        const bots = el('select', {id: 'bot-count', onchange: () => {
+            setup.botCount = parseInt(bots.value, 10);
+            saveSetup(setup);
+            error.hidden = true;
+        }}, ...Array.from({length: 9}, (_, i) => el('option', {value: String(i + 1), selected: i + 1 === setup.botCount},
+            `${i + 1} adversaire${i ? 's' : ''}`)));
+        const options = gameOptions(setup.settings, () => {
+            setup.settings = options.read();
+            saveSetup(setup);
+            error.hidden = true;
+        });
+        const start = () => {
+            const name = nameInput.value.trim() || 'Vous';
+            setup.onlineName = nameInput.value.trim() || setup.onlineName;
+            setup.settings = options.read();
+            saveSetup(setup);
+            const problem = checkSettings(setup.botCount + 1, setup.settings);
+            if (problem) {
+                error.textContent = problem;
+                error.hidden = false;
+                return;
+            }
+            handlers.onSolo({
+                ...setup.settings,
+                players: [name, ...BOT_NAMES.slice(0, setup.botCount)],
+                playerColors: [setup.onlineColor],
+            });
+        };
+        const resume = initial.soloResume;
+        return el('div', {class: 'setup-solo'},
+            resume ? el('section', {class: 'resume', 'aria-labelledby': 'solo-resume-title'},
+                el('h3', {id: 'solo-resume-title'}, 'Votre partie est en cours'),
+                el('p', {class: 'hint'}, `Manche ${resume.round} contre ${resume.players.slice(1).join(', ')}.`),
+                el('div', {class: 'resume-actions'},
+                    el('button', {class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.()}, 'Reprendre la partie'),
+                    el('button', {class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.()}, 'Abandonner'))) : null,
+            el('div', {class: 'stack'},
+                el('label', {for: 'solo-name'}, 'Votre nom'),
+                el('div', {class: 'name-row'}, color, nameInput),
+                nameError),
+            el('label', {class: 'inline-field'}, 'Contre ', bots),
+            options.element,
+            el('p', {class: 'hint'}, 'Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.'),
+            error,
+            el('button', {id: 'start-solo', class: 'primary', onclick: start}, resume ? 'Nouvelle partie' : 'Jouer'));
     };
     // endregion
 

@@ -1688,3 +1688,248 @@ details.rules summary {
     box-shadow: 0 3px 0 #45229e;
 }
 /* endregion Test version */
+
+/* region New look: card room (PixiJS table, menus in the same style) */
+:root {
+    --room: #120d09;
+    --room-light: #2a1f17;
+    --cream: #f6ead0;
+    --cream-muted: #d9c9a3;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --surface: rgba(18, 16, 13, 0.82);
+    --surface-strong: rgba(18, 16, 13, 0.94);
+    --line: rgba(255, 236, 190, 0.18);
+    --ink: var(--cream);
+    --ink-muted: var(--cream-muted);
+}
+
+html {
+    background: var(--room);
+}
+
+body {
+    background: radial-gradient(ellipse at 50% 20%, var(--room-light) 0%, var(--room) 70%) fixed;
+    color: var(--ink);
+}
+
+.site-header .title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: .01em;
+    text-shadow: 0 3px 0 #5a0f1d, 0 8px 24px rgba(0, 0, 0, .5);
+}
+
+/* Menus: felt panels with a gold rim */
+.panel {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(36, 136, 90, .35), transparent 70%),
+        linear-gradient(180deg, #17402c, #0f2c1f);
+    border: 1px solid rgba(255, 209, 102, .35);
+    box-shadow: 0 0 0 6px rgba(74, 39, 16, .9), 0 0 0 7px rgba(255, 220, 170, .18), 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+.panel h2, .panel h3, .resume h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    color: var(--gold);
+}
+
+button.primary {
+    background: linear-gradient(180deg, #ffe08a, #f2c14e 55%, #d9a531);
+    color: #2a1805;
+    border: 1px solid #ffe7a3;
+    box-shadow: 0 2px 0 #8a6416, 0 6px 16px rgba(0, 0, 0, .35);
+}
+
+.tabs {
+    background: rgba(0, 0, 0, .3);
+    border: 1px solid var(--line);
+}
+
+.tab.active {
+    background: var(--gold);
+    color: #2a1805;
+}
+
+input[type="text"], select {
+    background: rgba(0, 0, 0, .35);
+    border-color: rgba(255, 236, 190, .3);
+    color: var(--cream);
+}
+
+/* Game: the table fills the screen */
+body.in-game {
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+body.in-game .site-header {
+    display: none;
+}
+
+.table-screen {
+    position: fixed;
+    inset: 0;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.table-canvas {
+    position: absolute;
+    inset: 0;
+}
+
+.table-canvas canvas {
+    display: block;
+}
+
+.table-bar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 44px;
+    padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.table-menu-button, .table-info {
+    pointer-events: auto;
+    min-height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 236, 190, .25);
+    background: rgba(10, 7, 5, .55);
+    color: var(--cream);
+    font: 600 13px var(--font-body);
+}
+
+.table-menu-button {
+    cursor: pointer;
+}
+
+.table-menu-button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.table-info {
+    pointer-events: none;
+}
+
+/* Menu during the game */
+.table-menu {
+    z-index: var(--z-overlay);
+}
+
+.menu-panel {
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.menu-panel h2 {
+    margin: 0;
+    text-align: center;
+}
+
+.menu-panel details {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+
+.menu-panel summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.menu-panel fieldset {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.menu-panel legend {
+    padding: 0 6px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+.switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    cursor: pointer;
+}
+
+.switch input {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--gold);
+}
+
+.backs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.back-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.back-choice input {
+    position: absolute;
+    opacity: 0;
+}
+
+.back-swatch {
+    width: 44px;
+    height: 62px;
+    border-radius: 6px;
+    border: 3px solid #fffdf7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+}
+
+.back-choice input:checked + .back-swatch {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.back-choice input:focus-visible + .back-swatch {
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+}
+
+.back-red { background: repeating-linear-gradient(45deg, #8e1f30 0 6px, #7a1828 6px 12px); }
+.back-blue { background: repeating-linear-gradient(45deg, #24427a 0 6px, #1b3463 6px 12px); }
+.back-black { background: repeating-linear-gradient(45deg, #34343a 0 6px, #26262b 6px 12px); }
+
+.menu-panel .danger {
+    color: var(--danger);
+    border-color: rgba(255, 128, 128, .5);
+}
+/* endregion New look */
