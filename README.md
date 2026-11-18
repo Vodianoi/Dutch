@@ -14,6 +14,8 @@ Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
 Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
 
+Prototype PixiJS (table dessinée en WebGL, vous contre 3 robots, sur le moteur du jeu) : https://vodianoi.github.io/Dutch/dev/proto/. Code dans `proto/` et `src/ts/proto/` ; PixiJS et GSAP sont chargés depuis un CDN (versions fixées dans `proto/index.html`), les paquets npm ne servent qu'aux types.
+
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
 * **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »). Réservé aux tests : proposé sur la version de test et en développement (localhost), pas sur le vrai site.
 
