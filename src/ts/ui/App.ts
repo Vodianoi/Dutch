@@ -8,7 +8,8 @@ import {randomToken} from '../net/Protocol.js';
 import {TransportFactory} from '../net/Transport.js';
 import GameView from './GameView.js';
 import {renderLobby} from './LobbyView.js';
-import {renderSetup, SetupInitial} from './SetupView.js';
+import {GameSettings} from '../Settings.js';
+import {loadSetup, renderSetup, SetupInitial} from './SetupView.js';
 import {clear, el} from './dom.js';
 
 /** Room hosted by this device, saved after every change */
@@ -114,7 +115,7 @@ export class App {
         }
         renderSetup(this.root, {
             onLocal: options => this.playLocal(options),
-            onHost: name => this.host(name),
+            onHost: (name, color, settings) => this.host(name, color, settings),
             onJoin: (code, name) => this.join(code, name),
             onResume: () => {
                 const again = this.savedHost();
@@ -169,12 +170,12 @@ export class App {
     // endregion
 
     // region Online: host
-    private async host(name: string) {
+    private async host(name: string, color: string, settings: GameSettings) {
         this.home({busy: 'Création de la partie…'});
         let host: Host;
         try {
             const transport = await this.transport.host();
-            host = new Host(transport, name, {persist: snapshot => this.saveHost(name, snapshot)});
+            host = new Host(transport, name, {color, settings, persist: snapshot => this.saveHost(name, snapshot)});
         } catch (e) {
             this.home({error: (e as Error).message});
             return;
@@ -218,6 +219,7 @@ export class App {
                         lobby();
                     }
                 },
+                onSettings: settings => host.setSettings(settings),
                 onLeave: () => this.home(),
             });
         };
@@ -243,7 +245,8 @@ export class App {
         const token = this.storedToken(code) ?? randomToken();
         let client: Client;
         try {
-            client = await Client.join(this.transport, code, name, token);
+            // The colour chosen on the home screen (the host gives another one if it is taken)
+            client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor});
         } catch (e) {
             this.forgetToken(code);
             this.home({code, error: (e as Error).message});

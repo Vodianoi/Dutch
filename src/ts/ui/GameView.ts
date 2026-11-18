@@ -3,6 +3,7 @@ import {Session, SessionEvent} from '../Session.js';
 import {Action, CardView, GameView as State, MoveView, PlayerView, toCard} from '../View.js';
 import {renderCard} from './CardView.js';
 import {clear, el} from './dom.js';
+import {describeSettings} from '../Settings.js';
 import {icon, IconName} from './icons.js';
 import {cardTag, comesFromPile, de, describeMove} from './moves.js';
 
@@ -60,6 +61,8 @@ class GameView {
     private pendingFocus: string | null = null;
     /** Round result already shown (focus moved into it once) */
     private resultShown: string | null = null;
+    /** "Règles de la partie" panel opened by the player (kept across re-renders) */
+    private rulesOpen = false;
 
     /** Screen reader announcements: kept outside of the re-rendered tree */
     private readonly live: HTMLElement;
@@ -117,6 +120,7 @@ class GameView {
                 el('section', {class: 'players', 'aria-label': 'Joueurs'}, ...players.map(p => this.renderPlayer(state, p)))),
             el('aside', {class: 'side'},
                 this.renderScores(state),
+                this.renderRules(state),
                 this.renderLog(state)));
         this.root.appendChild(board);
         if (this.message) {
@@ -637,7 +641,7 @@ class GameView {
 
         return el('div', {class: classes.join(' '), id: `player-${player.id}`, role: 'group', 'aria-label': isViewer ? `${player.name} (vous)` : player.name},
             el('header', {},
-                el('span', {class: 'avatar', 'aria-hidden': 'true', style: {background: seatColor(player.id)}}, initial(player.name)),
+                el('span', {class: 'avatar', 'aria-hidden': 'true', style: {background: player.color ?? seatColor(player.id)}}, initial(player.name)),
                 el('h2', {}, player.name, isViewer ? el('small', {}, ' (vous)') : null),
                 el('span', {class: 'score'}, `${player.score} pts`),
                 isCurrent ? el('span', {class: 'badge turn'}, isViewer ? 'À vous' : 'À son tour') : null,
@@ -664,6 +668,17 @@ class GameView {
                     ...p.roundScores.map(s => el('td', {}, s)),
                     el('td', {class: 'total'}, p.score,
                         rounds > 0 && p.score === best ? el('span', {class: 'lead'}, icon('star'), el('span', {class: 'sr-only'}, ' (en tête)')) : null)))))));
+    }
+
+    /**
+     *  Rules chosen for this game, folded by default
+     */
+    private renderRules(state: State): HTMLElement {
+        const details = el('details', {class: 'rules panel', open: this.rulesOpen},
+            el('summary', {}, el('h3', {}, 'Règles de la partie')),
+            el('ul', {}, ...describeSettings(state.settings).map(line => el('li', {}, line))));
+        details.addEventListener('toggle', () => this.rulesOpen = details.open);
+        return details;
     }
 
     /**

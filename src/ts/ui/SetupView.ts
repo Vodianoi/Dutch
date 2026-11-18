@@ -1,6 +1,9 @@
-import {DutchOptions} from '../Dutch.js';
+import {DutchOptions, EffectType} from '../Dutch.js';
 import {MAX_NAME_LENGTH} from '../net/Protocol.js';
 import {normalizeCode} from '../net/Transport.js';
+import {
+    ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, EFFECT_LABELS, GameSettings, PLAYER_COLORS,
+} from '../Settings.js';
 import {clear, el} from './dom.js';
 
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
@@ -9,17 +12,28 @@ const STORAGE_KEY = 'dutch-setup';
 interface SavedSetup {
     count: number;
     names: string[];
-    deckCount: number;
-    peekVariant: boolean;
+    /** Colour of each local player */
+    colors: string[];
+    settings: GameSettings;
     onlineName: string;
+    onlineColor: string;
     mode: 'online' | 'local';
 }
 
 export function loadSetup(): SavedSetup {
-    const fallback: SavedSetup = {count: 4, names: DEFAULT_NAMES.slice(), deckCount: 2, peekVariant: false, onlineName: '', mode: 'online'};
+    const fallback: SavedSetup = {
+        count: 4, names: DEFAULT_NAMES.slice(), colors: assignColors(DEFAULT_NAMES.map(() => null)),
+        settings: cleanSettings(null), onlineName: '', onlineColor: PLAYER_COLORS[0].value, mode: 'online',
+    };
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-        if (saved && Array.isArray(saved.names)) return {...fallback, ...saved};
+        if (saved && Array.isArray(saved.names)) {
+            // Older saves kept deckCount and peekVariant at the top level
+            const settings = cleanSettings(saved.settings ?? {deckCount: saved.deckCount, peekVariant: saved.peekVariant});
+            const colors = assignColors(DEFAULT_NAMES.map((_, i) => Array.isArray(saved.colors) ? saved.colors[i] : null));
+            const onlineColor = PLAYER_COLORS.some(c => c.value === saved.onlineColor) ? saved.onlineColor : fallback.onlineColor;
+            return {...fallback, ...saved, settings, colors, onlineColor};
+        }
     } catch {
         // storage unavailable: use defaults
     }
@@ -38,9 +52,9 @@ export interface SetupHandlers {
     /** Everybody on this screen */
     onLocal(options: DutchOptions): void;
     /** Create an online game */
-    onHost(name: string): void;
+    onHost(name: string, color: string, settings: GameSettings): void;
     /** Join an online game */
-    onJoin(code: string, name: string): void;
+    onJoin(code: string, name: string, color: string): void;
     /** Reopen the room this device was hosting */
     onResume?(): void;
     /** Forget the room this device was hosting */
@@ -95,6 +109,10 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             type: 'text', id: 'room-code', maxlength: '8', value: initial.code ?? '', placeholder: 'CODE',
             'aria-label': 'Code de la partie', 'aria-describedby': 'room-code-error', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', class: 'code-input',
         });
+        const color = colorButton(setup.onlineColor, () => [], 'Votre couleur', value => {
+            setup.onlineColor = value;
+            saveSetup(setup);
+        });
         const readName = (): string | null => {
             const name = nameInput.value.trim();
             if (!name) {
@@ -108,7 +126,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         };
         const create = () => {
             const name = readName();
-            if (name) handlers.onHost(name);
+            if (name) handlers.onHost(name, setup.onlineColor, setup.settings);
         };
         const join = () => {
             const name = readName();
@@ -119,7 +137,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 return;
             }
             invalid(codeInput, codeError, null);
-            handlers.onJoin(code, name);
+            handlers.onJoin(code, name, setup.onlineColor);
         };
         codeInput.addEventListener('keydown', e => e.key === 'Enter' && join());
 
@@ -133,11 +151,14 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('div', {class: 'resume-actions'},
                     el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, 'Reprendre la partie'),
                     el('button', {class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.()}, 'Abandonner'))) : null,
-            el('div', {class: 'stack'}, el('label', {for: 'online-name'}, 'Votre nom'), nameInput, nameError),
+            el('div', {class: 'stack'},
+                el('label', {for: 'online-name'}, 'Votre nom'),
+                el('div', {class: 'name-row'}, color, nameInput),
+                nameError),
             el('div', {class: 'online-choices'},
                 el('div', {class: 'choice'},
                     el('h3', {}, 'Créer une partie'),
-                    el('p', {class: 'hint'}, 'Vous recevez un code à partager avec les autres joueurs.'),
+                    el('p', {class: 'hint'}, 'Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.'),
                     el('button', {id: 'create-room', class: 'primary', disabled: busy, onclick: create}, 'Créer')),
                 el('div', {class: 'choice'},
                     el('h3', {}, 'Rejoindre'),
@@ -155,10 +176,12 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
     // region Local
     const local = () => {
         const nameInputs: HTMLInputElement[] = [];
+        const error = el('p', {class: 'message error', role: 'alert', id: 'setup-error', hidden: true});
 
         const countSelect = el('select', {id: 'player-count', onchange: (e: Event) => {
             setup.count = parseInt((e.target as HTMLSelectElement).value, 10);
             readNames();
+            saveSetup(setup);
             draw();
         }}, ...Array.from({length: 9}, (_, i) => {
             const n = i + 2;
@@ -167,12 +190,23 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
 
         const names = el('div', {class: 'setup-names'});
         for (let i = 0; i < setup.count; i++) {
-            const input = el('input', {type: 'text', maxlength: String(MAX_NAME_LENGTH), value: setup.names[i]});
+            const input = el('input', {type: 'text', id: `player-name-${i}`, maxlength: String(MAX_NAME_LENGTH), value: setup.names[i]});
             nameInputs.push(input);
-            names.appendChild(el('label', {class: 'name-field'}, el('span', {}, `Joueur ${i + 1}`), input));
+            const others = () => setup.colors.filter((_, j) => j !== i && j < setup.count);
+            const color = colorButton(setup.colors[i], others, `Couleur du joueur ${i + 1}`, value => {
+                setup.colors[i] = value;
+                saveSetup(setup);
+            });
+            names.appendChild(el('div', {class: 'name-field'},
+                el('label', {for: `player-name-${i}`}, `Joueur ${i + 1}`),
+                el('div', {class: 'name-row'}, color, input)));
         }
 
-        const options = gameOptions(setup);
+        const options = gameOptions(setup.settings, () => {
+            setup.settings = options.read();
+            saveSetup(setup);
+            error.hidden = true;
+        });
 
         function readNames() {
             nameInputs.forEach((input, i) => setup.names[i] = input.value.trim() || DEFAULT_NAMES[i]);
@@ -180,20 +214,29 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
 
         const start = () => {
             readNames();
-            const chosen = options.read();
-            setup.deckCount = chosen.deckCount;
-            setup.peekVariant = chosen.peekVariant;
+            setup.settings = options.read();
             saveSetup(setup);
-            handlers.onLocal({players: setup.names.slice(0, setup.count), ...chosen});
+            const problem = checkSettings(setup.count, setup.settings);
+            if (problem) {
+                error.textContent = problem;
+                error.hidden = false;
+                return;
+            }
+            handlers.onLocal({
+                ...setup.settings,
+                players: setup.names.slice(0, setup.count),
+                playerColors: setup.colors.slice(0, setup.count),
+            });
         };
 
         return el('div', {class: 'setup-local'},
-            el('label', {}, 'Nombre de joueurs ', countSelect),
+            el('label', {class: 'inline-field'}, 'Nombre de joueurs ', countSelect),
             names,
             options.element,
             el('p', {class: 'hint'},
                 'Tout le monde joue sur le même écran. ',
-                'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint 100 points.'),
+                'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.'),
+            error,
             el('button', {id: 'start', class: 'primary', onclick: start}, 'Distribuer les cartes'));
     };
     // endregion
@@ -212,17 +255,74 @@ function invalid(input: HTMLInputElement, error: HTMLElement, message: string | 
 }
 
 /**
- *  Decks and variant inputs, shared by the local setup and the online lobby
+ *  Round colour swatch: each press takes the next colour not used by the other players
  */
-export function gameOptions(initial: { deckCount: number; peekVariant: boolean }, onChange?: () => void) {
-    const deckSelect = el('select', {id: 'deck-count', onchange: onChange},
-        el('option', {value: '1', selected: initial.deckCount === 1}, '1 paquet (52 cartes)'),
-        el('option', {value: '2', selected: initial.deckCount === 2}, '2 paquets (104 cartes, recommandé)'));
+function colorButton(initial: string, taken: () => string[], label: string, onPick: (color: string) => void): HTMLButtonElement {
+    let current = initial;
+    const button = el('button', {type: 'button', class: 'color-button'});
+    const show = () => {
+        button.style.background = current;
+        button.setAttribute('aria-label', `${label} : ${colorName(current)}. Changer de couleur`);
+        button.title = `${colorName(current)} : cliquer pour changer`;
+    };
+    button.addEventListener('click', () => {
+        const used = taken();
+        const start = PLAYER_COLORS.findIndex(c => c.value === current);
+        for (let step = 1; step <= PLAYER_COLORS.length; step++) {
+            const next = PLAYER_COLORS[(start + step) % PLAYER_COLORS.length].value;
+            if (!used.includes(next)) {
+                current = next;
+                break;
+            }
+        }
+        show();
+        onPick(current);
+    });
+    show();
+    return button;
+}
+
+/**
+ *  Rules of the game, shared by the local setup and the online lobby (host)
+ */
+export function gameOptions(initial: GameSettings, onChange?: () => void) {
+    const select = (id: string, values: number[], selected: number, label: (n: number) => string) =>
+        el('select', {id, onchange: onChange}, ...values.map(n => el('option', {value: String(n), selected: n === selected}, label(n))));
+
+    const deckSelect = select('deck-count', CHOICES.deckCount, initial.deckCount,
+        n => n === 1 ? '1 paquet (52 cartes)' : '2 paquets (104 cartes)');
+    const cardsSelect = select('cards-per-player', CHOICES.cardsPerPlayer, initial.cardsPerPlayer,
+        n => `${n} cartes${n === 4 ? ' (classique)' : ''}`);
+    const targetSelect = select('target-score', CHOICES.targetScore, initial.targetScore,
+        n => `${n} points${n === 100 ? ' (classique)' : ''}`);
+    const penaltySelect = select('dutch-penalty', CHOICES.dutchPenalty, initial.dutchPenalty,
+        n => n === 0 ? 'Aucune' : `+${n} points${n === 10 ? ' (classique)' : ''}`);
+    const effectInputs = new Map<EffectType, HTMLInputElement>(ALL_EFFECTS.map(effect =>
+        [effect, el('input', {type: 'checkbox', id: `effect-${effect.toLowerCase()}`, checked: initial.effects.includes(effect), onchange: onChange})]));
     const peek = el('input', {type: 'checkbox', id: 'peek-variant', checked: initial.peekVariant, onchange: onChange});
+
+    const field = (label: string, control: HTMLElement) => el('label', {class: 'option-field'}, el('span', {}, label), control);
+
     return {
-        element: el('div', {class: 'game-options'},
-            el('label', {}, 'Cartes ', deckSelect),
+        element: el('fieldset', {class: 'game-options'},
+            el('legend', {}, 'Règles de la partie'),
+            el('div', {class: 'option-grid'},
+                field('Cartes par joueur', cardsSelect),
+                field('Paquets', deckSelect),
+                field('Fin de partie à', targetSelect),
+                field('Pénalité si « Dutch » raté', penaltySelect)),
+            el('fieldset', {class: 'effects'},
+                el('legend', {}, 'Cartes spéciales'),
+                ...ALL_EFFECTS.map(effect => el('label', {class: 'checkbox'}, effectInputs.get(effect)!,
+                    el('span', {}, el('strong', {}, EFFECT_LABELS[effect].name), ` : ${EFFECT_LABELS[effect].effect}`)))),
             el('label', {class: 'checkbox'}, peek, ' Variante : chacun regarde ses 2 dernières cartes au début de la ronde')),
-        read: () => ({deckCount: parseInt(deckSelect.value, 10), peekVariant: peek.checked}),
+        read: (): GameSettings => cleanSettings({
+            deckCount: parseInt(deckSelect.value, 10),
+            cardsPerPlayer: parseInt(cardsSelect.value, 10),
+            targetScore: parseInt(targetSelect.value, 10),
+            dutchPenalty: parseInt(penaltySelect.value, 10),
+            peekVariant: peek.checked,
+            effects: ALL_EFFECTS.filter(effect => effectInputs.get(effect)!.checked),
+        }),
     };
 }

@@ -47,6 +47,8 @@ Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes l
 * Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
 * Quand la pioche est vide, la pile de rejet (sauf la carte visible) est mélangée pour refaire la pioche.
 * Variante optionnelle au lancement : chacun regarde ses 2 dernières cartes en début de ronde.
+* Règles réglables avant de distribuer (sur cet écran, ou par l'hôte dans la salle d'attente, visibles par tous) : nombre de cartes par joueur (3 à 6), 1 ou 2 paquets, score de fin de partie (50 à 200), pénalité d'un « Dutch » raté (0 à 20), et Valet, Dame ou As actifs ou non.
+* Chaque joueur choisit sa couleur (en ligne, si elle est déjà prise, l'hôte lui en donne une autre).
 
 ## But du jeu
 
