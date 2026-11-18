@@ -94,3 +94,45 @@ test('a wrong throw is revealed to everybody, a queen peek only to its owner', (
     game.queenPeek(0, game.players[0].hand[0].id);
     assert.deepEqual([events.at(-1).playerId, events.at(-1).public], [0, false]);
 });
+
+test('the last move tells every screen which cards moved, without telling what they are', () => {
+    const game = newGame();
+    assert.equal(game.lastMove, null);
+    game.drawFromPile(0);
+    const drawn = game.drawn.card;
+    const old = game.players[0].hand[1];
+    game.swapDrawn(0, old.id);
+    const view = buildView(game, 1);
+    assert.equal(view.lastMove.type, 'swap');
+    assert.deepEqual(view.lastMove.cardIds, [drawn.id, old.id]);
+    // the thrown card is public, the new card of the hand is not
+    assert.equal(view.lastMove.card.value, old.value);
+    assert.ok(!JSON.stringify(view.lastMove).includes(`"id":"${drawn.id}","value"`));
+    assert.deepEqual(JSON.parse(JSON.stringify(view)), view);
+});
+
+test('a jack swap names both cards and both owners, and the move counter increases', () => {
+    const game = newGame();
+    game.deck.drawPile.push(c('j1', 'JACK', 'HEARTS'));
+    game.drawFromPile(0);
+    const seq = game.lastMove.seq;
+    game.discardDrawn(0);
+    assert.ok(game.lastMove.seq > seq);
+    const a = game.players[1].hand[0].id;
+    const b = game.players[2].hand[3].id;
+    game.jackSwap(0, a, b);
+    const move = buildView(game, 2).lastMove;
+    assert.deepEqual([move.type, move.playerId, move.playerIds, move.cardIds], ['jackSwap', 0, [1, 2], [a, b]]);
+    assert.equal(game.players[2].hand[3].id, a);
+});
+
+test('a wrong throw points at the thrown card and the penalty card', () => {
+    const game = newGame();
+    game.deck.discardPile = [c('d1', '5', 'HEARTS')];
+    game.players[1].hand[0] = c('h1', '8');
+    game.throwCard(1, 'h1');
+    const move = buildView(game, 0).lastMove;
+    assert.equal(move.type, 'wrongThrow');
+    assert.equal(move.cardIds[0], 'h1');
+    assert.equal(move.cardIds[1], game.players[1].hand.at(-1).id);
+});
