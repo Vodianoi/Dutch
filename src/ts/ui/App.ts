@@ -1,3 +1,4 @@
+import {IS_DEV, scoped} from '../env.js';
 import Dutch, {DutchOptions, RuleError} from '../Dutch.js';
 import {LocalSession, Session} from '../Session.js';
 import {BroadcastTransport} from '../net/BroadcastTransport.js';
@@ -19,9 +20,9 @@ interface SavedHost {
     snapshot: HostSnapshot;
 }
 
-const HOST_KEY = 'dutch-host';
+const HOST_KEY = scoped('host');
 /** Which room this tab hosts: a reload of this tab reopens it */
-const HOST_TAB_KEY = 'dutch-host-room';
+const HOST_TAB_KEY = scoped('host-room');
 /** A saved room is offered back for this long */
 const HOST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
@@ -49,6 +50,12 @@ export class App {
 
     constructor(root: HTMLElement) {
         this.root = root;
+        if (IS_DEV) {
+            // The test version must never be taken for the real one
+            document.title = 'Dutch (version de test)';
+            document.querySelector('.site-header')?.appendChild(
+                el('span', {class: 'dev-badge', title: 'Branche dev : les parties sont séparées de celles du vrai site'}, 'Version de test'));
+        }
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
         this.localTransport = params.get('transport') === 'local';
@@ -149,7 +156,7 @@ export class App {
 
     private savedName(): string {
         try {
-            return JSON.parse(localStorage.getItem('dutch-setup') ?? '{}').onlineName ?? '';
+            return JSON.parse(localStorage.getItem(scoped('setup')) ?? '{}').onlineName ?? '';
         } catch {
             return '';
         }
@@ -395,8 +402,8 @@ export class App {
      */
     private storedToken(code: string): string | null {
         try {
-            return sessionStorage.getItem(`dutch-token-${code}`)
-                ?? (this.localTransport ? null : localStorage.getItem(`dutch-token-${code}`));
+            return sessionStorage.getItem(scoped(`token-${code}`))
+                ?? (this.localTransport ? null : localStorage.getItem(scoped(`token-${code}`)));
         } catch {
             return null;
         }
@@ -404,8 +411,8 @@ export class App {
 
     private storeToken(code: string, token: string) {
         try {
-            sessionStorage.setItem(`dutch-token-${code}`, token);
-            if (!this.localTransport) localStorage.setItem(`dutch-token-${code}`, token);
+            sessionStorage.setItem(scoped(`token-${code}`), token);
+            if (!this.localTransport) localStorage.setItem(scoped(`token-${code}`), token);
         } catch {
             // ignore: reconnecting will just need a new seat
         }
@@ -413,8 +420,8 @@ export class App {
 
     private forgetToken(code: string) {
         try {
-            sessionStorage.removeItem(`dutch-token-${code}`);
-            localStorage.removeItem(`dutch-token-${code}`);
+            sessionStorage.removeItem(scoped(`token-${code}`));
+            localStorage.removeItem(scoped(`token-${code}`));
         } catch {
             // ignore
         }

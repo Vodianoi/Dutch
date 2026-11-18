@@ -1,7 +1,8 @@
+import { scoped } from '../env.js';
 import { ConnectionBase, randomCode, TransportError } from './Transport.js';
 const HOST = 'host';
 function channelName(code) {
-    return `dutch-room-${code}`;
+    return scoped(`room-${code}`);
 }
 function randomId() {
     return Math.random().toString(36).slice(2, 10);

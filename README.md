@@ -12,6 +12,8 @@ Temps approximatif d'une partie: 30 minutes
 
 Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
+Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
+
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
 * **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »).
 
@@ -21,8 +23,8 @@ Il n'y a pas de serveur de jeu : la partie tourne dans le navigateur de celui qu
 
 * Chaque joueur ne reçoit que sa propre vue : les cartes face cachée sont envoyées sans leur valeur, la carte piochée n'est visible que par celui qui l'a piochée, et les cartes regardées (Dame, échange, variante) ne sont montrées qu'à leur propriétaire. Une erreur de jet est montrée à tous.
 * L'hôte vérifie toutes les actions : un joueur ne peut jouer que pour lui-même.
-* Un joueur qui recharge la page ou perd la connexion retrouve sa place (même onglet) ; s'il est déconnecté, la partie l'attend.
-* L'hôte doit garder la page ouverte : s'il la ferme, la partie s'arrête pour tout le monde.
+* Un joueur qui perd la connexion, quitte l'application ou recharge la page se reconnecte tout seul et retrouve sa place et ses cartes ; en attendant, la partie l'attend.
+* La partie est sauvegardée sur l'appareil de l'hôte : s'il quitte l'application ou ferme la page, elle reprend quand il revient (rechargement ou « Reprendre la partie » sur l'accueil), et les autres joueurs se reconnectent tout seuls.
 * Certains réseaux très restrictifs (réseaux d'entreprise, certains opérateurs mobiles) peuvent bloquer les connexions WebRTC directes.
 
 Pour tester le mode en ligne sur un seul ordinateur, ajoutez `?transport=local` à l'URL et ouvrez la partie dans plusieurs onglets : les onglets communiquent entre eux sans réseau.
@@ -35,6 +37,13 @@ npm run build    # compile les fichiers .ts en .js (les .js sont versionnés pou
 npm test         # tests du moteur de jeu (node --test)
 python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 ```
+
+### Publication
+
+Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`.
+
+* Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
+* Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
 
 Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes (seulement sur un même écran).
 

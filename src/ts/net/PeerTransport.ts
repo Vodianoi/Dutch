@@ -1,3 +1,4 @@
+import {IS_DEV} from '../env.js';
 import {Connection, ConnectionBase, HostTransport, randomCode, TransportError, TransportFactory} from './Transport.js';
 
 /**
@@ -9,7 +10,7 @@ import {Connection, ConnectionBase, HostTransport, randomCode, TransportError, T
 
 const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js';
 /** Prefix of the peer ids on the public server, so room codes don't collide with other apps */
-const ID_PREFIX = 'vodianoi-dutch-';
+const ID_PREFIX = IS_DEV ? 'vodianoi-dutch-dev-' : 'vodianoi-dutch-';
 const CONNECT_TIMEOUT_MS = 15000;
 
 // region Minimal PeerJS typings
