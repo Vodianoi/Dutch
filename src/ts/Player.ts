@@ -19,6 +19,11 @@ class Player {
     public readonly name: string;
 
     /**
+     *  Colour of the player's avatar (see PLAYER_COLORS)
+     */
+    public readonly color: string;
+
+    /**
      *  Player's hand, face down
      */
     public hand: Card[] = [];
@@ -45,9 +50,10 @@ class Player {
     // endregion
 
     // region Constructor
-    constructor(id: number, name: string) {
+    constructor(id: number, name: string, color: string) {
         this.id = id;
         this.name = name;
+        this.color = color;
     }
     // endregion
 

@@ -6,7 +6,7 @@
 class Player {
     // endregion
     // region Constructor
-    constructor(id, name) {
+    constructor(id, name, color) {
         /**
          *  Player's hand, face down
          */
@@ -29,6 +29,7 @@ class Player {
         this.locked = false;
         this.id = id;
         this.name = name;
+        this.color = color;
     }
     // endregion
     // region Public Methods

@@ -29,6 +29,14 @@ export function buildView(game, viewerId, options = {}) {
         phase: game.phase,
         round: game.round,
         targetScore: game.targetScore,
+        settings: {
+            deckCount: game.deckCount,
+            cardsPerPlayer: game.cardsPerPlayer,
+            targetScore: game.targetScore,
+            dutchPenalty: game.dutchPenalty,
+            peekVariant: game.peekVariant,
+            effects: game.effectsEnabled.slice(),
+        },
         currentPlayerIndex: game.currentPlayerIndex,
         dutchCallerId: game.dutchCallerId,
         isFinalRound: game.isFinalRound,
@@ -43,6 +51,7 @@ export function buildView(game, viewerId, options = {}) {
         players: game.players.map(p => ({
             id: p.id,
             name: p.name,
+            color: p.color,
             score: p.score,
             roundScores: p.roundScores.slice(),
             ready: p.ready,

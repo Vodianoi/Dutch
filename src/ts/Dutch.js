@@ -1,6 +1,7 @@
 import Card from './Card.js';
 import Deck from './Deck.js';
 import Player from './Player.js';
+import { ALL_EFFECTS, assignColors, checkSettings } from './Settings.js';
 const cardData = (card) => ({ id: card.id, value: card.value, suit: card.suit });
 const toCard = (data) => new Card(data.id, data.value, data.suit);
 /**
@@ -59,12 +60,17 @@ class Dutch {
         if (options.players.length < 2 || options.players.length > 10) {
             throw new RuleError('Le Dutch se joue de 2 à 10 joueurs.');
         }
-        this.players = options.players.map((name, i) => new Player(i, name));
+        const colors = assignColors(options.players.map((_, i) => options.playerColors?.[i]));
+        this.players = options.players.map((name, i) => new Player(i, name, colors[i]));
         this.deckCount = options.deckCount ?? 2;
         this.cardsPerPlayer = options.cardsPerPlayer ?? 4;
         this.targetScore = options.targetScore ?? 100;
         this.dutchPenalty = options.dutchPenalty ?? 10;
         this.peekVariant = options.peekVariant ?? false;
+        this.effectsEnabled = ALL_EFFECTS.filter(e => (options.effects ?? ALL_EFFECTS).includes(e));
+        const problem = checkSettings(this.players.length, { deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer });
+        if (problem)
+            throw new RuleError(problem);
         this.rng = options.rng ?? Math.random;
         this.deck = new Deck(this.deckCount, this.rng);
     }
@@ -76,7 +82,7 @@ class Dutch {
         return {
             v: 1,
             players: this.players.map(p => ({
-                name: p.name, hand: p.hand.map(cardData), score: p.score,
+                name: p.name, color: p.color, hand: p.hand.map(cardData), score: p.score,
                 roundScores: p.roundScores.slice(), ready: p.ready, locked: p.locked,
             })),
             deckCount: this.deckCount,
@@ -84,6 +90,7 @@ class Dutch {
             targetScore: this.targetScore,
             dutchPenalty: this.dutchPenalty,
             peekVariant: this.peekVariant,
+            effectsEnabled: this.effectsEnabled.slice(),
             drawPile: this.deck.drawPile.map(cardData),
             discardPile: this.deck.discardPile.map(cardData),
             phase: this.phase,
@@ -118,6 +125,8 @@ class Dutch {
             targetScore: data.targetScore,
             dutchPenalty: data.dutchPenalty,
             peekVariant: data.peekVariant,
+            effects: data.effectsEnabled ?? ALL_EFFECTS,
+            playerColors: data.players.map(p => p.color),
             rng,
         });
         data.players.forEach((saved, i) => {
@@ -532,7 +541,7 @@ class Dutch {
                 type = 'ACE';
                 break;
         }
-        if (type) {
+        if (type && this.effectsEnabled.includes(type)) {
             this.effects.push({ type, playerId: player.id, card });
             this.addLog(`${card.name} : ${player.name} gagne un effet.`, 'effect');
         }
