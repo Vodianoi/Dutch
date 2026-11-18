@@ -74,14 +74,15 @@ export function computeLayout(w: number, h: number, top: number, order: number[]
         const oppH = handH(opp);
         const topY = top + r * 2 + 10 + oppH / 2;
         const arc = rows === 1 ? Math.max(30, h * .05) : Math.max(16, h * .025);
-        const lowY = topY + oppH + 2 * r + 16;
+        const lowY = topY + arc + oppH + 2 * r + 16;
         const myY = h - pad - handH(my) / 2;
         const myTop = myY - handH(my) / 2;
         const place = (id: number, x: number, y: number) => seats.set(id, {
             playerId: id, x, y, cw: opp, growUp: false,
             avatar: {x: x - width(opp) / 2 + r, y: y - oppH / 2 - r - 6, r}, label: 'right',
             held: {x: 0, y: 0, cw: opp * 1.05},
-            chip: {x, y: y + oppH / 2 + 16},
+            // Over the cards of the player (the space under the hand is taken by the instructions)
+            chip: {x, y: y + oppH * .2},
         });
         // Top row, left to right, a little lower on the sides (an arc around the table)
         const topRow = others.slice(Math.floor(lowCount / 2), Math.floor(lowCount / 2) + topCount);
@@ -122,13 +123,15 @@ export function computeLayout(w: number, h: number, top: number, order: number[]
 
     // Landscape: around the oval
     const my = clamp(Math.min((h - top) * .15, w * .075 * 2 / cols), 34, 100);
-    const opp = my * (n <= 4 ? .66 : n <= 6 ? .56 : .46);
+    const table = {cx: w / 2, cy: (top + h) / 2 + 4, rx: w * .48, ry: (h - top) * .5};
+    const ex = table.rx * .78, ey = table.ry * .7;
+    // Two neighbours on the side of the table must not overlap: hands no taller than the space between them
+    const between = ey * 2 * Math.sin(Math.PI / n) - 18;
+    const opp = Math.max(18, Math.min(my * (n <= 4 ? .66 : n <= 6 ? .56 : .46), between / (2 * RATIO + GAP)));
     const pileW = my * .9;
     const r = clamp(opp * .4, 12, 20);
     const myY = h - pad - handH(my) / 2;
     const myTop = myY - handH(my) / 2;
-    const table = {cx: w / 2, cy: (top + h) / 2 + 4, rx: w * .48, ry: (h - top) * .5};
-    const ex = table.rx * .78, ey = table.ry * .7;
     const oppH = handH(opp);
     let upper = top + 40;
     others.forEach((id, i) => {
@@ -142,7 +145,8 @@ export function computeLayout(w: number, h: number, top: number, order: number[]
         const avatar = highUp
             ? {x: x - width(opp) / 2 - r - 16, y: y - 8, r}
             : {x: x - width(opp) / 2 + r, y: y - oppH / 2 - r - 6, r};
-        if (Math.sin(angle) < -.5) upper = Math.max(upper, y + oppH / 2);
+        // Seats right above the piles push them down
+        if (y < table.cy && Math.abs(x - table.cx) < width(opp) / 2 + pileW * 1.8) upper = Math.max(upper, y + oppH / 2);
         seats.set(id, {
             playerId: id, x, y, cw: opp, growUp: false, avatar, label: highUp ? 'below' : 'right',
             held: {x: x + (table.cx - x) * .35, y: y + (table.cy - y) * .35, cw: opp * 1.05},

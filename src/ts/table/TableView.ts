@@ -84,10 +84,10 @@ export class TableView {
     private throwButton: Container | null = null;
 
     // State shown
-    private layout!: Layout;
+    public layout!: Layout;
     private seatViews = new Map<number, SeatView>();
     private seatKey = '';
-    private readonly sprites = new Map<string, CardSprite>();
+    public readonly sprites = new Map<string, CardSprite>();
     /** Cards shown to this device for a moment: id -> face */
     private readonly revealed = new Map<string, { view: CardView; timer: number }>();
     /** Discard pile as seen from here (the view only gives its top card) */
@@ -133,6 +133,8 @@ export class TableView {
         this.applyPrefs();
         this.unsubscribe = session.on(event => this.onSessionEvent(event));
         void this.init();
+        // Automated checks find the cards on the canvas through this
+        if (options.debug) (window as unknown as { table: TableView }).table = this;
     }
 
     // region Lifecycle
@@ -335,7 +337,7 @@ export class TableView {
         for (const p of s.players) {
             let view = this.seatViews.get(p.id);
             if (!view) {
-                view = new SeatView(p.id, p.color, p.id === s.viewerId ? `${p.name} (vous)` : p.name, this.art);
+                view = new SeatView(p.id, p.color, p.id === s.viewerId && p.name !== 'Vous' ? `${p.name} (vous)` : p.name, this.art);
                 view.on('pointertap', () => this.tapSeat(p.id));
                 this.seatsLayer.addChild(view);
                 this.spots.addChild(view.spot);
@@ -580,7 +582,7 @@ export class TableView {
         const effect = s.activeEffect;
         const cur = s.players[s.currentPlayerIndex];
         const myTurn = this.mine(cur.id);
-        const who = (id: number) => s.viewerId === null ? `${s.players[id].name} : ` : '';
+        const who = (id: number) => s.viewerId === null ? `${s.players[id].name} : ` : 'À vous : ';
         if (s.phase === 'peek') {
             const peeker = this.peeker(s);
             if (peeker !== null) return `${who(peeker)}regardez vos 2 cartes du bas et retenez-les !`;
