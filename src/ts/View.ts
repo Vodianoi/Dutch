@@ -26,7 +26,8 @@ export interface PlayerView {
     locked: boolean;
     canThrow: boolean;
     connected: boolean;
-    hand: CardView[];
+    /** By position: null is an empty place (a card left the hand, the others keep their place) */
+    hand: (CardView | null)[];
 }
 
 /**
@@ -167,7 +168,7 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
             locked: p.locked,
             canThrow: game.canThrow(p.id),
             connected: options.connected ? options.connected(p.id) : true,
-            hand: p.hand.map(show),
+            hand: p.hand.map(card => card ? show(card) : null),
         })),
         log: game.log.slice(-80),
         lastMove: game.lastMove ? {

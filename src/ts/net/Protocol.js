@@ -2,7 +2,8 @@
  *  Messages between the host (who runs the engine) and the other players.
  *  Everything is plain JSON.
  */
-export const PROTOCOL_VERSION = 1;
+/** 2: hands have empty places (null) */
+export const PROTOCOL_VERSION = 2;
 export const MAX_PLAYERS = 10;
 export const MAX_NAME_LENGTH = 16;
 export function cleanName(name, fallback) {
