@@ -15,9 +15,11 @@ const until = async (check, ms = 2000) => {
     }
 };
 const transport = new BroadcastTransport(500);
+/** These tests play the round from the first turn: no look at the cards before */
+const NO_PEEK = {peekVariant: false};
 
 async function setup(names = ['Hugo', 'Axel']) {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, settings: NO_PEEK});
     const clients = [];
     for (const name of names) clients.push(await Client.join(transport, host.code, name, `token-${name}-${Math.random()}`));
     await until(() => host.lobby.players.length === names.length + 1);
@@ -124,7 +126,7 @@ test('private reveals reach only their owner, wrong throws reach everybody', asy
 });
 
 test('a player who reconnects with his token gets his seat back', async () => {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, settings: NO_PEEK});
     const a = await Client.join(transport, host.code, 'Hugo', 'token-hugo-123');
     try {
         host.start({deckCount: 1});
@@ -184,7 +186,7 @@ test('a full online round can be played to the scores', async () => {
 const fast = {retryDelaysMs: [0, 50, 100], welcomeTimeoutMs: 500};
 
 test('a player reconnects on his own when the connection drops, and keeps his seat', async () => {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, settings: NO_PEEK});
     const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-drop', fast);
     const statuses = [];
     hugo.on(e => e.type === 'connection' && statuses.push(e.status));
@@ -213,7 +215,7 @@ test('a player reconnects on his own when the connection drops, and keeps his se
 
 test('the host page is reloaded: the saved game is reopened and the players come back', async () => {
     let saved = null;
-    const first = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, persist: s => saved = s});
+    const first = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, persist: s => saved = s, settings: NO_PEEK});
     const code = first.code;
     const hugo = await Client.join(transport, code, 'Hugo', 'token-hugo-reload', fast);
     const axel = await Client.join(transport, code, 'Axel', 'token-axel-reload', fast);
@@ -245,7 +247,7 @@ test('the host page is reloaded: the saved game is reopened and the players come
 });
 
 test('when the host quits on purpose, the players are told and stop reconnecting', async () => {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, settings: NO_PEEK});
     const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-end', fast);
     const events = [];
     hugo.on(e => events.push(e));
@@ -258,7 +260,7 @@ test('when the host quits on purpose, the players are told and stop reconnecting
 });
 
 test('a player stops trying after the give-up delay', async () => {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, settings: NO_PEEK});
     const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-giveup', {...fast, giveUpMs: 300});
     const events = [];
     hugo.on(e => events.push(e));
@@ -274,7 +276,7 @@ test('a player stops trying after the give-up delay', async () => {
 });
 
 test('after the host page slept, the players are not dropped for being silent', async () => {
-    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, timeoutMs: 1000});
+    const host = new Host(await transport.host(), 'Eddy', {heartbeatMs: 100000, timeoutMs: 1000, settings: NO_PEEK});
     const hugo = await Client.join(transport, host.code, 'Hugo', 'token-hugo-sleep', fast);
     try {
         host.start({deckCount: 1});
@@ -305,15 +307,15 @@ test('the host chooses the rules in the lobby, everybody sees them, and colours 
         const colors = hugo.lobby.players.map(p => p.color);
         assert.equal(colors[0], blue);
         assert.notEqual(colors[1], blue);
-        host.setSettings({targetScore: 50, effects: ['ACE']});
-        await until(() => hugo.lobby.settings.targetScore === 50);
+        host.setSettings({targetScore: 150, effects: ['ACE']});
+        await until(() => hugo.lobby.settings.targetScore === 150);
         assert.deepEqual(hugo.lobby.settings.effects, ['ACE']);
         host.start();
         await until(() => hugo.state);
         assert.equal(hugo.state.settings.cardsPerPlayer, 5);
         assert.equal(hugo.state.players[1].hand.length, 5);
         assert.equal(hugo.state.players[1].color, colors[1]);
-        assert.equal(host.snapshot().settings.targetScore, 50);
+        assert.equal(host.snapshot().settings.targetScore, 150);
     } finally {
         hugo.leave();
         host.close();

@@ -3,7 +3,8 @@ import {DutchOptions, EffectType} from '../Dutch.js';
 import {MAX_NAME_LENGTH} from '../net/Protocol.js';
 import {normalizeCode} from '../net/Transport.js';
 import {
-    ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, describeSettings, EFFECT_LABELS, GameSettings, PLAYER_COLORS,
+    ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, DEFAULTS_VERSION, describeSettings, EFFECT_LABELS, GameSettings,
+    PLAYER_COLORS, upgradeDefaults,
 } from '../Settings.js';
 import {clear, el} from './dom.js';
 
@@ -25,23 +26,27 @@ interface SavedSetup {
     mode: SetupMode;
     /** Computer players in a solo game */
     botCount: number;
+    /** Version of the default rules when this was saved */
+    defaultsVersion: number;
 }
 
 export function loadSetup(): SavedSetup {
     const fallback: SavedSetup = {
         count: 4, names: DEFAULT_NAMES.slice(), colors: assignColors(DEFAULT_NAMES.map(() => null)),
         settings: cleanSettings(null), onlineName: '', onlineColor: PLAYER_COLORS[0].value, mode: 'solo', botCount: 3,
+        defaultsVersion: DEFAULTS_VERSION,
     };
     try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
         if (saved && Array.isArray(saved.names)) {
             // Older saves kept deckCount and peekVariant at the top level
-            const settings = cleanSettings(saved.settings ?? {deckCount: saved.deckCount, peekVariant: saved.peekVariant});
+            const settings = upgradeDefaults(
+                cleanSettings(saved.settings ?? {deckCount: saved.deckCount, peekVariant: saved.peekVariant}), saved.defaultsVersion);
             const colors = assignColors(DEFAULT_NAMES.map((_, i) => Array.isArray(saved.colors) ? saved.colors[i] : null));
             const onlineColor = PLAYER_COLORS.some(c => c.value === saved.onlineColor) ? saved.onlineColor : fallback.onlineColor;
             const botCount = Number.isInteger(saved.botCount) && saved.botCount >= 1 && saved.botCount <= 9 ? saved.botCount : 3;
             const mode: SetupMode = ['solo', 'online', 'local'].includes(saved.mode) ? saved.mode : 'solo';
-            return {...fallback, ...saved, settings, colors, onlineColor, botCount, mode};
+            return {...fallback, ...saved, settings, colors, onlineColor, botCount, mode, defaultsVersion: DEFAULTS_VERSION};
         }
     } catch {
         // storage unavailable: use defaults

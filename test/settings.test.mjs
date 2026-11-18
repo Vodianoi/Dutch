@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import Dutch, {RuleError} from '../src/ts/Dutch.js';
 import Card from '../src/ts/Card.js';
 import {buildView} from '../src/ts/View.js';
-import {assignColors, checkSettings, cleanSettings, describeSettings, PLAYER_COLORS} from '../src/ts/Settings.js';
+import {
+    assignColors, checkSettings, cleanSettings, DEFAULT_SETTINGS, DEFAULTS_VERSION, describeSettings, PLAYER_COLORS, upgradeDefaults,
+} from '../src/ts/Settings.js';
 
 const c = (id, value, suit = 'SPADES') => new Card(id, value, suit);
 
@@ -41,7 +43,7 @@ test('too many cards for the deck is refused, with a clear message', () => {
 
 test('settings from storage or the network are cleaned', () => {
     assert.deepEqual(cleanSettings({deckCount: 7, cardsPerPlayer: 5, targetScore: '100', effects: ['ACE', 'BOGUS'], peekVariant: 'yes'}),
-        {deckCount: 2, cardsPerPlayer: 5, targetScore: 100, dutchPenalty: 10, peekVariant: false, effects: ['ACE']});
+        {deckCount: 1, cardsPerPlayer: 5, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE']});
     assert.deepEqual(cleanSettings(null).effects, ['JACK', 'QUEEN', 'ACE']);
 });
 
@@ -72,9 +74,28 @@ test('the rules are described for the players', () => {
     const lines = describeSettings(cleanSettings({cardsPerPlayer: 5, deckCount: 1, dutchPenalty: 0, effects: ['JACK'], peekVariant: true}));
     assert.deepEqual(lines, [
         '5 cartes par joueur, 1 paquet',
-        'Fin de partie à 100 points',
+        'Fin de partie à 50 points',
         'Dutch raté : pas de pénalité',
         'Cartes spéciales : Valet seulement',
         'Chacun regarde ses 2 dernières cartes en début de ronde',
     ]);
+});
+
+test('a new game proposes the variant, 50 points and one deck', () => {
+    assert.deepEqual(cleanSettings(null), {
+        deckCount: 1, cardsPerPlayer: 4, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['JACK', 'QUEEN', 'ACE'],
+    });
+    assert.deepEqual(DEFAULT_SETTINGS, cleanSettings(null));
+    // One deck is enough for 10 players with the default 4 cards
+    assert.equal(checkSettings(10, DEFAULT_SETTINGS), null);
+});
+
+test('saved rules left on the old defaults take the new ones, chosen rules are kept', () => {
+    const old = {deckCount: 2, cardsPerPlayer: 5, targetScore: 100, dutchPenalty: 0, peekVariant: false, effects: ['JACK']};
+    assert.deepEqual(upgradeDefaults(old, undefined),
+        {deckCount: 1, cardsPerPlayer: 5, targetScore: 50, dutchPenalty: 0, peekVariant: true, effects: ['JACK']});
+    const chosen = {...old, deckCount: 1, targetScore: 150, peekVariant: true};
+    assert.deepEqual(upgradeDefaults(chosen, undefined), chosen);
+    // Saved with the new defaults: never changed again (2 decks chosen after the update stay)
+    assert.deepEqual(upgradeDefaults(old, DEFAULTS_VERSION), old);
 });

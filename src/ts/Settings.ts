@@ -19,14 +19,36 @@ export interface GameSettings {
 
 export const ALL_EFFECTS: EffectType[] = ['JACK', 'QUEEN', 'ACE'];
 
+/**
+ *  Rules proposed for a new game: a short game (50 points, one deck) where everybody
+ *  looks at his 2 last cards at the start of a round
+ */
 export const DEFAULT_SETTINGS: GameSettings = {
-    deckCount: 2,
+    deckCount: 1,
     cardsPerPlayer: 4,
-    targetScore: 100,
+    targetScore: 50,
     dutchPenalty: 10,
-    peekVariant: false,
+    peekVariant: true,
     effects: ALL_EFFECTS.slice(),
 };
+
+/** The defaults before version 2 (saved setups that still have them get the new ones) */
+const DEFAULTS_V1: Pick<GameSettings, 'deckCount' | 'targetScore' | 'peekVariant'> = {deckCount: 2, targetScore: 100, peekVariant: false};
+export const DEFAULTS_VERSION = 2;
+
+/**
+ *  Settings saved before the defaults changed: the rules left on the old defaults
+ *  (never changed by the player, most likely) take the new ones; the other choices are kept
+ */
+export function upgradeDefaults(settings: GameSettings, savedVersion: unknown): GameSettings {
+    if (typeof savedVersion === 'number' && savedVersion >= DEFAULTS_VERSION) return settings;
+    return {
+        ...settings,
+        deckCount: settings.deckCount === DEFAULTS_V1.deckCount ? DEFAULT_SETTINGS.deckCount : settings.deckCount,
+        targetScore: settings.targetScore === DEFAULTS_V1.targetScore ? DEFAULT_SETTINGS.targetScore : settings.targetScore,
+        peekVariant: settings.peekVariant === DEFAULTS_V1.peekVariant ? DEFAULT_SETTINGS.peekVariant : settings.peekVariant,
+    };
+}
 
 export const CHOICES = {
     deckCount: [1, 2],
