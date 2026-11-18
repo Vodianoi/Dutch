@@ -363,11 +363,12 @@ class Dutch {
 
     /**
      *  Can this player try to throw a card on the discard pile right now?
+     *  Also while the players look at their first cards (peek variant): the discard is already there.
      */
     public canThrow(playerId: number): boolean {
         const player = this.players[playerId];
         return !!player
-            && (this.phase === 'draw' || this.phase === 'played')
+            && (this.phase === 'peek' || this.phase === 'draw' || this.phase === 'played')
             && this.effects.length === 0
             && !player.locked
             && !!this.deck.topDiscard;
@@ -626,7 +627,7 @@ class Dutch {
      */
     public throwCard(playerId: number, cardId: string): boolean {
         const player = this.getPlayer(playerId);
-        if (!this.isRoundRunning) throw new RuleError('Aucune ronde en cours.');
+        if (!this.isRoundRunning && this.phase !== 'peek') throw new RuleError('Aucune ronde en cours.');
         this.assertNoEffect();
         if (this.phase === 'drawn') {
             throw new RuleError(`Attendez que ${this.currentPlayer.name} ait joué sa carte.`);

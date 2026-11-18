@@ -51,7 +51,7 @@ La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et anim�
 **Comment jouer à l'écran**
 
 * Le joueur dont c'est le tour touche la pioche ou la pile de rejet, puis la carte de sa main à remplacer (ou la pile de rejet pour jeter la carte piochée). On peut aussi faire glisser la carte piochée sur une de ses cartes ou sur la pile de rejet.
-* À tout moment, un joueur peut jeter une de ses cartes si elle a la même valeur que la carte visible du rejet : en la faisant glisser sur la pile de rejet, ou en la touchant puis en appuyant sur « Jeter sur la défausse ». En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* À tout moment, même pendant que les joueurs regardent leurs premières cartes, un joueur peut jeter une de ses cartes si elle a la même valeur que la carte visible du rejet : en la faisant glisser sur la pile de rejet, ou en la touchant puis en appuyant sur « Jeter sur la défausse ». En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
 * Le bouton « Menu » donne les règles de la partie, les réglages de l'appareil (sons, vibrations, animations rapides, dos des cartes) et permet de quitter la partie.
 * Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
 * Le tour se termine avec « Finir mon tour » ou « Dutch ! » (à confirmer d'une deuxième pression), seulement après avoir joué et résolu les effets.

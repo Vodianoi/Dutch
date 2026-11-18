@@ -508,7 +508,7 @@ export class TableView {
             let glow = 0;
             const inHand = place.zone === 'hand';
             const own = inHand && this.mine(place.player);
-            const peeking = s.phase === 'peek' && own && !s.players[place.player].ready && this.peeker(s) === place.player;
+            const peeking = !effect && s.phase === 'peek' && own && !s.players[place.player].ready && this.peeker(s) === place.player;
             if (peeking)
                 glow = 1;
             else if (myEffect === 'QUEEN' && inHand && place.player === effect.playerId)
@@ -533,7 +533,7 @@ export class TableView {
             sprite.cursor = glow || draggable ? 'pointer' : 'default';
         }
         for (const p of s.players) {
-            const running = s.phase === 'draw' || s.phase === 'drawn' || s.phase === 'played';
+            const running = s.phase === 'peek' ? !!effect : s.phase === 'draw' || s.phase === 'drawn' || s.phase === 'played';
             const badge = s.dutchCallerId === p.id ? 'DUTCH' : !p.connected ? 'HORS LIGNE' : p.locked ? 'BLOQUÉ' : null;
             this.seatViews.get(p.id)?.update({
                 score: p.score,
@@ -560,11 +560,12 @@ export class TableView {
         const cur = s.players[s.currentPlayerIndex];
         const myTurn = this.mine(cur.id);
         const who = (id) => s.viewerId === null ? `${s.players[id].name} : ` : 'À vous : ';
-        if (s.phase === 'peek') {
+        const canThrow = s.viewerId !== null && s.players[s.viewerId].canThrow;
+        if (s.phase === 'peek' && !effect) {
             const peeker = this.peeker(s);
             if (peeker !== null)
                 return `${who(peeker)}regardez vos 2 cartes du bas et retenez-les !`;
-            return 'Les autres regardent leurs cartes…';
+            return `Les autres regardent leurs cartes…${canThrow ? ' · une carte identique ? Glissez-la sur la défausse' : ''}`;
         }
         if (s.phase === 'roundOver' || s.phase === 'gameOver')
             return 'Fin de la manche : on retourne les cartes';
@@ -593,7 +594,7 @@ export class TableView {
         }
         else {
             text = `Tour de ${cur.name}`;
-            if (s.viewerId !== null && s.players[s.viewerId].canThrow)
+            if (canThrow)
                 text += ' · une carte identique ? Glissez-la sur la défausse';
         }
         if (s.isFinalRound)
@@ -619,12 +620,12 @@ export class TableView {
         const myTurn = running && this.mine(cur);
         const list = [];
         const peeker = this.peeker(s);
-        if (peeker !== null) {
+        if (effect && this.mine(effect.playerId)) {
+            list.push(['Passer l\'effet', 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
+        }
+        else if (peeker !== null && !effect) {
             list.push([s.viewerId === null ? `${s.players[peeker].name} : regarder` : 'Regarder mes cartes', 'primary',
                 () => this.dispatch({ type: 'peek', playerId: peeker })]);
-        }
-        else if (effect && this.mine(effect.playerId)) {
-            list.push(['Passer l\'effet', 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
         }
         else if (myTurn && !effect && s.phase === 'played') {
             list.push(['Finir mon tour', 'primary', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);

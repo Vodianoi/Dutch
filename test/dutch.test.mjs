@@ -373,3 +373,30 @@ test('cards keep their place: a thrown card leaves a hole, a new card fills the 
     const copy = Dutch.restore(JSON.parse(JSON.stringify(game.snapshot())));
     assert.equal(copy.players[1].hand[2], null);
 });
+
+test('peek variant: a card can be thrown while the players are still looking at their cards', () => {
+    const game = newGame({peekVariant: true});
+    assert.equal(game.phase, 'peek');
+    game.deck.discardPile = [c('5', 'HEARTS')];
+    game.players[1].hand = [c('5', 'CLUBS'), c('8'), c('9'), c('2')];
+    assert.equal(game.canThrow(1), true);
+    // Right value: thrown, the hole stays
+    assert.equal(game.throwCard(1, game.players[1].hand[0].id), true);
+    assert.equal(game.players[1].hand[0], null);
+    // Wrong value: penalty card, locked, still in the peek phase
+    game.players[2].hand = [c('7'), c('8'), c('9'), c('10')];
+    assert.equal(game.throwCard(2, game.players[2].hand[0].id), false);
+    assert.equal(game.players[2].cards.length, 5);
+    assert.equal(game.players[2].locked, true);
+    assert.equal(game.phase, 'peek');
+    // A special card thrown during the peek gives its effect, to resolve before going on
+    game.deck.discardPile.push(c('QUEEN', 'HEARTS'));
+    game.players[0].hand[0] = c('QUEEN', 'SPADES');
+    game.throwCard(0, game.players[0].hand[0].id);
+    assert.equal(game.activeEffect.type, 'QUEEN');
+    game.queenPeek(0, game.players[0].cards[0].id);
+    game.peek(0);
+    game.peek(1);
+    game.peek(2);
+    assert.equal(game.phase, 'draw');
+});
