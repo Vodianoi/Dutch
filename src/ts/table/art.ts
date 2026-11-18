@@ -1,4 +1,4 @@
-import {Texture} from 'pixi.js';
+import {CanvasSource, Texture} from 'pixi.js';
 import Card, {Suit, Value} from '../Card.js';
 
 /**
@@ -6,9 +6,10 @@ import Card, {Suit, Value} from '../Card.js';
  *  Drawn once with the 2D canvas and turned into textures: no image file to load.
  */
 
-/** Size of a card texture, in pixels (shown smaller: kept sharp on high density screens) */
-export const CW = 240;
-export const CH = 336;
+import {CH, CW, TableShape} from './size.js';
+
+export {CH, CW};
+export type {TableShape};
 const RADIUS = 18;
 
 export const SERIF = '"Playfair Display", Georgia, serif';
@@ -225,6 +226,13 @@ function spark(): HTMLCanvasElement {
     return c;
 }
 
+/**
+ *  Texture with mipmaps: cards drawn much smaller than their 240px source (opponents' hands) stay smooth
+ */
+export function smooth(canvas: HTMLCanvasElement): Texture {
+    return new Texture({source: new CanvasSource({resource: canvas, autoGenerateMipmaps: true, scaleMode: 'linear'})});
+}
+
 export interface Art {
     face(card: Card): Texture;
     back: Texture;
@@ -240,24 +248,17 @@ export function makeArt(backColor: BackColor = 'red'): Art {
             const key = `${card.value}-${card.suit}`;
             let texture = faces.get(key);
             if (!texture) {
-                texture = Texture.from(face(card));
+                texture = smooth(face(card));
                 faces.set(key, texture);
             }
             return texture;
         },
-        back: Texture.from(back(backColor)),
-        shadow: Texture.from(halo('rgba(0,0,0,1)', 22, 44, .6)),
+        back: smooth(back(backColor)),
+        shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, .6)),
         // The solid part of the glow goes past the card edge so that it shows at small sizes
-        glow: Texture.from(halo('#ffd166', 30, 70, 1, 14)),
+        glow: smooth(halo('#ffd166', 30, 70, 1, 14)),
         spark: Texture.from(spark()),
     };
-}
-
-export interface TableShape {
-    cx: number;
-    cy: number;
-    rx: number;
-    ry: number;
 }
 
 /**
@@ -289,6 +290,20 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
     ctx.fillStyle = wood;
     ctx.fill();
     ctx.restore();
+    // Wood grain: thin rings along the rail
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.clip();
+    for (let i = 0; i < 14; i++) {
+        const t = i / 14;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx - rail * t, ry - rail * t, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = i % 3 === 0 ? 'rgba(255, 210, 150, .07)' : 'rgba(40, 18, 5, .12)';
+        ctx.lineWidth = .6 + (i % 4) * .35;
+        ctx.stroke();
+    }
+    ctx.restore();
     // Highlight on the rail
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx - 2, ry - 2, 0, Math.PI * 1.1, Math.PI * 1.9);
@@ -313,10 +328,16 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
     for (let i = 0; i < pixels.data.length; i += 4) {
         const v = Math.random() * 255;
         pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = v;
-        pixels.data[i + 3] = 22;
+        pixels.data[i + 3] = 13;
     }
     n.putImageData(pixels, 0, 0);
     ctx.fillStyle = ctx.createPattern(noise, 'repeat')!;
+    ctx.fillRect(0, 0, w, h);
+    // Soft light from above the table
+    const light = ctx.createRadialGradient(cx, cy - ry * .35, 0, cx, cy - ry * .35, Math.max(rx, ry) * .9);
+    light.addColorStop(0, 'rgba(255, 245, 210, .10)');
+    light.addColorStop(1, 'rgba(255, 245, 210, 0)');
+    ctx.fillStyle = light;
     ctx.fillRect(0, 0, w, h);
     // Inner shadow under the rail
     ctx.beginPath();
@@ -328,6 +349,12 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
     ctx.stroke();
     ctx.restore();
 
+    // Gold inlay between the rail and the felt
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx - rail + 1, ry - rail + 1, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(233, 196, 106, .55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     // Printed line and name
     ctx.beginPath();
     ctx.ellipse(cx, cy, (rx - rail) * .8, (ry - rail) * .76, 0, 0, Math.PI * 2);

@@ -40,6 +40,7 @@ export class CardSprite extends Container {
         this.flipTimeline = null;
         /** Move to its place, while it runs (or waits for its delay) */
         this.moveTween = null;
+        this.hovered = false;
         this.view = view;
         this.shadow = centered(new Sprite(art.shadow));
         this.glow = centered(new Sprite(art.glow));
@@ -110,8 +111,9 @@ export class CardSprite extends Container {
             this.glowTween = gsap.to(this.glow, { alpha: 0, duration: .2 });
         }
         else if (level === 1) {
+            // Two pulses to catch the eye, then a steady glow (endless motion distracts)
             this.glow.alpha = .2;
-            this.glowTween = gsap.to(this.glow, { alpha: .75, duration: .8, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+            this.glowTween = gsap.to(this.glow, { alpha: .75, duration: .55, yoyo: true, repeat: 4, ease: 'sine.inOut' });
         }
         else {
             this.glowTween = gsap.to(this.glow, { alpha: 1, duration: .15 });
@@ -128,6 +130,7 @@ export class CardSprite extends Container {
             this.scale.set(target.scale);
             this.zIndex = target.z;
             this.lift = 0;
+            this.fitHitArea(target.scale);
             return;
         }
         // Same place as before: nothing to do, unless the card was moved away from it (dropped after a drag)
@@ -140,12 +143,13 @@ export class CardSprite extends Container {
             return;
         }
         const distance = Math.hypot(this.x - target.x, this.y - target.y);
-        const duration = Math.max(.3, Math.min(.62, .28 + distance / 1500));
+        const duration = Math.max(.26, Math.min(.55, .24 + distance / 1600));
         gsap.killTweensOf(this);
         gsap.killTweensOf(this.scale);
         this.zIndex = 1000 + target.z;
         this.moveTween = gsap.to(this, {
-            x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power3.inOut',
+            // Fast start, soft landing
+            x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power3.out',
             onStart: () => {
                 if (distance > 6)
                     sfx.slide();
@@ -154,13 +158,27 @@ export class CardSprite extends Container {
                 this.zIndex = target.z;
             },
         });
-        gsap.to(this.scale, { x: target.scale, y: target.scale, duration, delay, ease: 'power3.inOut' });
+        gsap.to(this.scale, { x: target.scale, y: target.scale, duration, delay, ease: 'power3.out' });
+        this.fitHitArea(target.scale);
         if (distance > 40) {
             gsap.to(this, { lift: 1, duration: duration / 2, delay, yoyo: true, repeat: 1, ease: 'sine.inOut' });
         }
         else {
             this.lift = 0;
         }
+    }
+    /** Small cards are easier to touch: the touch area grows up to half the space between two cards */
+    fitHitArea(scale) {
+        const hw = Math.min(Math.max(CW / 2, 22 / scale), CW / 2 * 1.12);
+        const hh = Math.min(Math.max(CH / 2, 22 / scale), CH / 2 * 1.08);
+        this.hitArea = new Rectangle(-hw, -hh, hw * 2, hh * 2);
+    }
+    /** Mouse over a card that can be played: it rises a little */
+    hover(on) {
+        if (on === this.hovered)
+            return;
+        this.hovered = on;
+        gsap.to(this, { lift: on ? .35 : 0, duration: on ? .16 : .12, ease: on ? 'power2.out' : 'power2.in' });
     }
     /** Picked up by a finger: stops where it is */
     pickUp() {
