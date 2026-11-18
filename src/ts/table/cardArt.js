@@ -34,17 +34,35 @@ const PIPS = {
     '9': [[0, 0], [2, 0], [0, 1 / 3], [2, 1 / 3], [1, .5], [0, 2 / 3], [2, 2 / 3], [0, 1], [2, 1]],
     '10': [[0, 0], [2, 0], [1, 1 / 6], [0, 1 / 3], [2, 1 / 3], [0, 2 / 3], [2, 2 / 3], [1, 5 / 6], [0, 1], [2, 1]],
 };
-function paper(ctx) {
+function paper(ctx, vintage = false) {
     const g = ctx.createLinearGradient(0, 0, CW, CH);
-    g.addColorStop(0, '#fffefa');
-    g.addColorStop(1, '#efe9db');
+    g.addColorStop(0, vintage ? '#f7efd9' : '#fffefa');
+    g.addColorStop(1, vintage ? '#e6d9b8' : '#efe9db');
     roundRect(ctx, 1, 1, CW - 2, CH - 2, RADIUS);
     ctx.fillStyle = g;
     ctx.fill();
+    if (vintage) {
+        // Old card stock: a fine grain and slightly darker edges
+        ctx.save();
+        ctx.clip();
+        for (let i = 0; i < 900; i++) {
+            ctx.fillStyle = `rgba(110, 80, 40, ${Math.random() * .05})`;
+            ctx.fillRect(Math.random() * CW, Math.random() * CH, 1.5, 1.5);
+        }
+        const edge = ctx.createRadialGradient(CW / 2, CH / 2, CH * .35, CW / 2, CH / 2, CH * .75);
+        edge.addColorStop(0, 'rgba(120, 85, 40, 0)');
+        edge.addColorStop(1, 'rgba(120, 85, 40, .16)');
+        ctx.fillStyle = edge;
+        ctx.fillRect(0, 0, CW, CH);
+        ctx.restore();
+    }
     ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(40, 30, 20, .22)';
+    ctx.strokeStyle = vintage ? 'rgba(90, 60, 25, .35)' : 'rgba(40, 30, 20, .22)';
     ctx.stroke();
 }
+/** Ink of the vintage cards: a little warmer, like printed on old card stock */
+const VINTAGE_RED = '#a3192b';
+const VINTAGE_BLACK = '#1e1813';
 function symbol(ctx, text, x, y, size, flip = false) {
     ctx.save();
     ctx.translate(x, y);
@@ -72,10 +90,10 @@ function corner(ctx, rank, suit) {
         ctx.restore();
     }
 }
-export function face(card) {
+export function face(card, vintage = false) {
     const [c, ctx] = canvas(CW, CH);
-    paper(ctx);
-    const color = card.isRed ? RED : BLACK;
+    paper(ctx, vintage);
+    const color = card.isRed ? (vintage ? VINTAGE_RED : RED) : (vintage ? VINTAGE_BLACK : BLACK);
     const suit = SYMBOLS[card.suit];
     ctx.fillStyle = color;
     corner(ctx, RANKS[card.value], suit);
@@ -137,10 +155,10 @@ export const BACK_COLORS = {
 /**
  *  Face for small cards (opponents' hands): only a big rank and a big suit, readable at 20–40px
  */
-export function compactFace(card) {
+export function compactFace(card, vintage = false) {
     const [c, ctx] = canvas(CW, CH);
-    paper(ctx);
-    ctx.fillStyle = card.isRed ? RED : BLACK;
+    paper(ctx, vintage);
+    ctx.fillStyle = card.isRed ? (vintage ? VINTAGE_RED : RED) : (vintage ? VINTAGE_BLACK : BLACK);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const rank = RANKS[card.value];
@@ -156,6 +174,75 @@ export function compactFace(card) {
         ctx.font = `800 26px ${SANS}`;
         ctx.fillText('0', CW - 53, 35);
     }
+    return c;
+}
+/**
+ *  Back of the old casino cards: burgundy, gold filigree lattice, double gold frame, medallion
+ */
+export function vintageBack() {
+    const [c, ctx] = canvas(CW, CH);
+    paper(ctx, true);
+    const m = 11;
+    roundRect(ctx, m, m, CW - 2 * m, CH - 2 * m, RADIUS - 6);
+    const g = ctx.createRadialGradient(CW / 2, CH / 2, 10, CW / 2, CH / 2, CH * .6);
+    g.addColorStop(0, '#7d1a27');
+    g.addColorStop(1, '#4a0d16');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    // Filigree: small gold diamonds with dots, in a lattice
+    ctx.strokeStyle = 'rgba(226, 186, 104, .45)';
+    ctx.fillStyle = 'rgba(226, 186, 104, .5)';
+    ctx.lineWidth = 1.4;
+    for (let y = m + 6; y < CH; y += 26) {
+        for (let x = m + 6 + ((y / 26) % 2) * 13; x < CW; x += 26) {
+            ctx.beginPath();
+            ctx.moveTo(x, y - 9);
+            ctx.lineTo(x + 7, y);
+            ctx.lineTo(x, y + 9);
+            ctx.lineTo(x - 7, y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+    // Double gold frame with corner ornaments
+    ctx.strokeStyle = '#d8b25e';
+    for (const [inset, width] of [[m + 7, 3], [m + 13, 1.2]]) {
+        roundRect(ctx, inset, inset, CW - 2 * inset, CH - 2 * inset, 8);
+        ctx.lineWidth = width;
+        ctx.stroke();
+    }
+    ctx.fillStyle = '#d8b25e';
+    for (const [x, y] of [[m + 7, m + 7], [CW - m - 7, m + 7], [m + 7, CH - m - 7], [CW - m - 7, CH - m - 7]]) {
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // Medallion
+    ctx.beginPath();
+    ctx.ellipse(CW / 2, CH / 2, 54, 70, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#3f0a12';
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#e2bf6d';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(CW / 2, CH / 2, 46, 62, 0, 0, Math.PI * 2);
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#efcf85';
+    ctx.font = `italic 900 76px ${SERIF}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('D', CW / 2, CH / 2 + 4);
+    ctx.font = `22px ${SERIF}`;
+    ctx.fillText('♠ ♥', CW / 2, CH / 2 - 44);
+    ctx.fillText('♦ ♣', CW / 2, CH / 2 + 50);
     return c;
 }
 export function back(color) {

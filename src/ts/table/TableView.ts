@@ -1,15 +1,15 @@
 import {Application, Container, FederatedPointerEvent, Graphics, Rectangle, Sprite, Text, Texture} from 'pixi.js';
 import {gsap} from 'gsap';
-import {ChatMessage, EMOTES} from '../net/Protocol.js';
+import {ChatMessage} from '../net/Protocol.js';
 import {Session, SessionEvent} from '../Session.js';
 import {ChatBox} from '../ui/ChatBox.js';
-import {describeSettings} from '../Settings.js';
 import {Action, CardView, GameView, PlayerView} from '../View.js';
-import {Art, BACK_COLORS, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
+import {Art, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
+import {TableChrome} from './chrome.js';
 import {CardSprite, centered, dispose, Place, Target} from './CardSprite.js';
 import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
-import {buzz, loadPrefs, Prefs, savePrefs} from './prefs.js';
-import {setMuted, sfx, unlockAudio} from './sound.js';
+import {buzz, loadPrefs, Prefs} from './prefs.js';
+import {sfx, unlockAudio} from './sound.js';
 import {button, ButtonKind, CREAM, GOLD, label, SeatView} from './widgets.js';
 
 /**
@@ -30,6 +30,8 @@ export interface TableOptions {
     debug?: boolean;
     /** Chat of the online game, coming from the waiting room (otherwise the table makes its own if the session has a chat) */
     chatBox?: ChatBox;
+    /** The player chose the other table (flat / 3D) */
+    onTableChange?(mode: '2d' | '3d'): void;
 }
 
 const arts = new Map<BackColor, Art>();
@@ -62,13 +64,8 @@ export class TableView {
     private readonly host: HTMLElement;
     private readonly info: HTMLElement;
     private readonly live: HTMLElement;
-    private menu: HTMLElement | null = null;
-    private chatBox: ChatBox | null = null;
-    private ownChat = false;
-    private chatDrawer: HTMLElement | null = null;
-    private chatButton: HTMLButtonElement | null = null;
-    private emotePop: HTMLElement | null = null;
-    private unread = 0;
+    /** Menu, reactions and chat (HTML, shared with the 3D table) */
+    private readonly chrome: TableChrome;
     private app: Application | null = null;
     private art!: Art;
     private prefs: Prefs = loadPrefs();
@@ -134,19 +131,11 @@ export class TableView {
         this.host.className = 'table-canvas';
         const bar = document.createElement('div');
         bar.className = 'table-bar';
-        const menuButton = document.createElement('button');
-        menuButton.type = 'button';
-        menuButton.className = 'table-menu-button';
-        menuButton.setAttribute('aria-haspopup', 'dialog');
-        menuButton.innerHTML = '<span aria-hidden="true">☰</span> Menu';
-        menuButton.addEventListener('click', () => this.openMenu());
         this.info = document.createElement('span');
         this.info.className = 'table-info';
         const left = document.createElement('div');
         left.className = 'table-bar-group';
-        left.append(menuButton);
         bar.append(left, this.info);
-        if (session.chat) this.buildChat(left);
         this.live = document.createElement('div');
         this.live.className = 'sr-only';
         this.live.setAttribute('aria-live', 'polite');
@@ -156,7 +145,10 @@ export class TableView {
         this.hint.textContent = 'Tenez le téléphone droit pour mieux voir la table';
         this.screen.append(this.host, bar, this.live, this.hint);
         root.replaceChildren(this.screen);
-        this.applyPrefs();
+        this.chrome = new TableChrome({
+            session, screen: this.screen, bar: left, prefs: this.prefs, chatBox: options.chatBox, debug: options.debug,
+            quitWarning: options.quitWarning, onQuit: options.onQuit, onBackChange: () => this.changeBack(), onTableChange: options.onTableChange,
+        });
         this.unsubscribe = session.on(event => this.onSessionEvent(event));
         void this.init();
         // Automated checks find the cards on the canvas through this
@@ -194,14 +186,7 @@ export class TableView {
         this.unsubscribe();
         this.revealed.forEach(r => clearTimeout(r.timer));
         clearTimeout(this.dutchTimer);
-        this.menu?.remove();
-        if (this.ownChat) this.chatBox?.destroy();
-        else if (this.chatBox) {
-            // Shared with the waiting room: shown again there
-            this.chatBox.element.remove();
-            this.chatBox.element.hidden = false;
-        }
-        if (this.chatBox) this.chatBox.onMessage = null;
+        this.chrome.destroy();
         document.body.classList.remove('in-game');
         if (this.app) {
             for (const s of this.sprites.values()) dispose(s);
@@ -1151,123 +1136,11 @@ export class TableView {
     // endregion
 
     // region Chat
-    private buildChat(bar: HTMLElement) {
-        const chat = this.session.chat!;
-        this.chatBox = this.options.chatBox ?? new ChatBox(chat, this.session);
-        this.ownChat = !this.options.chatBox;
-        const emoteButton = document.createElement('button');
-        emoteButton.type = 'button';
-        emoteButton.className = 'table-menu-button table-emote-button';
-        emoteButton.setAttribute('aria-label', 'Réactions');
-        emoteButton.setAttribute('aria-expanded', 'false');
-        emoteButton.textContent = '😀';
-        emoteButton.addEventListener('click', () => this.toggleEmotes(emoteButton));
-        bar.append(emoteButton);
-        if (chat.text) {
-            const chatButton = document.createElement('button');
-            chatButton.type = 'button';
-            chatButton.className = 'table-menu-button';
-            chatButton.setAttribute('aria-haspopup', 'dialog');
-            chatButton.addEventListener('click', () => this.openChat());
-            this.chatButton = chatButton;
-            this.updateUnread();
-            bar.append(chatButton);
-        }
-    }
-
-    private toggleEmotes(opener: HTMLButtonElement) {
-        if (this.emotePop) {
-            this.emotePop.remove();
-            this.emotePop = null;
-            opener.setAttribute('aria-expanded', 'false');
-            return;
-        }
-        const pop = document.createElement('div');
-        pop.className = 'emote-pop';
-        pop.setAttribute('role', 'group');
-        pop.setAttribute('aria-label', 'Réactions');
-        for (const emote of EMOTES) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'emote-button';
-            b.textContent = emote;
-            b.setAttribute('aria-label', `Envoyer ${emote}`);
-            b.addEventListener('click', () => {
-                unlockAudio();
-                this.session.chat?.emote(emote);
-                this.toggleEmotes(opener);
-                opener.focus();
-            });
-            pop.append(b);
-        }
-        pop.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                this.toggleEmotes(opener);
-                opener.focus();
-            }
-        });
-        this.screen.append(pop);
-        this.emotePop = pop;
-        opener.setAttribute('aria-expanded', 'true');
-        pop.querySelector<HTMLElement>('button')?.focus();
-    }
-
-    private openChat() {
-        if (this.chatDrawer || !this.chatBox) return;
-        const opener = document.activeElement as HTMLElement | null;
-        const drawer = document.createElement('div');
-        drawer.className = 'overlay chat-overlay';
-        const panel = document.createElement('section');
-        panel.className = 'panel chat-drawer';
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-        panel.setAttribute('aria-label', 'Discussion');
-        const close = document.createElement('button');
-        close.type = 'button';
-        close.className = 'secondary chat-close';
-        close.textContent = 'Fermer';
-        const shut = () => {
-            drawer.remove();
-            this.chatDrawer = null;
-            this.screen.append(this.chatBox!.element);
-            this.chatBox!.element.hidden = true;
-            opener?.focus();
-        };
-        close.addEventListener('click', shut);
-        drawer.addEventListener('click', e => e.target === drawer && shut());
-        drawer.addEventListener('keydown', e => e.key === 'Escape' && shut());
-        this.chatBox.element.hidden = false;
-        panel.append(this.chatBox.element, close);
-        drawer.append(panel);
-        document.body.append(drawer);
-        this.chatDrawer = drawer;
-        this.unread = 0;
-        this.updateUnread();
-        this.chatBox.scrollToEnd();
-        this.chatBox.focus();
-    }
-
-    private updateUnread() {
-        if (!this.chatButton) return;
-        this.chatButton.textContent = '';
-        this.chatButton.append('Chat');
-        if (this.unread) {
-            const badge = document.createElement('span');
-            badge.className = 'unread';
-            badge.textContent = String(this.unread);
-            this.chatButton.append(badge);
-        }
-        this.chatButton.setAttribute('aria-label', this.unread ? `Discussion, ${this.unread} message${this.unread > 1 ? 's' : ''} non lu${this.unread > 1 ? 's' : ''}` : 'Discussion');
-    }
-
     /** A message on the table: emotes pop above the player, text lines in a bubble next to him */
     private showChat(message: ChatMessage) {
         const s = this.state;
         if (!this.app || !s || !this.layout) return;
-        if (message.text && message.seat !== s.viewerId && !this.chatDrawer) {
-            this.unread++;
-            this.updateUnread();
-        }
+        this.chrome.countUnread(message);
         const seat = this.layout.seats.get(message.seat);
         if (!seat || !s.players[message.seat]) return;
         if (message.text) {
@@ -1293,72 +1166,7 @@ export class TableView {
     }
     // endregion
 
-    // region Menu
-    private applyPrefs() {
-        setMuted(!this.prefs.sound);
-        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        gsap.globalTimeline.timeScale(reduced ? 2.5 : this.prefs.speed === 'fast' ? 1.6 : 1);
-    }
-
-    private openMenu() {
-        if (this.menu) return;
-        const s = this.state;
-        const opener = document.activeElement as HTMLElement | null;
-        const dialog = document.createElement('div');
-        dialog.className = 'overlay table-menu';
-        const close = () => {
-            dialog.remove();
-            this.menu = null;
-            opener?.focus();
-        };
-        const rules = s ? describeSettings(s.settings).map(line => `<li>${escape(line)}</li>`).join('') : '';
-        const backs = (Object.keys(BACK_COLORS) as BackColor[]).map(key =>
-            `<label class="back-choice"><input type="radio" name="back" value="${key}" ${this.prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${BACK_COLORS[key].name}</label>`).join('');
-        dialog.innerHTML = `
-            <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">
-                <h2 id="menu-title">Menu</h2>
-                <button type="button" class="primary" data-act="close">Reprendre la partie</button>
-                <details><summary>Règles de la partie</summary><ul>${rules}</ul></details>
-                <fieldset><legend>Réglages de cet appareil</legend>
-                    <label class="switch"><input type="checkbox" name="sound" ${this.prefs.sound ? 'checked' : ''}> Sons</label>
-                    <label class="switch"><input type="checkbox" name="vibration" ${this.prefs.vibration ? 'checked' : ''}> Vibrations</label>
-                    <label class="switch"><input type="checkbox" name="fast" ${this.prefs.speed === 'fast' ? 'checked' : ''}> Animations rapides</label>
-                    <div class="backs" role="radiogroup" aria-label="Dos des cartes">${backs}</div>
-                    ${this.options.debug && this.session.canShowAll ? '<label class="switch"><input type="checkbox" name="showAll"> Voir toutes les cartes (debug)</label>' : ''}
-                </fieldset>
-                <button type="button" class="secondary danger" data-act="quit">Quitter la partie</button>
-            </section>`;
-        dialog.addEventListener('click', e => {
-            const target = e.target as HTMLElement;
-            if (target === dialog || target.dataset.act === 'close') close();
-            if (target.dataset.act === 'quit') {
-                if (!this.options.quitWarning || confirm(this.options.quitWarning)) {
-                    close();
-                    this.options.onQuit();
-                }
-            }
-        });
-        dialog.addEventListener('keydown', e => {
-            if (e.key === 'Escape') close();
-        });
-        dialog.addEventListener('change', e => {
-            const input = e.target as HTMLInputElement;
-            if (input.name === 'sound') this.prefs.sound = input.checked;
-            if (input.name === 'vibration') this.prefs.vibration = input.checked;
-            if (input.name === 'fast') this.prefs.speed = input.checked ? 'fast' : 'normal';
-            if (input.name === 'showAll') this.session.setShowAll(input.checked);
-            if (input.name === 'back') {
-                this.prefs.back = input.value as BackColor;
-                this.changeBack();
-            }
-            savePrefs(this.prefs);
-            this.applyPrefs();
-        });
-        document.body.appendChild(dialog);
-        this.menu = dialog;
-        dialog.querySelector<HTMLElement>('[data-act="close"]')?.focus();
-    }
-
+    // region Card back
     /** New card back: every card and the draw pile are drawn again */
     private changeBack() {
         if (!this.app) return;
@@ -1375,10 +1183,6 @@ export class TableView {
         this.sync(true);
     }
     // endregion
-}
-
-function escape(text: string): string {
-    return text.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]!));
 }
 
 export type {PlayerView};

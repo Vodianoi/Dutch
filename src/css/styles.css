@@ -2261,3 +2261,262 @@ button:hover:not(:disabled) {
     }
 }
 /* endregion Menus */
+
+/* region 3D table: old casino */
+.table3d {
+    --brass: #c9a050;
+    --brass-light: #f0d79a;
+    --brass-dark: #7a5a22;
+    --leather: #2a0d0b;
+    --ivory: #f3ead3;
+    --ink: #2a1c10;
+    background: #090605;
+}
+
+.table3d-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.table3d-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* Top bar: brass and dark leather */
+.table3d .table-menu-button, .table3d .table-info {
+    background: linear-gradient(180deg, rgba(42, 13, 11, .92), rgba(24, 8, 6, .92));
+    border: 1px solid var(--brass);
+    color: var(--brass-light);
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+/* Instructions: an engraved brass plaque */
+.table3d-banner {
+    position: absolute;
+    top: calc(54px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 24px);
+    padding: 8px 20px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #e9cf8d, #c9a050 45%, #a07a32);
+    border: 1px solid #5c4214;
+    box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7), inset 0 -2px 0 rgba(70, 45, 10, .5), 0 6px 18px rgba(0, 0, 0, .55);
+    color: #2a1a06;
+    font: 700 15px/1.3 var(--font-display);
+    text-align: center;
+    text-shadow: 0 1px 0 rgba(255, 240, 200, .6);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.table3d-actions {
+    position: absolute;
+    left: 50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 2;
+}
+
+/* Buttons: polished brass, the important one in oxblood */
+.table3d-button {
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 8px;
+    border: 1px solid #5c4214;
+    background: linear-gradient(180deg, #f2dc9e, #c9a050 50%, #9c752f);
+    color: #24170a;
+    font: 800 15px var(--font-display);
+    letter-spacing: .02em;
+    box-shadow: inset 0 1px 0 rgba(255, 248, 220, .8), 0 3px 0 #4a3410, 0 10px 22px rgba(0, 0, 0, .5);
+    cursor: pointer;
+    animation: rise-in 240ms var(--ease-out) both;
+}
+
+.table3d-button.danger {
+    background: linear-gradient(180deg, #a3303a, #6e141d);
+    color: var(--ivory);
+    border-color: #3a070c;
+    box-shadow: inset 0 1px 0 rgba(255, 200, 200, .35), 0 3px 0 #2a0408, 0 10px 22px rgba(0, 0, 0, .5);
+}
+
+.table3d-button.ghost {
+    background: linear-gradient(180deg, rgba(42, 13, 11, .95), rgba(24, 8, 6, .95));
+    color: var(--brass-light);
+    border-color: var(--brass);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .45);
+}
+
+.table3d-button:focus-visible {
+    outline: 2px solid var(--brass-light);
+    outline-offset: 3px;
+}
+
+/* Name tags next to the chips: dark leather with gold letters */
+.table3d-tag {
+    padding: 3px 10px 4px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(48, 16, 12, .94), rgba(28, 9, 7, .94));
+    border: 1px solid rgba(201, 160, 80, .55);
+    color: var(--brass-light);
+    font: 700 13px var(--font-display);
+    text-align: center;
+    white-space: nowrap;
+    transition: border-color 200ms, box-shadow 200ms, opacity 200ms;
+}
+
+.table3d-tag small {
+    display: block;
+    font: 400 11px var(--font-body);
+    color: rgba(243, 234, 211, .8);
+}
+
+.table3d-tag .badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--brass);
+    color: #24170a;
+    font: 800 10px var(--font-body);
+    vertical-align: 1px;
+}
+
+.table3d-tag.active {
+    border-color: var(--brass-light);
+    box-shadow: 0 0 0 2px rgba(240, 215, 154, .35), 0 0 20px rgba(240, 200, 120, .4);
+}
+
+.table3d-tag.offline {
+    opacity: .5;
+}
+
+.table3d-count {
+    color: rgba(243, 234, 211, .8);
+    font: 600 12px var(--font-display);
+}
+
+/* Messages: little ivory notes */
+.table3d-bubble {
+    max-width: min(230px, 70vw);
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--ivory);
+    border: 2px solid var(--c, var(--brass));
+    color: var(--ink);
+    font: 600 12.5px/1.35 var(--font-body);
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+    animation: rise-in 220ms var(--ease-out) both;
+    transition: opacity 300ms;
+}
+
+.table3d-bubble.emote {
+    padding: 2px 8px;
+    font: 30px/1.2 var(--font-emoji);
+    border-radius: 999px;
+}
+
+.table3d-bubble.leaving {
+    opacity: 0;
+}
+
+/* Score panel: a vintage card, ivory with a gold frame */
+.table3d-panel {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, .5);
+    z-index: 4;
+    animation: fade-in 200ms ease-out both;
+}
+
+.table3d-panel[hidden] {
+    display: none;
+}
+
+.table3d-panel section {
+    width: min(400px, calc(100% - 32px));
+    padding: 20px 22px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f7efd9, #e6d9b8);
+    border: 2px solid var(--brass);
+    box-shadow: inset 0 0 0 6px #f7efd9, inset 0 0 0 7px var(--brass), 0 24px 60px rgba(0, 0, 0, .6);
+    color: var(--ink);
+    animation: rise-in 280ms var(--ease-out) both;
+}
+
+.table3d-panel h2 {
+    margin: 0 0 12px;
+    text-align: center;
+    font: italic 900 26px var(--font-display);
+    color: #6e141d;
+}
+
+.table3d-panel ol {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+}
+
+.table3d-panel li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(90, 60, 25, .2);
+}
+
+.table3d-panel .dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .6);
+}
+
+.table3d-panel .who {
+    flex: 1;
+    font-weight: 800;
+}
+
+.table3d-panel .pts {
+    opacity: .75;
+}
+
+.table3d-panel .total {
+    width: 44px;
+    text-align: right;
+    font: 900 17px var(--font-display);
+}
+
+.table3d-panel li.win .who {
+    color: #6e141d;
+}
+
+.table3d-panel .table3d-button {
+    width: 100%;
+}
+
+.table3d-panel .wait {
+    margin: 0;
+    text-align: center;
+    font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .table3d-button, .table3d-bubble, .table3d-panel, .table3d-panel section {
+        animation: none;
+    }
+}
+/* endregion 3D table */

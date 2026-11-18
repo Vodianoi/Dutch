@@ -1,5 +1,5 @@
 import {scoped} from '../env.js';
-import {BackColor, BACK_COLORS} from './art.js';
+import {BACK_COLORS, BackColor} from './cardArt.js';
 
 /**
  *  Preferences of this device (not rules of the game): sound, vibration, animation speed, card back
@@ -9,10 +9,12 @@ export interface Prefs {
     vibration: boolean;
     speed: 'normal' | 'fast';
     back: BackColor;
+    /** Game table: drawn flat (2D) or the 3D table (prototype) */
+    table: '2d' | '3d';
 }
 
 const KEY = scoped('prefs');
-const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red'};
+const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red', table: '2d'};
 
 export function loadPrefs(): Prefs {
     try {
@@ -22,6 +24,7 @@ export function loadPrefs(): Prefs {
             vibration: typeof saved.vibration === 'boolean' ? saved.vibration : DEFAULTS.vibration,
             speed: saved.speed === 'fast' ? 'fast' : 'normal',
             back: saved.back in BACK_COLORS ? saved.back : DEFAULTS.back,
+            table: saved.table === '3d' ? '3d' : '2d',
         };
     } catch {
         return {...DEFAULTS};
