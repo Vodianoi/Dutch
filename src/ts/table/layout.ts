@@ -202,6 +202,8 @@ function portraitRows(w: number, h: number, top: number, order: number[], cols: 
     const myY = h - pad - handH(my) / 2 - spare * .5;
     const me = ownSeat(order[0], w, myY, my, cols, ui);
     me.held = {...center.held, cw: heldW};
+    // Own messages: in the gap between the piles and the buttons (never on the buttons)
+    me.chip = {x: w / 2, y: (center.rect.y2 + me.block.y1 - buttonsH) / 2};
     seats.set(order[0], me);
     const buttonsY = me.block.y1 - buttonsH / 2 - 2;
     return {

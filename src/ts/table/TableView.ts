@@ -7,7 +7,7 @@ import {describeSettings} from '../Settings.js';
 import {Action, CardView, GameView, PlayerView} from '../View.js';
 import {Art, BACK_COLORS, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
 import {CardSprite, centered, dispose, Place, Target} from './CardSprite.js';
-import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, slot} from './layout.js';
+import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
 import {buzz, loadPrefs, Prefs, savePrefs} from './prefs.js';
 import {setMuted, sfx, unlockAudio} from './sound.js';
 import {button, ButtonKind, CREAM, GOLD, label, SeatView} from './widgets.js';
@@ -116,6 +116,10 @@ export class TableView {
     private panelFor = '';
     private buttonsKey = '';
     private readonly chips = new Map<number, Container>();
+    /** Where each message would like to be (it moves away from buttons and piles) */
+    private readonly chipAnchors = new Map<Container, Point>();
+    /** Turn buttons on the table, while they are shown */
+    private buttonsRect: Rect | null = null;
     private drag: { sprite: CardSprite; id: string; start: Point; offset: Point; moved: boolean; canDrag: boolean; lastX: number } | null = null;
     private syncQueued = false;
     /** "Hold the phone upright" when the table is too crowded for a screen held sideways */
@@ -727,10 +731,15 @@ export class TableView {
                 x += v.width + gap;
             }
         }
+        this.buttonsRect = views.length ? {
+            x1: Math.min(...views.map(v => v.x - v.width / 2)) - 4, y1: Math.min(...views.map(v => v.y - v.height / 2)) - 4,
+            x2: Math.max(...views.map(v => v.x + v.width / 2)) + 4, y2: Math.max(...views.map(v => v.y + v.height / 2)) + 4,
+        } : null;
         views.forEach((v, i) => {
             this.buttons.addChild(v);
             gsap.from(v, {alpha: 0, y: v.y + 12, duration: .3, delay: i * .06, ease: 'back.out(2)'});
         });
+        this.relocateChips();
     }
 
     /** A card chosen to be thrown: a "Jeter" button above it */
@@ -756,6 +765,7 @@ export class TableView {
             clamp(target.x, 110, this.layout.w - 110),
             target.y - cardWidth(seat, s.players[owner].hand.length, this.layout.cols) * RATIO / 2 - 28 * this.layout.ui);
         this.uiLayer.addChild(this.throwButton);
+        this.relocateChips();
         gsap.from(this.throwButton, {alpha: 0, y: this.throwButton.y + 10, duration: .2});
     }
 
@@ -770,10 +780,14 @@ export class TableView {
         if (!this.app) return;
         const L = this.layout;
         const seat = playerId === null ? undefined : L.seats.get(playerId);
-        const pos = seat ? seat.chip : {x: L.w / 2, y: L.banner.y + 40};
+        // General messages go where the own messages go: between the piles and the buttons
+        const pos = seat ? seat.chip : L.seats.get(this.bottomId())!.chip;
         const key = playerId ?? -1;
         const previous = this.chips.get(key);
-        if (previous) dispose(previous);
+        if (previous) {
+            this.chipAnchors.delete(previous);
+            dispose(previous);
+        }
         const box = new Container();
         const t = label(text, 12.5 * L.ui, 0xffffff, '600');
         t.style.wordWrap = true;
@@ -782,14 +796,57 @@ export class TableView {
         t.anchor.set(.5);
         const w = t.width + 22, h = t.height + 12;
         box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, 10).fill({color: 0x0d0f14, alpha: .9}).stroke({width: 2, color}), t);
-        box.position.set(clamp(pos.x, w / 2 + 8, L.w - w / 2 - 8), clamp(pos.y, h / 2 + 4, L.h - h / 2 - 4));
         this.fxLayer.addChild(box);
         this.chips.set(key, box);
+        this.chipAnchors.set(box, pos);
+        this.placeChip(box);
         gsap.from(box, {alpha: 0, y: box.y + 8, duration: .25, ease: 'back.out(2)'});
         gsap.to(box, {alpha: 0, duration: .4, delay: seconds, onComplete: () => {
             if (this.chips.get(key) === box) this.chips.delete(key);
+            this.chipAnchors.delete(box);
             dispose(box);
         }});
+    }
+
+    /** Areas a message must not cover: turn buttons, « Jeter » button, piles, the other messages */
+    private chipObstacles(except: Container): Rect[] {
+        const list: Rect[] = this.layout.zones.filter(z => z.name !== 'banner').map(z => z.rect);
+        if (this.buttonsRect) list.push(this.buttonsRect);
+        const around = (c: Container): Rect => {
+            const b = c.getBounds();
+            return {x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY};
+        };
+        if (this.throwButton) list.push(around(this.throwButton));
+        for (const other of this.chips.values()) if (other !== except && !other.destroyed) list.push(around(other));
+        return list;
+    }
+
+    /**
+     *  Put a message as close as possible to where it wants to be, without covering anything that can be touched
+     */
+    private placeChip(box: Container) {
+        const L = this.layout;
+        const anchor = this.chipAnchors.get(box);
+        if (!anchor || box.destroyed) return;
+        const w = box.width, h = box.height;
+        const x = clamp(anchor.x, w / 2 + 8, L.w - w / 2 - 8);
+        const minY = 48 + h / 2, maxY = L.h - h / 2 - 4;
+        const obstacles = this.chipObstacles(box);
+        const free = (y: number) => !obstacles.some(o => o.x1 < x + w / 2 && x - w / 2 < o.x2 && o.y1 < y + h / 2 && y - h / 2 < o.y2);
+        let y = clamp(anchor.y, minY, maxY);
+        if (!free(y)) {
+            // Just above or just below an obstacle, the nearest free place
+            const candidates = obstacles.flatMap(o => [o.y1 - h / 2 - 6, o.y2 + h / 2 + 6])
+                .filter(c => c >= minY && c <= maxY && free(c))
+                .sort((a, b) => Math.abs(a - y) - Math.abs(b - y));
+            if (candidates.length) y = candidates[0];
+        }
+        gsap.to(box, {x, y, duration: box.x || box.y ? .2 : 0, ease: 'power2.out'});
+    }
+
+    /** Buttons appeared or moved: the messages make room */
+    private relocateChips() {
+        for (const box of this.chips.values()) this.placeChip(box);
     }
 
     private static readonly SKIP = /^(C'est au tour|Au tour|Dernier tour de|— Ronde|Chaque joueur|Fin de la ronde|Partie terminée)/;
