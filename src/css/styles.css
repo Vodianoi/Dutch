@@ -1932,4 +1932,23 @@ body.in-game .site-header {
     color: var(--danger);
     border-color: rgba(255, 128, 128, .5);
 }
+
+input[type=checkbox] {
+    accent-color: var(--gold);
+}
+
+button {
+    font-family: var(--font-body);
+    font-weight: 800;
+}
+
+/* The main action of a screen takes the whole width */
+#start-solo, #start, #create-room, #join-room {
+    width: 100%;
+}
+
+.resume {
+    border-color: rgba(255, 209, 102, .5);
+    background: rgba(255, 209, 102, .08);
+}
 /* endregion New look */
