@@ -48,11 +48,12 @@ export class Bots {
     }
     whoActs() {
         const g = this.game;
-        if (g.phase === 'peek')
-            return this.ids.find(id => !g.players[id].ready) ?? null;
+        // A card thrown while the players look at their cards can give an effect: it comes first
         const effect = g.activeEffect;
         if (effect)
             return this.ids.includes(effect.playerId) ? effect.playerId : null;
+        if (g.phase === 'peek')
+            return this.ids.find(id => !g.players[id].ready) ?? null;
         if (g.isRoundRunning && this.ids.includes(g.currentPlayerIndex))
             return g.currentPlayerIndex;
         return null;
@@ -70,11 +71,11 @@ export class Bots {
             return;
         const g = this.game;
         try {
-            if (g.phase === 'peek')
-                return void g.peek(id);
             const effect = g.activeEffect;
             if (effect)
                 return this.useEffect(id, effect.type);
+            if (g.phase === 'peek')
+                return void g.peek(id);
             const { known, unknown } = this.mine(id);
             const worst = known[0];
             if (g.phase === 'draw') {

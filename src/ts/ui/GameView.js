@@ -300,10 +300,6 @@ class GameView {
      */
     onHandCardClick(state, player, card) {
         const effect = state.activeEffect;
-        if (state.phase === 'peek') {
-            this.flash('Attendez que tout le monde ait regardé ses cartes.', 'error');
-            return;
-        }
         if (effect) {
             if (!this.mine(state, effect.playerId)) {
                 this.flash(`${state.players[effect.playerId].name} utilise l'effet de: ${effect.cardName}.`, 'error');
