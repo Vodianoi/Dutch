@@ -52,6 +52,14 @@ export function buildView(game, viewerId, options = {}) {
             hand: p.hand.map(show),
         })),
         log: game.log.slice(-80),
+        lastMove: game.lastMove ? {
+            seq: game.lastMove.seq,
+            type: game.lastMove.type,
+            playerId: game.lastMove.playerId,
+            playerIds: game.lastMove.playerIds.slice(),
+            cardIds: game.lastMove.cardIds.slice(),
+            ...(game.lastMove.card ? { card: faceUp(game.lastMove.card) } : {}),
+        } : null,
         lastResult: result ? {
             round: result.round,
             dutchCallerId: result.dutchCallerId,

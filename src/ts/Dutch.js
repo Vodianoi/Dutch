@@ -11,6 +11,12 @@ export class RuleError extends Error {
 }
 // endregion
 /**
+ *  "de Hugo" -> "d'Hugo", "de Léa": elision before a vowel or a mute h
+ */
+export function de(name) {
+    return /^[aeiouyhàâäéèêëîïôöûüÿæœ]/i.test(name) ? `d'${name}` : `de ${name}`;
+}
+/**
  *  Dutch game engine
  *  - Holds the whole game state and enforces the rules of the README
  *  - No DOM access: the UI calls the actions and listens to the events
@@ -42,6 +48,8 @@ class Dutch {
          */
         this.finalTurnsLeft = 0;
         this.log = [];
+        this.lastMove = null;
+        this.moveSeq = 0;
         this.lastResult = null;
         this.firstPlayerIndex = 0;
         this.listeners = [];
@@ -140,6 +148,9 @@ class Dutch {
     reveal(player, card, isPublic = false) {
         this.emit({ type: 'reveal', cardId: card.id, playerId: player.id, public: isPublic });
     }
+    move(type, playerId, cardIds = [], playerIds = [], card) {
+        this.lastMove = { seq: ++this.moveSeq, type, playerId, playerIds, cardIds, card };
+    }
     addLog(message, kind = 'info') {
         this.log.push({ round: this.round, kind, message });
     }
@@ -166,6 +177,7 @@ class Dutch {
         this.dutchCallerId = null;
         this.finalTurnsLeft = 0;
         this.lastResult = null;
+        this.lastMove = null;
         this.currentPlayerIndex = this.firstPlayerIndex;
         this.addLog(`— Ronde ${this.round} — ${this.deck.deckCount * 52} cartes, ${this.cardsPerPlayer} cartes chacun.`, 'info');
         if (this.peekVariant) {
@@ -191,6 +203,7 @@ class Dutch {
         const cards = player.hand.slice(-2);
         cards.forEach(card => this.reveal(player, card));
         player.ready = true;
+        this.move('peek', player.id, cards.map(c => c.id));
         this.addLog(`${player.name} regarde ses 2 dernières cartes.`, 'info');
         if (this.players.every(p => p.ready)) {
             this.phase = 'draw';
@@ -273,6 +286,7 @@ class Dutch {
             this.addLog('La pioche est vide : la pile de rejet est mélangée pour refaire la pioche.', 'info');
         this.drawn = { card, source: 'pile' };
         this.phase = 'drawn';
+        this.move('draw', playerId, [card.id]);
         this.addLog(`${this.currentPlayer.name} pioche une carte.`, 'info');
         this.changed();
         return card;
@@ -293,6 +307,7 @@ class Dutch {
             throw new RuleError('La pile de rejet est vide.');
         this.drawn = { card, source: 'discard' };
         this.phase = 'drawn';
+        this.move('takeDiscard', playerId, [card.id], [], card);
         this.addLog(`${this.currentPlayer.name} prend ${card} de la pile de rejet.`, 'info');
         this.changed();
         return card;
@@ -312,6 +327,7 @@ class Dutch {
         this.drawn = null;
         this.phase = 'played';
         this.addLog(`${player.name} échange une carte et jette ${old}.`, 'info');
+        this.move('swap', player.id, [newCard.id, old.id], [], old);
         this.discardCard(player, old);
         // The player now knows the card he just placed
         this.reveal(player, newCard);
@@ -331,6 +347,7 @@ class Dutch {
         this.drawn = null;
         this.phase = 'played';
         this.addLog(`${this.currentPlayer.name} jette ${card}.`, 'info');
+        this.move('discardDrawn', playerId, [card.id], [], card);
         this.discardCard(this.currentPlayer, card);
         this.changed();
     }
@@ -359,6 +376,7 @@ class Dutch {
         if (card.matches(top)) {
             player.removeCard(cardId);
             this.addLog(`${player.name} jette ${card} sur ${top} !`, 'good');
+            this.move('throw', player.id, [card.id], [], card);
             this.discardCard(player, card);
             this.changed();
             return true;
@@ -367,6 +385,7 @@ class Dutch {
         // A wrong card is shown to everybody before going back in the hand
         this.reveal(player, card, true);
         const penalty = this.deck.draw();
+        this.move('wrongThrow', player.id, penalty ? [card.id, penalty.id] : [card.id], [], card);
         if (penalty) {
             player.addCard(penalty);
             this.addLog(`${player.name} se trompe (${card} ≠ ${top}) : carte de pénalité.`, 'bad');
@@ -392,10 +411,13 @@ class Dutch {
             }
             this.dutchCallerId = player.id;
             this.finalTurnsLeft = this.players.length - 1;
-            this.addLog(`${player.name} dit « Dutch » ! Dernier tour pour les autres joueurs.`, 'dutch');
+            this.addLog(`${player.name} dit «\u00a0Dutch\u00a0» ! Dernier tour pour les autres joueurs.`, 'dutch');
+            this.move('dutch', player.id);
         }
-        else if (this.dutchCallerId !== null) {
-            this.finalTurnsLeft--;
+        else {
+            if (this.dutchCallerId !== null)
+                this.finalTurnsLeft--;
+            this.move('endTurn', player.id);
         }
         this.players.forEach(p => p.locked = false);
         if (this.dutchCallerId !== null && this.finalTurnsLeft <= 0) {
@@ -461,8 +483,9 @@ class Dutch {
         const cardA = ownerA.hand[indexA];
         ownerA.hand[indexA] = ownerB.hand[indexB];
         ownerB.hand[indexB] = cardA;
-        const who = ownerA === ownerB ? `deux cartes de ${ownerA.name}` : `une carte de ${ownerA.name} et une carte de ${ownerB.name}`;
+        const who = ownerA === ownerB ? `deux cartes ${de(ownerA.name)}` : `une carte ${de(ownerA.name)} et une carte ${de(ownerB.name)}`;
         this.addLog(`${this.players[playerId].name} (Valet) échange ${who}.`, 'effect');
+        this.move('jackSwap', playerId, [cardIdA, cardIdB], [ownerA.id, ownerB.id]);
         this.effects.shift();
         this.changed();
     }
@@ -478,6 +501,7 @@ class Dutch {
             throw new RuleError('Choisissez une de vos cartes.');
         this.reveal(player, card);
         this.addLog(`${player.name} (Dame) regarde une de ses cartes.`, 'effect');
+        this.move('queenPeek', playerId, [card.id]);
         this.effects.shift();
         this.changed();
         return card;
@@ -491,6 +515,7 @@ class Dutch {
         if (this.isImmune(target.id))
             throw new RuleError(`${target.name} a dit Dutch : il est protégé.`);
         const card = this.deck.draw();
+        this.move('aceGive', playerId, card ? [card.id] : [], [target.id]);
         if (card) {
             target.addCard(card);
             this.addLog(`${this.players[playerId].name} (As) donne une carte de la pioche à ${target.name}.`, 'effect');
@@ -512,6 +537,7 @@ class Dutch {
             throw new RuleError(`C'est à ${this.players[effect.playerId].name} de résoudre l'effet.`);
         }
         this.addLog(`${this.players[playerId].name} n'utilise pas l'effet de ${effect.card.name}.`, 'effect');
+        this.move('skipEffect', playerId, [], [], effect.card);
         this.effects.shift();
         this.changed();
     }

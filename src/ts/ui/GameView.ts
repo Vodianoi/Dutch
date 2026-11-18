@@ -1,16 +1,36 @@
-import {LogEntry} from '../Dutch.js';
+import {LogEntry, LogKind} from '../Dutch.js';
 import {Session, SessionEvent} from '../Session.js';
-import {Action, CardView, GameView as State, PlayerView, toCard} from '../View.js';
+import {Action, CardView, GameView as State, MoveView, PlayerView, toCard} from '../View.js';
 import {renderCard} from './CardView.js';
 import {clear, el} from './dom.js';
+import {icon, IconName} from './icons.js';
+import {cardTag, comesFromPile, de, describeMove} from './moves.js';
 
 const REVEAL_MS = 2500;
 const MESSAGE_MS = 3500;
+/** How long the cards of the last move keep their ring and tag */
+const HIGHLIGHT_MS = 3000;
+/** Duration of a card flying to its new place */
+const FLIGHT_MS = 720;
+
+const LOG_ICONS: Partial<Record<LogKind, IconName>> = {
+    good: 'check', bad: 'cross', effect: 'star', dutch: 'dutch', score: 'info',
+};
+
+/** What the screen looked like before a re-render: to animate the cards and keep the focus */
+interface Snapshot {
+    rects: Map<string, DOMRect>;
+    pile: DOMRect | null;
+    focusKey: string | null;
+    hadFocus: boolean;
+    logScroll: number;
+}
 
 /**
  *  Game screen
  *  - Renders the view of the game given by the session (shared screen or one player's view)
  *  - Translates clicks into actions; on a remote device only the actions of its own seat are offered
+ *  - Shows the last move: a sentence, a ring + tag on the cards concerned, and the cards fly to their new place
  */
 class GameView {
 
@@ -29,6 +49,22 @@ class GameView {
     private showAll = false;
     private unsubscribe: () => void;
     private destroyed = false;
+
+    /** Last move of the game and when this screen received it */
+    private move: { view: MoveView; start: number } | null = null;
+    private moveTimer: number | undefined;
+    /** "Dutch !" was clicked once: ask for a confirmation (until the turn changes) */
+    private confirmDutch = false;
+    private lastTurn = -1;
+    /** Element to focus after the next render (data-key) */
+    private pendingFocus: string | null = null;
+    /** Round result already shown (focus moved into it once) */
+    private resultShown: string | null = null;
+
+    /** Screen reader announcements: kept outside of the re-rendered tree */
+    private readonly live: HTMLElement;
+    private readonly alert: HTMLElement;
+    private lastInstruction = '';
     // endregion
 
     // region Constructor
@@ -37,6 +73,9 @@ class GameView {
         this.session = session;
         this.onNewGame = onNewGame;
         this.debug = debug;
+        this.live = el('div', {class: 'sr-only', 'aria-live': 'polite', 'aria-atomic': 'true'});
+        this.alert = el('div', {class: 'sr-only', 'aria-live': 'assertive', 'aria-atomic': 'true'});
+        document.body.append(this.live, this.alert);
         this.unsubscribe = session.on((event) => this.onSessionEvent(event));
     }
     // endregion
@@ -46,15 +85,23 @@ class GameView {
         this.destroyed = true;
         this.unsubscribe();
         window.clearTimeout(this.messageTimer);
+        window.clearTimeout(this.moveTimer);
+        this.live.remove();
+        this.alert.remove();
         clear(this.root);
     }
 
     public render() {
         if (this.destroyed) return;
         const state = this.session.state;
+        const before = this.snapshot();
         clear(this.root);
         if (!state) return;
         if (!state.activeEffect || state.activeEffect.type !== 'JACK') this.selectedCardId = null;
+        const fresh = this.trackMove(state);
+        const running = state.phase === 'draw' || state.phase === 'drawn' || state.phase === 'played';
+        if (!running || state.activeEffect || state.currentPlayerIndex !== this.lastTurn) this.confirmDutch = false;
+        this.lastTurn = state.currentPlayerIndex;
 
         // Online, the player of this device is shown first
         const players = state.players.slice();
@@ -63,18 +110,31 @@ class GameView {
             players.unshift(...players.splice(me, 1));
         }
 
-        this.root.appendChild(el('div', {class: 'board'},
+        const board = el('div', {class: 'board'},
             el('div', {class: 'table-area'},
                 this.renderStatus(state),
                 this.renderCenter(state),
-                el('section', {class: 'players'}, ...players.map(p => this.renderPlayer(state, p)))),
+                el('section', {class: 'players', 'aria-label': 'Joueurs'}, ...players.map(p => this.renderPlayer(state, p)))),
             el('aside', {class: 'side'},
                 this.renderScores(state),
-                this.renderLog(state))));
-
-        if (state.phase === 'roundOver' || state.phase === 'gameOver') {
-            this.root.appendChild(this.renderRoundResult(state));
+                this.renderLog(state)));
+        this.root.appendChild(board);
+        if (this.message) {
+            this.root.appendChild(el('div', {class: `toast ${this.message.kind}`},
+                icon(this.message.kind === 'error' ? 'cross' : 'info'), el('span', {}, this.message.text)));
         }
+
+        let dialog: HTMLElement | null = null;
+        if (state.phase === 'roundOver' || state.phase === 'gameOver') {
+            dialog = this.renderRoundResult(state);
+            // Nothing behind the dialog can be focused or clicked
+            board.setAttribute('inert', '');
+            this.root.appendChild(dialog);
+        }
+
+        this.announce(state, fresh);
+        this.restore(before, dialog);
+        this.animate(before, fresh);
     }
     // endregion
 
@@ -92,6 +152,132 @@ class GameView {
 
     private dispatch(action: Action) {
         this.session.dispatch(action);
+    }
+
+    private get reducedMotion(): boolean {
+        return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    }
+
+    /** Last move, while it is still highlighted */
+    private get activeMove(): { view: MoveView; elapsed: number } | null {
+        if (!this.move) return null;
+        const elapsed = performance.now() - this.move.start;
+        return elapsed < HIGHLIGHT_MS ? {view: this.move.view, elapsed} : null;
+    }
+
+    /**
+     *  Remember the last move of the game.
+     *  @returns true when it is a new move to animate (not on the first render of the screen)
+     */
+    private trackMove(state: State): boolean {
+        const move = state.lastMove;
+        if (!move) {
+            this.move = null;
+            return false;
+        }
+        if (this.move?.view.seq === move.seq) return false;
+        const first = this.move === null && this.lastInstruction === '';
+        this.move = {view: move, start: first ? -HIGHLIGHT_MS : performance.now()};
+        window.clearTimeout(this.moveTimer);
+        // Re-render once the highlight is over to remove the rings and tags
+        if (!first) this.moveTimer = window.setTimeout(() => this.render(), HIGHLIGHT_MS + 50);
+        return !first;
+    }
+
+    private snapshot(): Snapshot {
+        const rects = new Map<string, DOMRect>();
+        const board = this.root.querySelector('.board');
+        board?.querySelectorAll<HTMLElement>('[data-card]').forEach(node => rects.set(node.dataset.card!, node.getBoundingClientRect()));
+        const active = document.activeElement as HTMLElement | null;
+        const hadFocus = !!active && active !== document.body && this.root.contains(active);
+        let focusKey: string | null = null;
+        if (hadFocus && active) {
+            if (active.dataset.key) focusKey = `[data-key="${CSS.escape(active.dataset.key)}"]`;
+            else if (active.dataset.card) focusKey = `[data-card="${CSS.escape(active.dataset.card)}"]`;
+            else if (active.id) focusKey = `#${CSS.escape(active.id)}`;
+        }
+        return {
+            rects,
+            pile: this.root.querySelector('[data-key="draw-pile"]')?.getBoundingClientRect() ?? null,
+            focusKey,
+            hadFocus,
+            logScroll: this.root.querySelector('.log ol')?.scrollTop ?? 0,
+        };
+    }
+
+    /**
+     *  After a re-render: same log scroll, same focused element (or a sensible place), dialog focus
+     */
+    private restore(before: Snapshot, dialog: HTMLElement | null) {
+        const log = this.root.querySelector('.log ol');
+        if (log) log.scrollTop = before.logScroll;
+
+        if (dialog) {
+            const key = dialog.dataset.result!;
+            if (this.resultShown !== key) {
+                this.resultShown = key;
+                dialog.querySelector<HTMLElement>('button, [role="dialog"]')?.focus();
+                return;
+            }
+        }
+
+        const wanted = this.pendingFocus ? `[data-key="${this.pendingFocus}"]` : before.focusKey;
+        this.pendingFocus = null;
+        if (!wanted && !before.hadFocus) return;
+        const scope = dialog ?? this.root;
+        const target = wanted ? scope.querySelector<HTMLElement>(wanted) : null;
+        if (target && isFocusable(target)) {
+            target.focus({preventScroll: true});
+        } else if (before.hadFocus) {
+            // The focused card or button is gone (card played, turn over): go back to the instructions
+            scope.querySelector<HTMLElement>('[role="dialog"], .status')?.focus({preventScroll: true});
+        }
+    }
+
+    /**
+     *  Cards of the last move fly from where they were to where they are now (FLIP).
+     *  A re-render during the flight continues the flight from the current position.
+     */
+    private animate(before: Snapshot, fresh: boolean) {
+        const move = this.move;
+        if (!move || this.reducedMotion || typeof Element.prototype.animate !== 'function') return;
+        const elapsed = performance.now() - move.start;
+        if (!fresh && elapsed >= FLIGHT_MS) return;
+        const duration = fresh ? FLIGHT_MS : FLIGHT_MS - elapsed;
+        const board = this.root.querySelector('.board');
+        if (!board) return;
+
+        for (const id of move.view.cardIds) {
+            const node = board.querySelector<HTMLElement>(`[data-card="${CSS.escape(id)}"]`);
+            if (!node) continue;
+            const from = before.rects.get(id) ?? (comesFromPile(move.view, id) ? before.pile : null);
+            if (!from) continue;
+            const to = node.getBoundingClientRect();
+            const dx = (from.left + from.width / 2) - (to.left + to.width / 2);
+            const dy = (from.top + from.height / 2) - (to.top + to.height / 2);
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+            const scale = to.width > 0 ? from.width / to.width : 1;
+            node.classList.add('flying');
+            const animation = node.animate([
+                {translate: `${dx}px ${dy}px`, scale: String(scale)},
+                {translate: '0px 0px', scale: '1'},
+            ], {duration, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'});
+            const done = () => node.classList.remove('flying');
+            animation.onfinish = done;
+            animation.oncancel = done;
+        }
+    }
+
+    /**
+     *  Screen readers: say what just happened, then what to do (only when it changes)
+     */
+    private announce(state: State, fresh: boolean) {
+        const instruction = this.instruction(state);
+        const parts: string[] = [];
+        if (fresh && this.move) parts.push(describeMove(state, this.move.view).text);
+        if (instruction !== this.lastInstruction) parts.push(instruction);
+        this.lastInstruction = instruction;
+        if (parts.length) this.live.textContent = parts.join(' ');
     }
     // endregion
 
@@ -120,6 +306,7 @@ class GameView {
 
     private flash(text: string, kind: 'error' | 'info' = 'info') {
         this.message = {text, kind};
+        (kind === 'error' ? this.alert : this.live).textContent = text;
         window.clearTimeout(this.messageTimer);
         this.messageTimer = window.setTimeout(() => {
             this.message = null;
@@ -144,6 +331,10 @@ class GameView {
             if (!this.mine(state, effect.playerId)) {
                 this.flash(`${state.players[effect.playerId].name} utilise l'effet de: ${effect.cardName}.`, 'error');
             } else if (effect.type === 'QUEEN') {
+                if (player.id !== effect.playerId) {
+                    this.flash('La Dame permet de regarder une de vos propres cartes.', 'error');
+                    return;
+                }
                 this.dispatch({type: 'queenPeek', playerId: effect.playerId, cardId: card.id});
             } else if (effect.type === 'JACK') {
                 if (state.dutchCallerId === player.id && player.id !== effect.playerId) {
@@ -184,11 +375,13 @@ class GameView {
         const current = state.currentPlayerIndex;
         const effect = state.activeEffect;
         const online = state.viewerId !== null;
+        if (state.phase === 'roundOver') return `Fin de la ronde ${state.round}.`;
+        if (state.phase === 'gameOver') return 'Partie terminée.';
         if (state.phase === 'peek') {
-            if (!online) return 'Chaque joueur clique sur « Regarder mes 2 cartes » pendant que les autres détournent les yeux.';
+            if (!online) return 'Chaque joueur clique sur «\u00a0Regarder mes 2 cartes\u00a0» pendant que les autres détournent les yeux.';
             return state.players[state.viewerId!].ready
                 ? 'En attente des autres joueurs…'
-                : 'Cliquez sur « Regarder mes 2 cartes » pour commencer.';
+                : 'Cliquez sur «\u00a0Regarder mes 2 cartes\u00a0» pour commencer.';
         }
         if (effect) {
             const who = this.nameOf(state, effect.playerId);
@@ -223,28 +416,70 @@ class GameView {
                     ? `${who} : cliquez sur la carte de votre main à remplacer.`
                     : `${who} : cliquez sur une carte de votre main pour l'échanger, ou jetez la carte piochée.`;
             case 'played':
-                return `${who} : terminez votre tour ou dites « Dutch ».` + throwHint;
+                return `${who} : terminez votre tour ou dites «\u00a0Dutch\u00a0».` + throwHint;
             default:
                 return '';
         }
     }
 
+    /**
+     *  Big line on top: whose turn it is (or which effect is being used)
+     */
+    private renderTurn(state: State): HTMLElement {
+        const effect = state.activeEffect;
+        if (state.phase === 'peek') return el('p', {class: 'turn-banner'}, icon('eye'), 'Mémorisez vos cartes');
+        if (state.phase === 'roundOver' || state.phase === 'gameOver') return el('p', {class: 'turn-banner'}, icon('info'), 'Fin de la ronde');
+        if (effect) {
+            const mine = state.viewerId !== null && state.viewerId === effect.playerId;
+            return el('p', {class: 'turn-banner effect'}, icon('star'),
+                mine ? `À vous : effet ${effect.cardName}` : `${state.players[effect.playerId].name} : effet ${effect.cardName}`);
+        }
+        const current = state.currentPlayerIndex;
+        if (state.viewerId === current) return el('p', {class: 'turn-banner mine'}, icon('star'), 'À vous de jouer !');
+        return el('p', {class: 'turn-banner'}, icon('next'), `Au tour de ${state.players[current].name}`);
+    }
+
+    /**
+     *  What just happened, in one sentence (always present: the layout does not jump)
+     */
+    private renderMoveFeed(state: State): HTMLElement {
+        if (!this.move) {
+            return el('p', {class: 'move-feed tone-move'}, el('span', {class: 'move-icon'}, icon('info')),
+                el('span', {}, `Ronde ${state.round} : les cartes sont distribuées.`));
+        }
+        const {text, tone, icon: name} = describeMove(state, this.move.view);
+        const elapsed = Math.max(0, performance.now() - this.move.start);
+        return el('p', {
+            class: `move-feed tone-${tone}${elapsed < HIGHLIGHT_MS ? ' active' : ''}`,
+            // The entrance animation resumes where it was when the view is re-rendered
+            style: {animationDelay: `-${Math.round(elapsed)}ms`},
+        }, el('span', {class: 'move-icon'}, icon(name)), el('span', {}, text));
+    }
+
     private renderStatus(state: State): HTMLElement {
         const effect = state.activeEffect;
-        return el('section', {class: 'status panel'},
+        return el('section', {class: 'status panel', tabindex: '-1', 'aria-label': 'Déroulement de la partie'},
             el('div', {class: 'status-line'},
+                this.renderTurn(state),
                 el('span', {class: 'round'}, `Ronde ${state.round}`),
-                state.isFinalRound ? el('span', {class: 'badge dutch'}, `Dernier tour (${state.players[state.dutchCallerId!].name} a dit Dutch)`) : null,
+                state.isFinalRound ? el('span', {class: 'badge dutch'}, `Dernier tour : ${this.nameOf(state, state.dutchCallerId!)} ${state.dutchCallerId === state.viewerId ? 'avez' : 'a'} dit Dutch`) : null,
                 this.debug && this.session.canShowAll ? el('label', {class: 'debug'},
                     el('input', {type: 'checkbox', checked: this.showAll, onchange: (e: Event) => {
                         this.showAll = (e.target as HTMLInputElement).checked;
                         this.session.setShowAll(this.showAll);
                     }}), ' Tout voir (debug)') : null),
-            el('p', {class: 'instruction', 'aria-live': 'polite'}, this.instruction(state)),
+            this.renderMoveFeed(state),
+            el('p', {class: 'instruction'}, this.instruction(state)),
             effect && this.mine(state, effect.playerId) ? el('div', {class: 'effect-actions'},
-                el('button', {class: 'secondary', onclick: () => this.dispatch({type: 'skipEffect', playerId: effect.playerId})},
-                    `Ne pas utiliser l'effet (${effect.cardName})`)) : null,
-            this.message ? el('p', {class: `message ${this.message.kind}`, role: 'alert'}, this.message.text) : null);
+                el('button', {class: 'secondary', 'data-key': 'skip-effect', onclick: () => this.dispatch({type: 'skipEffect', playerId: effect.playerId})},
+                    icon('skip'), `Ne pas utiliser l'effet (${effect.cardName})`)) : null);
+    }
+
+    /** Ring + tag for a card of the last move */
+    private moveMark(cardId: string) {
+        const move = this.activeMove;
+        const mark = move ? cardTag(move.view, cardId) : null;
+        return mark ? {tag: mark.tag, highlight: {tone: mark.tone, elapsed: Math.round(move!.elapsed)}} : {};
     }
 
     private renderCenter(state: State): HTMLElement {
@@ -253,20 +488,23 @@ class GameView {
         const canDraw = state.phase === 'draw' && !state.activeEffect && myTurn;
         const top = state.topDiscard ? toCard(state.topDiscard) : null;
 
-        const drawPile = el('div', {class: 'pile'},
-            renderCard(null, {
-                clickable: canDraw && state.deckRemaining > 0,
-                title: 'Piocher',
+        const drawPile = el('div', {class: `pile draw${state.deckRemaining > 1 ? ' stacked' : ''}`},
+            state.deckRemaining > 0 ? renderCard(null, {
+                clickable: canDraw,
+                label: canDraw ? 'Piocher' : 'Pioche',
+                key: 'draw-pile',
                 onClick: myTurn ? () => this.dispatch({type: 'drawFromPile', playerId: current}) : undefined,
-            }),
-            el('span', {class: 'pile-label'}, `Pioche (${state.deckRemaining})`));
+            }) : el('div', {class: 'card empty', 'data-key': 'draw-pile'}),
+            el('span', {class: 'pile-label'}, 'Pioche ', el('span', {class: 'count'}, String(state.deckRemaining))));
 
         const discardPile = el('div', {class: 'pile'},
             top ? renderCard(top, {
                 faceUp: true,
                 clickable: canDraw,
-                title: 'Prendre la carte du rejet',
+                label: canDraw ? 'Prendre la carte du rejet' : 'Rejet',
+                key: 'discard-pile',
                 onClick: myTurn ? () => this.dispatch({type: 'takeDiscard', playerId: current}) : undefined,
+                ...this.moveMark(top.id),
             }) : el('div', {class: 'card empty'}),
             el('span', {class: 'pile-label'}, 'Rejet'));
 
@@ -274,14 +512,30 @@ class GameView {
         const drawnCard = drawn ? toCard(drawn.card) : null;
         const drawnArea = drawn
             ? el('div', {class: 'pile drawn'},
-                renderCard(drawnCard, {faceUp: !!drawnCard}),
-                el('span', {class: 'pile-label'}, state.viewerId === current ? 'Votre carte' : `Carte de ${state.players[current].name}`),
+                renderCard(drawnCard, {
+                    faceUp: !!drawnCard,
+                    id: drawn.card.id,
+                    label: 'Carte en main',
+                    ...this.moveMark(drawn.card.id),
+                }),
+                el('span', {class: 'pile-label'}, state.viewerId === current ? 'Votre carte' : `Carte ${de(state.players[current].name)}`),
                 drawn.source === 'pile' && myTurn
-                    ? el('button', {id: 'discard-drawn', onclick: () => this.dispatch({type: 'discardDrawn', playerId: current})}, 'Jeter')
+                    ? el('button', {id: 'discard-drawn', 'data-key': 'discard-drawn', onclick: () => this.dispatch({type: 'discardDrawn', playerId: current})},
+                        icon('discard'), 'Jeter')
                     : null)
             : null;
 
-        return el('section', {class: 'center'}, drawPile, discardPile, drawnArea);
+        return el('section', {class: 'center', 'aria-label': 'Pioche et rejet'}, drawPile, discardPile, drawnArea);
+    }
+
+    /** Label of a card of a hand for screen readers: what clicking it does */
+    private handCardAction(state: State, player: PlayerView, clickable: boolean, selected: boolean): string | undefined {
+        if (!clickable) return undefined;
+        const effect = state.activeEffect;
+        if (effect?.type === 'QUEEN') return 'Regarder';
+        if (effect?.type === 'JACK') return selected ? 'Annuler la sélection' : this.selectedCardId ? 'Échanger avec la carte choisie' : 'Choisir pour l\'échange';
+        if (state.phase === 'drawn' && player.id === state.currentPlayerIndex) return 'Remplacer par la carte en main';
+        return 'Jeter sur le rejet';
     }
 
     private renderPlayer(state: State, player: PlayerView): HTMLElement {
@@ -291,13 +545,19 @@ class GameView {
         const immune = state.dutchCallerId === player.id;
         const mine = this.mine(state, player.id);
         const effectMine = !!effect && this.mine(state, effect.playerId);
+        const isViewer = state.viewerId === player.id;
+        const move = this.activeMove;
 
         const classes = ['player', 'panel'];
         if (isCurrent) classes.push('current');
         if (immune) classes.push('immune');
         if (effect?.playerId === player.id) classes.push('effect-owner');
-        if (state.viewerId === player.id) classes.push('me');
+        if (isViewer) classes.push('me');
         if (!player.connected) classes.push('offline');
+        // Players concerned by the last move flash briefly
+        if (move && move.view.type !== 'endTurn' && (move.view.playerId === player.id || move.view.playerIds.includes(player.id))) {
+            classes.push('touched', `tone-${describeMove(state, move.view).tone}`);
+        }
 
         const handClickable = running && (
             (effectMine && effect?.type === 'QUEEN' && effect.playerId === player.id)
@@ -306,16 +566,22 @@ class GameView {
             || (!effect && mine && player.canThrow));
 
         const hand = el('div', {class: 'hand'},
-            ...player.hand.map(view => {
+            ...player.hand.map((view, i) => {
                 const reveal = this.revealed.get(view.id);
                 const known = toCard(view);
                 const revealCard = reveal ? toCard(reveal.card) : null;
+                const selected = this.selectedCardId === view.id;
+                const mark = this.moveMark(view.id);
                 return renderCard(known ?? revealCard, {
+                    id: view.id,
                     faceUp: !!known,
                     revealElapsed: !known && revealCard ? Math.min(performance.now() - reveal!.start, REVEAL_MS) : undefined,
                     revealDuration: REVEAL_MS,
-                    selected: this.selectedCardId === view.id,
+                    selected: effect?.type === 'JACK' && handClickable ? selected : undefined,
                     clickable: handClickable,
+                    label: [this.handCardAction(state, player, handClickable, selected), `carte ${i + 1} ${isViewer ? 'de vous' : de(player.name)}`].filter(Boolean).join(' : '),
+                    tag: selected ? 'Choisie' : mark.tag,
+                    highlight: selected ? {tone: 'effect', elapsed: 0} : mark.highlight,
                     onClick: () => this.onHandCardClick(state, player, view),
                 });
             }));
@@ -323,34 +589,57 @@ class GameView {
 
         const actions = el('div', {class: 'actions'});
         if (state.phase === 'peek' && !player.ready && mine) {
-            actions.appendChild(el('button', {class: 'peek', onclick: () => this.dispatch({type: 'peek', playerId: player.id})}, 'Regarder mes 2 cartes'));
+            actions.appendChild(el('button', {class: 'primary peek', 'data-key': `peek-${player.id}`, onclick: () => this.dispatch({type: 'peek', playerId: player.id})},
+                icon('eye'), 'Regarder mes 2 cartes'));
         }
         if (isCurrent && !effect && mine) {
-            actions.appendChild(el('button', {
-                class: 'end-turn',
-                disabled: !state.canEndTurn,
-                onclick: () => this.dispatch({type: 'endTurn', playerId: player.id, dutch: false}),
-            }, 'Fin du tour'));
-            if (!state.isFinalRound) {
+            if (this.confirmDutch) {
+                actions.append(
+                    el('p', {class: 'confirm-text'}, 'Dire «\u00a0Dutch\u00a0» ? Les autres joueurs jouent un dernier tour.'),
+                    el('button', {class: 'secondary', 'data-key': 'cancel-dutch', onclick: () => {
+                        this.confirmDutch = false;
+                        this.pendingFocus = 'dutch';
+                        this.render();
+                    }}, 'Annuler'),
+                    el('button', {class: 'dutch-button', 'data-key': 'confirm-dutch', onclick: () => {
+                        this.confirmDutch = false;
+                        this.dispatch({type: 'endTurn', playerId: player.id, dutch: true});
+                    }}, icon('dutch'), 'Oui, Dutch !'));
+            } else {
+                if (!state.isFinalRound) {
+                    actions.appendChild(el('button', {
+                        class: 'dutch-button',
+                        'data-key': 'dutch',
+                        disabled: !state.canEndTurn,
+                        onclick: () => {
+                            this.confirmDutch = true;
+                            this.pendingFocus = 'confirm-dutch';
+                            this.render();
+                        },
+                    }, icon('dutch'), 'Dutch !'));
+                }
                 actions.appendChild(el('button', {
-                    class: 'dutch-button',
+                    class: 'primary end-turn',
+                    'data-key': 'end-turn',
                     disabled: !state.canEndTurn,
-                    onclick: () => this.dispatch({type: 'endTurn', playerId: player.id, dutch: true}),
-                }, 'Dutch !'));
+                    onclick: () => this.dispatch({type: 'endTurn', playerId: player.id, dutch: false}),
+                }, 'Fin du tour', icon('next')));
             }
         }
         if (effect?.type === 'ACE' && effectMine && !immune) {
             actions.appendChild(el('button', {
-                class: 'give',
+                class: 'primary give',
+                'data-key': `give-${player.id}`,
                 onclick: () => this.dispatch({type: 'aceGive', playerId: effect.playerId, targetId: player.id}),
-            }, 'Donner une carte'));
+            }, icon('gift'), isViewer || (state.viewerId === null && player.id === effect.playerId) ? 'Me donner une carte' : `Donner une carte à ${player.name}`));
         }
 
-        return el('div', {class: classes.join(' '), id: `player-${player.id}`},
+        return el('div', {class: classes.join(' '), id: `player-${player.id}`, role: 'group', 'aria-label': isViewer ? `${player.name} (vous)` : player.name},
             el('header', {},
-                el('h2', {}, player.name, state.viewerId === player.id ? el('small', {}, ' (vous)') : null),
+                el('span', {class: 'avatar', 'aria-hidden': 'true', style: {background: seatColor(player.id)}}, initial(player.name)),
+                el('h2', {}, player.name, isViewer ? el('small', {}, ' (vous)') : null),
                 el('span', {class: 'score'}, `${player.score} pts`),
-                isCurrent ? el('span', {class: 'badge turn'}, 'À son tour') : null,
+                isCurrent ? el('span', {class: 'badge turn'}, isViewer ? 'À vous' : 'À son tour') : null,
                 immune ? el('span', {class: 'badge dutch'}, 'Dutch · protégé') : null,
                 player.locked ? el('span', {class: 'badge locked'}, 'Bloqué ce tour') : null,
                 state.phase === 'peek' && player.ready ? el('span', {class: 'badge turn'}, 'Prêt') : null,
@@ -361,17 +650,19 @@ class GameView {
 
     private renderScores(state: State): HTMLElement {
         const rounds = Math.max(0, ...state.players.map(p => p.roundScores.length));
+        const best = Math.min(...state.players.map(p => p.score));
         return el('section', {class: 'scores panel'},
-            el('h3', {}, `Scores (fin à ${state.targetScore})`),
-            el('table', {},
+            el('h3', {}, 'Scores ', el('small', {}, `fin à ${state.targetScore}`)),
+            el('div', {class: 'table-scroll'}, el('table', {},
                 el('thead', {}, el('tr', {},
-                    el('th', {}, 'Joueur'),
-                    ...Array.from({length: rounds}, (_, i) => el('th', {}, `R${i + 1}`)),
-                    el('th', {}, 'Total'))),
-                el('tbody', {}, ...state.players.map(p => el('tr', {},
-                    el('td', {}, p.name),
+                    el('th', {scope: 'col'}, 'Joueur'),
+                    ...Array.from({length: rounds}, (_, i) => el('th', {scope: 'col'}, `R${i + 1}`)),
+                    el('th', {scope: 'col'}, 'Total'))),
+                el('tbody', {}, ...state.players.map(p => el('tr', {class: p.id === state.viewerId ? 'me' : ''},
+                    el('th', {scope: 'row'}, p.name),
                     ...p.roundScores.map(s => el('td', {}, s)),
-                    el('td', {class: 'total'}, p.score))))));
+                    el('td', {class: 'total'}, p.score,
+                        rounds > 0 && p.score === best ? el('span', {class: 'lead'}, icon('star'), el('span', {class: 'sr-only'}, ' (en tête)')) : null)))))));
     }
 
     /**
@@ -381,13 +672,19 @@ class GameView {
         const entries = state.log.slice().reverse();
         return el('section', {class: 'log panel'},
             el('h3', {}, 'Journal'),
-            el('ol', {}, ...entries.map((entry: LogEntry) => el('li', {class: entry.kind}, entry.message))));
+            el('ol', {tabindex: '0', 'aria-label': 'Journal de la partie, du plus récent au plus ancien'},
+                ...entries.map((entry: LogEntry) => {
+                    const name = LOG_ICONS[entry.kind];
+                    return el('li', {class: entry.kind},
+                        name ? icon(name) : el('span', {class: 'dot', 'aria-hidden': 'true'}),
+                        el('span', {}, entry.message));
+                })));
     }
 
     private renderRoundResult(state: State): HTMLElement {
         const result = state.lastResult!;
         const caller = result.dutchCallerId !== null ? state.players[result.dutchCallerId] : null;
-        const winners = result.winners.map(id => state.players[id].name).join(' et ');
+        const lowest = Math.min(...result.scores.map(s => s.points));
 
         let button: HTMLElement;
         if (!this.session.isHost) {
@@ -401,25 +698,48 @@ class GameView {
                 class: 'primary',
                 id: 'next-round',
                 onclick: () => this.dispatch({type: 'nextRound', playerId: state.viewerId ?? 0}),
-            }, 'Ronde suivante');
+            }, 'Ronde suivante', icon('next'));
         }
 
-        return el('div', {class: 'overlay'},
-            el('section', {class: 'result panel', role: 'dialog', 'aria-modal': 'true'},
-                el('h2', {}, result.gameOver ? `🏆 ${winners} gagne${result.winners.length > 1 ? 'nt' : ''} !` : `Fin de la ronde ${result.round}`),
-                caller ? el('p', {}, `${caller.name} a dit Dutch.`) : null,
-                el('table', {},
+        let title = `Fin de la ronde ${result.round}`;
+        if (result.gameOver) {
+            const names = result.winners.map(id => this.nameOf(state, id)).join(' et ');
+            if (result.winners.length > 1) title = `${names} gagnent la partie !`;
+            else if (result.winners[0] === state.viewerId) title = 'Vous gagnez la partie !';
+            else title = `${names} gagne la partie !`;
+        }
+
+        return el('div', {class: 'overlay', 'data-result': `${result.round}-${result.gameOver}`},
+            el('section', {class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'result-title', tabindex: '-1'},
+                el('h2', {id: 'result-title'}, result.gameOver ? icon('star') : null, title),
+                caller ? el('p', {}, `${this.nameOf(state, caller.id)} ${caller.id === state.viewerId ? 'avez' : 'a'} dit Dutch.`) : null,
+                el('div', {class: 'table-scroll'}, el('table', {},
                     el('thead', {}, el('tr', {},
-                        el('th', {}, 'Joueur'), el('th', {}, 'Main'), el('th', {}, 'Points'), el('th', {}, 'Pénalité'), el('th', {}, 'Total'))),
-                    el('tbody', {}, ...result.scores.map(s => el('tr', {},
-                        el('td', {}, state.players[s.playerId].name),
+                        el('th', {scope: 'col'}, 'Joueur'), el('th', {scope: 'col'}, 'Main'), el('th', {scope: 'col'}, 'Points'),
+                        el('th', {scope: 'col'}, 'Pénalité'), el('th', {scope: 'col'}, 'Total'))),
+                    el('tbody', {}, ...result.scores.map(s => el('tr', {class: s.points === lowest ? 'best' : ''},
+                        el('th', {scope: 'row'}, state.players[s.playerId].name),
                         el('td', {class: 'result-hand'}, ...s.hand.map(card => renderCard(toCard(card), {faceUp: true, small: true}))),
-                        el('td', {}, s.points),
+                        el('td', {}, s.points, s.points === lowest ? el('span', {class: 'sr-only'}, ' (meilleure main)') : null),
                         el('td', {}, s.penalty ? `+${s.penalty}` : ''),
-                        el('td', {class: 'total'}, s.total))))),
+                        el('td', {class: 'total'}, s.total)))))),
                 button));
     }
     // endregion
+}
+
+function isFocusable(node: HTMLElement): boolean {
+    if ((node as HTMLButtonElement).disabled) return false;
+    return node.tabIndex >= 0 || node.getAttribute('tabindex') === '-1';
+}
+
+function initial(name: string): string {
+    return (name.trim()[0] ?? '?').toUpperCase();
+}
+
+/** A distinct, dark enough color per seat (the white initial on it stays readable) */
+function seatColor(id: number): string {
+    return `hsl(${(id * 67 + 200) % 360} 55% 34%)`;
 }
 
 export default GameView;

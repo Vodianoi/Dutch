@@ -1,5 +1,5 @@
 import Card, {Suit, Value} from './Card.js';
-import Dutch, {EffectType, LogEntry, Phase, RuleError} from './Dutch.js';
+import Dutch, {EffectType, LogEntry, MoveType, Phase, RuleError} from './Dutch.js';
 
 /**
  *  What one player is allowed to see of the game.
@@ -27,6 +27,19 @@ export interface PlayerView {
     hand: CardView[];
 }
 
+/**
+ *  Last move on the table (see Move in Dutch.ts). Only public information:
+ *  card ids and, for thrown / discarded cards, their face.
+ */
+export interface MoveView {
+    seq: number;
+    type: MoveType;
+    playerId: number;
+    playerIds: number[];
+    cardIds: string[];
+    card?: CardView;
+}
+
 export interface RoundResultView {
     round: number;
     dutchCallerId: number | null;
@@ -52,6 +65,7 @@ export interface GameView {
     activeEffect: { type: EffectType; playerId: number; cardName: string } | null;
     players: PlayerView[];
     log: LogEntry[];
+    lastMove: MoveView | null;
     lastResult: RoundResultView | null;
 }
 
@@ -143,6 +157,14 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
             hand: p.hand.map(show),
         })),
         log: game.log.slice(-80),
+        lastMove: game.lastMove ? {
+            seq: game.lastMove.seq,
+            type: game.lastMove.type,
+            playerId: game.lastMove.playerId,
+            playerIds: game.lastMove.playerIds.slice(),
+            cardIds: game.lastMove.cardIds.slice(),
+            ...(game.lastMove.card ? {card: faceUp(game.lastMove.card)} : {}),
+        } : null,
         lastResult: result ? {
             round: result.round,
             dutchCallerId: result.dutchCallerId,

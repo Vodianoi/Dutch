@@ -67,6 +67,7 @@ export class App {
         this.cleanup = [];
         this.dialog?.remove();
         this.dialog = null;
+        this.root.removeAttribute('inert');
         this.view?.destroy();
         this.view = null;
         if (this.session instanceof Host)
@@ -190,11 +191,14 @@ export class App {
     }
     connectionLost(code, name, reason) {
         this.dialog?.remove();
-        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true' }, el('h2', {}, 'Connexion perdue'), el('p', {}, reason), el('p', { class: 'hint' }, 'Si la partie continue chez l\'hôte, vous retrouverez votre place et vos cartes.'), el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, 'Se reconnecter'), el('button', { class: 'secondary', onclick: () => {
+        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title' }, el('h2', { id: 'lost-title' }, 'Connexion perdue'), el('p', {}, reason), el('p', { class: 'hint' }, 'Si la partie continue chez l\'hôte, vous retrouverez votre place et vos cartes.'), el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, 'Se reconnecter'), el('button', { class: 'secondary', onclick: () => {
                 this.forgetToken(code);
                 this.home();
             } }, 'Retour à l\'accueil')));
         document.body.appendChild(this.dialog);
+        // The game behind the dialog can not be used until the connection is back
+        this.root.setAttribute('inert', '');
+        this.dialog.querySelector('#reconnect')?.focus();
     }
     // endregion
     // region Helpers
