@@ -1,3 +1,4 @@
+import {scoped} from '../env.js';
 import {Connection, ConnectionBase, HostTransport, randomCode, TransportError, TransportFactory} from './Transport.js';
 
 /**
@@ -18,7 +19,7 @@ type Packet =
 const HOST = 'host';
 
 function channelName(code: string) {
-    return `dutch-room-${code}`;
+    return scoped(`room-${code}`);
 }
 
 function randomId() {
