@@ -41,7 +41,8 @@ jobs:
           fi
 
       - name: Remove what is not part of the site
-        run: rm -rf _site/.git _site/.github _site/dev/.git _site/dev/.github
+        # The prototypes (proto/, proto3d/) stay on the test version only
+        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github
 
       - uses: actions/configure-pages@v5
 

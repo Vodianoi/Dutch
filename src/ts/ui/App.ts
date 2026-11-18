@@ -1,4 +1,4 @@
-import {IS_DEV, scoped} from '../env.js';
+import {IS_DEV, scoped, TABLE_3D} from '../env.js';
 import Dutch, {DutchOptions, DutchSnapshot, RuleError} from '../Dutch.js';
 import {LocalSession, Session} from '../Session.js';
 import {SoloSession} from '../SoloSession.js';
@@ -69,9 +69,9 @@ export class App {
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
         this.classic = params.has('classic');
-        // `?table=3d` / `?table=2d`: choose the table of this device (kept in its settings)
+        // `?table=3d` / `?table=2d`: choose the table of this device (kept in its settings), test version only
         const table = params.get('table');
-        if (table === '3d' || table === '2d') {
+        if (TABLE_3D && (table === '3d' || table === '2d')) {
             const prefs = loadPrefs();
             prefs.table = table;
             savePrefs(prefs);
@@ -412,16 +412,16 @@ export class App {
         }
         const options: TableOptions = {
             onNewGame, onQuit, quitWarning, debug: this.debug, chatBox: this.chatBox ?? undefined,
-            // Other table chosen in the menu: the same game, drawn by the other table
-            onTableChange: () => {
+            // Other table chosen in the menu: the same game, drawn by the other table (test version only)
+            onTableChange: TABLE_3D ? () => {
                 if (this.session === session) this.showGame(session, onNewGame, onQuit, quitWarning);
-            },
+            } : undefined,
         };
         const flat = () => {
             this.view = new TableView(this.root, session, options);
             this.view.render();
         };
-        if (loadPrefs().table !== '3d') return flat();
+        if (!TABLE_3D || loadPrefs().table !== '3d') return flat();
         // The 3D table (Three.js) is only loaded by the devices that use it
         let cancelled = false;
         const waiting = {render: () => undefined, destroy: () => cancelled = true};
