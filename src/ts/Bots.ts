@@ -1,20 +1,36 @@
-import Card from '../Card.js';
-import Dutch, {RuleError} from '../Dutch.js';
+import Card from './Card.js';
+import Dutch, {EffectType, RuleError} from './Dutch.js';
 
 /**
- *  Simple computer players for the prototype.
+ *  Computer players ("Contre l'ordinateur").
  *  They only use what the engine tells them: a card is known once it was revealed to them.
+ *  Each move waits a little, so that the players see what happens.
  */
+export interface BotOptions {
+    /** Multiplies the waiting times (0 in tests: play as fast as possible) */
+    speed?: number;
+    /** Timer functions (tests can pass their own) */
+    setTimer?: (fn: () => void, ms: number) => unknown;
+    clearTimer?: (handle: unknown) => void;
+}
+
 export class Bots {
     /** Cards each bot has seen (by card id) */
     private readonly known = new Map<number, Set<string>>();
-    private turnTimer: ReturnType<typeof setTimeout> | undefined;
-    private readonly throwTimers = new Map<number, ReturnType<typeof setTimeout>>();
-    private paused = false;
+    private turnTimer: unknown = null;
+    private readonly throwTimers = new Map<number, unknown>();
+    private stopped = false;
+    private readonly speed: number;
+    private readonly setTimer: (fn: () => void, ms: number) => unknown;
+    private readonly clearTimer: (handle: unknown) => void;
+    private readonly unsubscribe: () => void;
 
-    constructor(private readonly game: Dutch, private readonly ids: number[]) {
+    constructor(private readonly game: Dutch, public readonly ids: number[], options: BotOptions = {}) {
+        this.speed = options.speed ?? 1;
+        this.setTimer = options.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
+        this.clearTimer = options.clearTimer ?? (h => clearTimeout(h as ReturnType<typeof setTimeout>));
         for (const id of ids) this.known.set(id, new Set());
-        game.on(event => {
+        this.unsubscribe = game.on(event => {
             if (event.type === 'reveal' && !event.public && ids.includes(event.playerId)) {
                 this.known.get(event.playerId)!.add(event.cardId);
             }
@@ -22,21 +38,27 @@ export class Bots {
     }
 
     public stop() {
-        this.paused = true;
-        clearTimeout(this.turnTimer);
-        this.throwTimers.forEach(t => clearTimeout(t));
+        this.stopped = true;
+        this.unsubscribe();
+        if (this.turnTimer !== null) this.clearTimer(this.turnTimer);
+        this.throwTimers.forEach(t => this.clearTimer(t));
+        this.throwTimers.clear();
     }
 
     /**
-     *  Called after every change: plan the next move of a bot, if one has to act
+     *  To call after every change: plans the next move of a bot, if one has to act
      */
     public schedule() {
-        if (this.paused) return;
-        clearTimeout(this.turnTimer);
+        if (this.stopped) return;
+        if (this.turnTimer !== null) this.clearTimer(this.turnTimer);
+        this.turnTimer = null;
         const who = this.whoActs();
         if (who !== null) {
-            const slow = this.game.phase === 'peek' ? 1600 : 0;
-            this.turnTimer = setTimeout(() => this.act(who), slow + 850 + Math.random() * 650);
+            const wait = (this.game.phase === 'peek' ? 2400 : 0) + 850 + Math.random() * 650;
+            this.turnTimer = this.setTimer(() => {
+                this.turnTimer = null;
+                this.act(who);
+            }, wait * this.speed);
         }
         this.planThrows();
     }
@@ -60,6 +82,7 @@ export class Bots {
     }
 
     private act(id: number) {
+        if (this.stopped) return;
         const g = this.game;
         try {
             if (g.phase === 'peek') return void g.peek(id);
@@ -70,7 +93,8 @@ export class Bots {
             if (g.phase === 'draw') {
                 if (g.isStuck) return g.endTurn(id);
                 const top = g.deck.topDiscard;
-                const useful = top && top.points <= 2 && (unknown.length > 0 || (worst && worst.points > top.points + 2));
+                const useful = top && g.players[id].cards.length > 0 && top.points <= 2
+                    && (unknown.length > 0 || (worst && worst.points > top.points + 2));
                 return void (useful ? g.takeDiscard(id) : g.drawFromPile(id));
             }
             if (g.phase === 'drawn' && g.drawn) {
@@ -88,11 +112,11 @@ export class Bots {
             }
         } catch (e) {
             if (!(e instanceof RuleError)) throw e;
-            console.warn('Bot', id, e.message);
+            // The state moved on in the meantime: the next change plans again
         }
     }
 
-    private useEffect(id: number, type: 'JACK' | 'QUEEN' | 'ACE') {
+    private useEffect(id: number, type: EffectType) {
         const g = this.game;
         const {known, unknown} = this.mine(id);
         const others = g.players.filter(p => p.id !== id && !g.isImmune(p.id) && p.cards.length > 0);
@@ -103,8 +127,8 @@ export class Bots {
             return g.jackSwap(id, give.id, pick(pick(others).cards).id);
         }
         if (type === 'ACE' && others.length) {
-            // Give the card to the player with the fewest cards
-            const target = others.sort((a, b) => a.cards.length - b.cards.length)[0];
+            // The player with the fewest cards gets one more
+            const target = others.slice().sort((a, b) => a.cards.length - b.cards.length)[0];
             return g.aceGive(id, target.id);
         }
         g.skipEffect(id);
@@ -120,9 +144,9 @@ export class Bots {
             if (this.throwTimers.has(id) || !top || !g.canThrow(id)) continue;
             const match = this.mine(id).known.find(c => c.matches(top));
             if (!match) continue;
-            this.throwTimers.set(id, setTimeout(() => {
+            this.throwTimers.set(id, this.setTimer(() => {
                 this.throwTimers.delete(id);
-                if (this.paused) return;
+                if (this.stopped) return;
                 if (g.canThrow(id) && g.deck.topDiscard?.matches(match) && g.players[id].hasCard(match.id)) {
                     try {
                         g.throwCard(id, match.id);
@@ -130,7 +154,7 @@ export class Bots {
                         if (!(e instanceof RuleError)) throw e;
                     }
                 }
-            }, 700 + Math.random() * 1100));
+            }, (700 + Math.random() * 1100) * this.speed));
         }
     }
 }

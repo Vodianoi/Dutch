@@ -1,43 +1,34 @@
-import {Texture} from 'pixi.js';
-import Card, {Suit, Value} from '../Card.js';
-
+import { Texture } from 'pixi.js';
 /**
  *  Everything drawn for the prototype: card faces and back, shadows, glows, the table.
  *  Drawn once with the 2D canvas and turned into textures: no image file to load.
  */
-
 /** Size of a card texture, in pixels (shown smaller: kept sharp on high density screens) */
 export const CW = 240;
 export const CH = 336;
 const RADIUS = 18;
-
 export const SERIF = '"Playfair Display", Georgia, serif';
 export const SANS = 'Outfit, system-ui, sans-serif';
-
 const RED = '#c4202f';
 const BLACK = '#1c1c26';
-
-const SYMBOLS: Record<Suit, string> = {HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠'};
-const RANKS: Record<Value, string> = {
+const SYMBOLS = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' };
+const RANKS = {
     ACE: 'A', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
     '8': '8', '9': '9', '10': '10', JACK: 'V', QUEEN: 'D', KING: 'R',
 };
-const COURT: Partial<Record<Value, string>> = {JACK: 'VALET', QUEEN: 'DAME', KING: 'ROI'};
-
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+const COURT = { JACK: 'VALET', QUEEN: 'DAME', KING: 'ROI' };
+function canvas(w, h) {
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
-    return [c, c.getContext('2d')!];
+    return [c, c.getContext('2d')];
 }
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, r);
 }
-
 /** Classic positions of the pips: column (0 left, 1 middle, 2 right), row from 0 (top) to 1 (bottom) */
-const PIPS: Record<string, [number, number][]> = {
+const PIPS = {
     '2': [[1, 0], [1, 1]],
     '3': [[1, 0], [1, .5], [1, 1]],
     '4': [[0, 0], [2, 0], [0, 1], [2, 1]],
@@ -48,8 +39,7 @@ const PIPS: Record<string, [number, number][]> = {
     '9': [[0, 0], [2, 0], [0, 1 / 3], [2, 1 / 3], [1, .5], [0, 2 / 3], [2, 2 / 3], [0, 1], [2, 1]],
     '10': [[0, 0], [2, 0], [1, 1 / 6], [0, 1 / 3], [2, 1 / 3], [0, 2 / 3], [2, 2 / 3], [1, 5 / 6], [0, 1], [2, 1]],
 };
-
-function paper(ctx: CanvasRenderingContext2D) {
+function paper(ctx) {
     const g = ctx.createLinearGradient(0, 0, CW, CH);
     g.addColorStop(0, '#fffefa');
     g.addColorStop(1, '#efe9db');
@@ -60,19 +50,18 @@ function paper(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = 'rgba(40, 30, 20, .22)';
     ctx.stroke();
 }
-
-function symbol(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, flip = false) {
+function symbol(ctx, text, x, y, size, flip = false) {
     ctx.save();
     ctx.translate(x, y);
-    if (flip) ctx.rotate(Math.PI);
+    if (flip)
+        ctx.rotate(Math.PI);
     ctx.font = `${size}px ${SERIF}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, 0, 0);
     ctx.restore();
 }
-
-function corner(ctx: CanvasRenderingContext2D, rank: string, suit: string) {
+function corner(ctx, rank, suit) {
     for (const flip of [false, true]) {
         ctx.save();
         if (flip) {
@@ -88,19 +77,18 @@ function corner(ctx: CanvasRenderingContext2D, rank: string, suit: string) {
         ctx.restore();
     }
 }
-
-function face(card: Card): HTMLCanvasElement {
+function face(card) {
     const [c, ctx] = canvas(CW, CH);
     paper(ctx);
     const color = card.isRed ? RED : BLACK;
     const suit = SYMBOLS[card.suit];
     ctx.fillStyle = color;
     corner(ctx, RANKS[card.value], suit);
-
     const court = COURT[card.value];
     if (card.value === 'ACE') {
         symbol(ctx, suit, CW / 2, CH / 2, 150);
-    } else if (court) {
+    }
+    else if (court) {
         // Court card: a framed panel with the initial (no portrait art)
         const x = 58, y = 58, w = CW - 116, h = CH - 116;
         const g = ctx.createLinearGradient(0, y, 0, y + h);
@@ -135,7 +123,8 @@ function face(card: Card): HTMLCanvasElement {
             ctx.font = `700 15px ${SANS}`;
             ctx.fillText('0 PT', CW / 2, y + 75);
         }
-    } else {
+    }
+    else {
         const left = 72, right = CW - 72, top = 74, bottom = CH - 74;
         for (const [col, row] of PIPS[card.value]) {
             const x = left + (right - left) * col / 2;
@@ -145,14 +134,19 @@ function face(card: Card): HTMLCanvasElement {
     }
     return c;
 }
-
-function back(): HTMLCanvasElement {
+export const BACK_COLORS = {
+    red: { name: 'Bordeaux', light: '#8e1f30', dark: '#5a0f1d', seal: '#6d1424' },
+    blue: { name: 'Marine', light: '#24427a', dark: '#101f40', seal: '#172d57' },
+    black: { name: 'Ébène', light: '#34343a', dark: '#121214', seal: '#1d1d21' },
+};
+function back(color) {
+    const colors = BACK_COLORS[color];
     const [c, ctx] = canvas(CW, CH);
     paper(ctx);
     const m = 12;
     const g = ctx.createLinearGradient(0, 0, CW, CH);
-    g.addColorStop(0, '#8e1f30');
-    g.addColorStop(1, '#5a0f1d');
+    g.addColorStop(0, colors.light);
+    g.addColorStop(1, colors.dark);
     roundRect(ctx, m, m, CW - 2 * m, CH - 2 * m, RADIUS - 6);
     ctx.fillStyle = g;
     ctx.fill();
@@ -177,7 +171,7 @@ function back(): HTMLCanvasElement {
     // Monogram
     ctx.beginPath();
     ctx.ellipse(CW / 2, CH / 2, 50, 64, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#6d1424';
+    ctx.fillStyle = colors.seal;
     ctx.fill();
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#e9c46a';
@@ -189,9 +183,8 @@ function back(): HTMLCanvasElement {
     ctx.fillText('D', CW / 2, CH / 2 + 4);
     return c;
 }
-
 /** Soft shape around a card: a shadow (black) or a glow (colour) */
-function halo(color: string, blur: number, pad: number, alpha: number, grow = 0): HTMLCanvasElement {
+function halo(color, blur, pad, alpha, grow = 0) {
     const [c, ctx] = canvas(CW + 2 * pad, CH + 2 * pad);
     ctx.shadowColor = color;
     ctx.shadowBlur = blur;
@@ -203,8 +196,7 @@ function halo(color: string, blur: number, pad: number, alpha: number, grow = 0)
     ctx.fill();
     return c;
 }
-
-function spark(): HTMLCanvasElement {
+function spark() {
     const [c, ctx] = canvas(32, 32);
     const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
     g.addColorStop(0, 'rgba(255,255,255,1)');
@@ -214,19 +206,10 @@ function spark(): HTMLCanvasElement {
     ctx.fillRect(0, 0, 32, 32);
     return c;
 }
-
-export interface Art {
-    face(card: Card): Texture;
-    back: Texture;
-    shadow: Texture;
-    glow: Texture;
-    spark: Texture;
-}
-
-export function makeArt(): Art {
-    const faces = new Map<string, Texture>();
+export function makeArt(backColor = 'red') {
+    const faces = new Map();
     return {
-        face(card: Card) {
+        face(card) {
             const key = `${card.value}-${card.suit}`;
             let texture = faces.get(key);
             if (!texture) {
@@ -235,35 +218,25 @@ export function makeArt(): Art {
             }
             return texture;
         },
-        back: Texture.from(back()),
+        back: Texture.from(back(backColor)),
         shadow: Texture.from(halo('rgba(0,0,0,1)', 22, 44, .6)),
         // The solid part of the glow goes past the card edge so that it shows at small sizes
         glow: Texture.from(halo('#ffd166', 30, 70, 1, 14)),
         spark: Texture.from(spark()),
     };
 }
-
-export interface TableShape {
-    cx: number;
-    cy: number;
-    rx: number;
-    ry: number;
-}
-
 /**
  *  The room and the table: wooden rail, felt with a little grain, the game name printed on the felt
  */
-export function drawTable(w: number, h: number, shape: TableShape, resolution: number): HTMLCanvasElement {
+export function drawTable(w, h, shape, resolution) {
     const [c, ctx] = canvas(Math.round(w * resolution), Math.round(h * resolution));
     ctx.scale(resolution, resolution);
-    const {cx, cy, rx, ry} = shape;
-
+    const { cx, cy, rx, ry } = shape;
     const room = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * .8);
     room.addColorStop(0, '#2a1f17');
     room.addColorStop(1, '#0a0705');
     ctx.fillStyle = room;
     ctx.fillRect(0, 0, w, h);
-
     const rail = Math.max(10, Math.min(rx, ry) * .07);
     // Shadow of the table on the floor
     ctx.save();
@@ -285,7 +258,6 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
     ctx.strokeStyle = 'rgba(255, 220, 170, .25)';
     ctx.lineWidth = 2;
     ctx.stroke();
-
     // Felt
     ctx.save();
     ctx.beginPath();
@@ -306,7 +278,7 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
         pixels.data[i + 3] = 22;
     }
     n.putImageData(pixels, 0, 0);
-    ctx.fillStyle = ctx.createPattern(noise, 'repeat')!;
+    ctx.fillStyle = ctx.createPattern(noise, 'repeat');
     ctx.fillRect(0, 0, w, h);
     // Inner shadow under the rail
     ctx.beginPath();
@@ -317,7 +289,6 @@ export function drawTable(w: number, h: number, shape: TableShape, resolution: n
     ctx.strokeStyle = 'rgba(0,0,0,.6)';
     ctx.stroke();
     ctx.restore();
-
     // Printed line and name
     ctx.beginPath();
     ctx.ellipse(cx, cy, (rx - rail) * .8, (ry - rail) * .76, 0, 0, Math.PI * 2);
