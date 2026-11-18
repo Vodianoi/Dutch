@@ -3,7 +3,7 @@ import {DutchOptions, EffectType} from '../Dutch.js';
 import {MAX_NAME_LENGTH} from '../net/Protocol.js';
 import {normalizeCode} from '../net/Transport.js';
 import {
-    ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, EFFECT_LABELS, GameSettings, PLAYER_COLORS,
+    ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, describeSettings, EFFECT_LABELS, GameSettings, PLAYER_COLORS,
 } from '../Settings.js';
 import {clear, el} from './dom.js';
 
@@ -248,7 +248,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('div', {class: 'name-row'}, color, nameInput),
                 nameError),
             el('label', {class: 'inline-field'}, 'Contre ', bots),
-            options.element,
+            folded(options),
             el('p', {class: 'hint'}, 'Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.'),
             error,
             el('button', {id: 'start-solo', class: 'primary', onclick: start}, resume ? 'Nouvelle partie' : 'Jouer'));
@@ -314,7 +314,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         return el('div', {class: 'setup-local'},
             el('label', {class: 'inline-field'}, 'Nombre de joueurs ', countSelect),
             names,
-            options.element,
+            folded(options),
             el('p', {class: 'hint'},
                 'Tout le monde joue sur le même écran. ',
                 'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.'),
@@ -362,6 +362,19 @@ function colorButton(initial: string, taken: () => string[], label: string, onPi
     });
     show();
     return button;
+}
+
+/**
+ *  Rules folded under a one-line summary (progressive disclosure): the main action stays in view
+ */
+function folded(options: ReturnType<typeof gameOptions>): HTMLElement {
+    const summary = el('span', {class: 'rules-summary'});
+    const update = () => summary.textContent = describeSettings(options.read()).slice(0, 3).join(' · ');
+    options.element.addEventListener('change', update);
+    update();
+    return el('details', {class: 'rules-details'},
+        el('summary', {}, el('strong', {}, 'Règles'), summary),
+        options.element);
 }
 
 /**

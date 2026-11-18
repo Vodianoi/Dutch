@@ -156,6 +156,31 @@ export const BACK_COLORS: Record<BackColor, { name: string; light: string; dark:
     black: {name: 'Ébène', light: '#34343a', dark: '#121214', seal: '#1d1d21'},
 };
 
+/**
+ *  Face for small cards (opponents' hands): only a big rank and a big suit, readable at 20–40px
+ */
+function compactFace(card: Card): HTMLCanvasElement {
+    const [c, ctx] = canvas(CW, CH);
+    paper(ctx);
+    ctx.fillStyle = card.isRed ? RED : BLACK;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const rank = RANKS[card.value];
+    ctx.font = `900 ${rank.length > 1 ? 120 : 150}px ${SERIF}`;
+    ctx.fillText(rank, CW / 2, CH * .34);
+    ctx.font = `150px ${SERIF}`;
+    ctx.fillText(SYMBOLS[card.suit], CW / 2, CH * .74);
+    if (card.value === 'KING' && card.isRed) {
+        roundRect(ctx, CW - 92, 14, 78, 40, 20);
+        ctx.fillStyle = '#1f7a4d';
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = `800 26px ${SANS}`;
+        ctx.fillText('0', CW - 53, 35);
+    }
+    return c;
+}
+
 function back(color: BackColor): HTMLCanvasElement {
     const colors = BACK_COLORS[color];
     const [c, ctx] = canvas(CW, CH);
@@ -235,6 +260,8 @@ export function smooth(canvas: HTMLCanvasElement): Texture {
 
 export interface Art {
     face(card: Card): Texture;
+    /** Face for cards shown small */
+    compact(card: Card): Texture;
     back: Texture;
     shadow: Texture;
     glow: Texture;
@@ -243,7 +270,17 @@ export interface Art {
 
 export function makeArt(backColor: BackColor = 'red'): Art {
     const faces = new Map<string, Texture>();
+    const compacts = new Map<string, Texture>();
     return {
+        compact(card: Card) {
+            const key = `${card.value}-${card.suit}`;
+            let texture = compacts.get(key);
+            if (!texture) {
+                texture = smooth(compactFace(card));
+                compacts.set(key, texture);
+            }
+            return texture;
+        },
         face(card: Card) {
             const key = `${card.value}-${card.suit}`;
             let texture = faces.get(key);

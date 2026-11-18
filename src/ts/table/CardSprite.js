@@ -41,6 +41,7 @@ export class CardSprite extends Container {
         /** Move to its place, while it runs (or waits for its delay) */
         this.moveTween = null;
         this.hovered = false;
+        this.compact = false;
         this.view = view;
         this.shadow = centered(new Sprite(art.shadow));
         this.glow = centered(new Sprite(art.glow));
@@ -61,9 +62,20 @@ export class CardSprite extends Container {
         if (!view.value || this.view.value === view.value && this.front.texture !== this.art.back)
             return;
         this.view = view;
-        const card = toCard(view);
+        this.drawFace();
+    }
+    drawFace() {
+        const card = toCard(this.view);
         if (card)
-            this.front.texture = this.art.face(card);
+            this.front.texture = this.compact ? this.art.compact(card) : this.art.face(card);
+    }
+    /** Small card: big rank and suit only (switched when the card is placed) */
+    fitFace(scale) {
+        const compact = CW * scale < CardSprite.COMPACT;
+        if (compact === this.compact)
+            return;
+        this.compact = compact;
+        this.drawFace();
     }
     get known() {
         return !!this.view.value;
@@ -131,6 +143,7 @@ export class CardSprite extends Container {
             this.zIndex = target.z;
             this.lift = 0;
             this.fitHitArea(target.scale);
+            this.fitFace(target.scale);
             return;
         }
         // Same place as before: nothing to do, unless the card was moved away from it (dropped after a drag)
@@ -160,6 +173,7 @@ export class CardSprite extends Container {
         });
         gsap.to(this.scale, { x: target.scale, y: target.scale, duration, delay, ease: 'power3.out' });
         this.fitHitArea(target.scale);
+        this.fitFace(target.scale);
         if (distance > 40) {
             gsap.to(this, { lift: 1, duration: duration / 2, delay, yoyo: true, repeat: 1, ease: 'sine.inOut' });
         }
@@ -212,3 +226,5 @@ export class CardSprite extends Container {
         gsap.to(this, { lift: .7, duration: .3, yoyo: true, repeat: 1, delay: .2, ease: 'sine.inOut' });
     }
 }
+/** Below this width (in pixels on screen) the card shows its compact face */
+CardSprite.COMPACT = 48;

@@ -82,8 +82,24 @@ export class CardSprite extends Container {
     public learn(view: CardView) {
         if (!view.value || this.view.value === view.value && this.front.texture !== this.art.back) return;
         this.view = view;
-        const card = toCard(view);
-        if (card) this.front.texture = this.art.face(card);
+        this.drawFace();
+    }
+
+    /** Below this width (in pixels on screen) the card shows its compact face */
+    private static readonly COMPACT = 48;
+    private compact = false;
+
+    private drawFace() {
+        const card = toCard(this.view);
+        if (card) this.front.texture = this.compact ? this.art.compact(card) : this.art.face(card);
+    }
+
+    /** Small card: big rank and suit only (switched when the card is placed) */
+    private fitFace(scale: number) {
+        const compact = CW * scale < CardSprite.COMPACT;
+        if (compact === this.compact) return;
+        this.compact = compact;
+        this.drawFace();
     }
 
     public get known(): boolean {
@@ -154,6 +170,7 @@ export class CardSprite extends Container {
             this.zIndex = target.z;
             this.lift = 0;
             this.fitHitArea(target.scale);
+            this.fitFace(target.scale);
             return;
         }
         // Same place as before: nothing to do, unless the card was moved away from it (dropped after a drag)
@@ -181,6 +198,7 @@ export class CardSprite extends Container {
         });
         gsap.to(this.scale, {x: target.scale, y: target.scale, duration, delay, ease: 'power3.out'});
         this.fitHitArea(target.scale);
+        this.fitFace(target.scale);
         if (distance > 40) {
             gsap.to(this, {lift: 1, duration: duration / 2, delay, yoyo: true, repeat: 1, ease: 'sine.inOut'});
         } else {

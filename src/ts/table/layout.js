@@ -49,13 +49,30 @@ function piles(cx, cy, pileW, heldW) {
     };
 }
 function portraitLayout(w, h, top, order, cols, ui) {
+    // More rows give each opponent more width: keep the number of rows with the biggest cards
+    const k = order.length - 1;
+    const options = [1, 2, 3].filter(rows => rows === 1 ? k <= 3 : rows <= Math.max(1, Math.ceil(k / 2)));
+    let best = null;
+    for (const rows of options) {
+        const layout = portraitRows(w, h, top, order, cols, ui, rows);
+        const score = (l) => (l.seats.get(order[1])?.cw ?? 0) + l.seats.get(order[0]).cw * .35;
+        if (!best || score(layout) > score(best) + .5)
+            best = layout;
+    }
+    return best;
+}
+function portraitRows(w, h, top, order, cols, ui, rows) {
     const pad = 12;
     const others = order.slice(1);
     const k = others.length;
-    const rows = k <= 3 ? 1 : 2;
-    const topCount = rows === 1 ? k : Math.ceil(k / 2);
-    const lowCount = k - topCount;
-    const perRow = Math.max(topCount, lowCount ? lowCount + 1 : 0, 1);
+    // Top row in the middle, lower rows on the sides with an empty middle (the players sit around the table)
+    let perRow = Math.max(1, Math.ceil(k / rows));
+    const lowTotal = () => Math.max(0, k - perRow);
+    const leftCount = () => Math.floor(lowTotal() / 2);
+    const fits = () => rows === 1 || Math.ceil(leftCount() / (rows - 1)) + Math.ceil((lowTotal() - leftCount()) / (rows - 1)) <= perRow - 1 + (lowTotal() ? 0 : 1);
+    while (!fits())
+        perRow++;
+    const topCount = Math.min(k, perRow);
     const slotW = (w - 2 * pad) / perRow;
     const buttonsH = 56 * ui;
     const bannerH = 50;
@@ -82,12 +99,13 @@ function portraitLayout(w, h, top, order, cols, ui) {
             else
                 hi = mid;
         }
-    const { my, opp, r, blockH, arc, pileW, centerH, total } = sizes(lo);
+    const { my, opp, r, blockH, arc, pileW, total } = sizes(lo);
     // Space left: shared between the regions
     const spare = Math.max(0, h - total) / 4;
     const seats = new Map();
     const oppH = handH(opp), oppW = handW(opp, cols);
     const labelW = Math.max(oppW - 2 * r - 8, Math.min(labelWidth(ui), slotW - 2 * r - 14));
+    const firstTop = top + 6 + spare * .5;
     const place = (id, x, blockTop) => {
         const y = blockTop + 2 * r + 6 + oppH / 2;
         seats.set(id, {
@@ -97,23 +115,33 @@ function portraitLayout(w, h, top, order, cols, ui) {
             held: { x, y: y - oppH * .08, cw: opp * 1.12 },
             // Over the cards of the player (the space under the hand is the next region)
             chip: { x, y: y + oppH * .2 },
-            block: { x1: Math.min(x - oppW / 2, x - oppW / 2), y1: blockTop, x2: Math.max(x + oppW / 2, x - oppW / 2 + 2 * r + 8 + labelW), y2: blockTop + blockH },
+            block: { x1: x - oppW / 2, y1: blockTop, x2: Math.max(x + oppW / 2, x - oppW / 2 + 2 * r + 8 + labelW), y2: blockTop + blockH },
         });
     };
-    const firstTop = top + 6 + spare * .5;
-    // Top row, left to right, a little lower on the sides (an arc around the table)
-    const topRow = others.slice(Math.floor(lowCount / 2), Math.floor(lowCount / 2) + topCount);
+    const rowTop = (row) => firstTop + row * (blockH + 8) + (row ? arc : 0);
+    const slotX = (j) => pad + slotW * (j + .5);
+    // Clockwise from the own seat: up the left side (lowest row first, inner seat first), across the top row,
+    // down the right side (outer seat first)
+    const left = others.slice(0, leftCount());
+    const topRow = others.slice(left.length, left.length + topCount);
+    const right = others.slice(left.length + topCount);
+    const lower = rows - 1;
+    const perLeft = lower ? Math.ceil(left.length / lower) : 0;
+    const perRight = lower ? Math.ceil(right.length / lower) : 0;
+    left.forEach((id, i) => {
+        const row = rows - 1 - Math.floor(i / perLeft);
+        const inRow = Math.min(perLeft, left.length - Math.floor(i / perLeft) * perLeft);
+        place(id, slotX(inRow - 1 - (i % perLeft)), rowTop(row));
+    });
     const topSlot = (w - 2 * pad) / Math.max(1, topRow.length);
     topRow.forEach((id, i) => {
         const spread = topRow.length > 1 ? (i / (topRow.length - 1)) * 2 - 1 : 0;
         place(id, pad + topSlot * (i + .5), firstTop + arc * spread * spread);
     });
-    // Lower row: the first players on the left (inner first), the last ones on the right (outer first)
-    const lowTop = firstTop + blockH + 8 + arc;
-    const left = others.slice(0, Math.floor(lowCount / 2));
-    const right = others.slice(Math.floor(lowCount / 2) + topCount);
-    left.forEach((id, j) => place(id, pad + slotW * (left.length - 1 - j + .5), lowTop));
-    right.forEach((id, j) => place(id, w - pad - slotW * (j + .5), lowTop));
+    right.forEach((id, i) => {
+        const row = 1 + Math.floor(i / perRight);
+        place(id, slotX(perRow - 1 - (i % perRight)), rowTop(row));
+    });
     const oppBottom = Math.max(top, ...[...seats.values()].map(s => s.block.y2));
     const centerTop = oppBottom + spare;
     const pilesY = centerTop + bannerH + pileW * RATIO / 2;

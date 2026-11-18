@@ -2142,3 +2142,122 @@ button.chat-send {
     pointer-events: none;
     white-space: nowrap;
 }
+
+/* region Menus: folded rules, entrance and press feedback */
+.rules-details {
+    margin: 12px 0;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, .18);
+}
+
+.rules-details > summary {
+    list-style: none;
+    cursor: pointer;
+    min-height: 48px;
+    padding: 10px 44px 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    position: relative;
+}
+
+.rules-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Chevron drawn in CSS: turns when the rules open */
+.rules-details > summary::after {
+    content: '';
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
+    transform: translateY(-70%) rotate(45deg);
+    transition: transform 200ms var(--ease-out);
+}
+
+.rules-details[open] > summary::after {
+    transform: translateY(-30%) rotate(-135deg);
+}
+
+.rules-details > summary strong {
+    color: var(--gold);
+    font-family: var(--font-display);
+    font-size: 17px;
+}
+
+.rules-summary {
+    color: var(--cream-muted);
+    font-size: 14px;
+}
+
+.rules-details > summary:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 14px;
+}
+
+.rules-details .game-options {
+    border: 0;
+    margin: 0;
+    padding: 0 14px 14px;
+}
+
+.rules-details .game-options > legend {
+    display: none;
+}
+
+/* Screens come in softly, from below */
+@keyframes rise-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+.panel {
+    animation: rise-in 280ms var(--ease-out) both;
+}
+
+.menu-panel, .chat-drawer {
+    animation: rise-in 220ms var(--ease-out) both;
+}
+
+.overlay {
+    animation: fade-in 180ms ease-out both;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+}
+
+/* Press feedback on every button, without moving the layout */
+button {
+    transition: transform 120ms var(--ease-out), filter 120ms ease-out, background-color 160ms ease-out;
+}
+
+button:active:not(:disabled) {
+    transform: scale(.97);
+}
+
+button:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
+
+.tab {
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel, .menu-panel, .chat-drawer, .overlay {
+        animation: none;
+    }
+
+    button, .rules-details > summary::after {
+        transition: none;
+    }
+}
+/* endregion Menus */
