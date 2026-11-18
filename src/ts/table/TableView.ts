@@ -942,8 +942,7 @@ export class TableView {
             if (!drag.canDrag || Math.hypot(e.global.x - drag.start.x, e.global.y - drag.start.y) < 8) return;
             drag.moved = true;
             this.throwPick = null;
-            gsap.killTweensOf(drag.sprite);
-            gsap.killTweensOf(drag.sprite.scale);
+            drag.sprite.pickUp();
             drag.sprite.zIndex = 3000;
             gsap.to(drag.sprite, {lift: 1, duration: .15});
             const big = Math.max(this.layout.seats.get(this.bottomId())!.cw, this.layout.pileW) / CW * 1.05;
