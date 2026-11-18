@@ -817,6 +817,22 @@ export class TableView {
     }
     // endregion
     // region Score panel
+    /** Victory: paper confetti falling over the table */
+    confetti() {
+        const L = this.layout;
+        const colors = [0xffd166, 0xef476f, 0x06d6a0, 0x118ab2, 0xf6ead0, 0xc8323c];
+        sfx.dutch();
+        for (let i = 0; i < 90; i++) {
+            const piece = new Graphics().rect(-4, -7, 8, 14).fill(colors[i % colors.length]);
+            piece.position.set(Math.random() * L.w, -20 - Math.random() * L.h * .3);
+            piece.rotation = Math.random() * Math.PI;
+            this.fxLayer.addChild(piece);
+            const fall = 2.2 + Math.random() * 1.6;
+            gsap.to(piece, { y: L.h + 30, x: piece.x + (Math.random() - .5) * 160, rotation: piece.rotation + (Math.random() - .5) * 12,
+                duration: fall, delay: Math.random() * .8, ease: 'power1.in', onComplete: () => dispose(piece) });
+            gsap.to(piece.scale, { x: -1, duration: .25 + Math.random() * .3, repeat: Math.ceil(fall / .4), yoyo: true, ease: 'sine.inOut' });
+        }
+    }
     hidePanel() {
         if (!this.panel)
             return;
@@ -889,6 +905,8 @@ export class TableView {
         this.fxLayer.addChild(p);
         this.panel = p;
         this.live.textContent = `${title}. ${result.scores.map(r => `${s.players[r.playerId].name} ${r.total}`).join(', ')}`;
+        if (!instant && result.gameOver && (s.viewerId === null || result.winners.includes(s.viewerId)))
+            this.confetti();
         if (!instant) {
             gsap.from(dim, { alpha: 0, duration: .3 });
             gsap.from(box.scale, { x: .8, y: .8, duration: .35, ease: 'back.out(1.8)' });
