@@ -4,7 +4,7 @@ import Card from '../Card.js';
 import Dutch, {RuleError} from '../Dutch.js';
 import {loadSetup} from '../ui/SetupView.js';
 import {Art, CH, CW, drawTable, makeArt, SANS, SERIF, TableShape} from './art.js';
-import {Bots} from './bots.js';
+import {Bots} from '../Bots.js';
 import {isMuted, setMuted, sfx, unlockAudio} from './sound.js';
 
 /**

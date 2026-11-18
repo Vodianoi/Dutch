@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import Dutch, { RuleError } from '../Dutch.js';
 import { loadSetup } from '../ui/SetupView.js';
 import { CH, CW, drawTable, makeArt, SANS, SERIF } from './art.js';
-import { Bots } from './bots.js';
+import { Bots } from '../Bots.js';
 import { isMuted, setMuted, sfx, unlockAudio } from './sound.js';
 /**
  *  PixiJS prototype of the game screen: a real card table drawn with WebGL.
