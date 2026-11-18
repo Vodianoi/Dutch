@@ -2129,3 +2129,11 @@ button.chat-send {
     min-height: 120px;
 }
 /* endregion Chat and emotes */
+
+:root {
+    --font-emoji: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+}
+
+.emote-button, .chat-line.emote .chat-text, .table-emote-button {
+    font-family: var(--font-emoji);
+}

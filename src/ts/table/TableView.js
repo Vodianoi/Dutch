@@ -3,7 +3,7 @@ import { gsap } from 'gsap';
 import { EMOTES } from '../net/Protocol.js';
 import { ChatBox } from '../ui/ChatBox.js';
 import { describeSettings } from '../Settings.js';
-import { BACK_COLORS, CW, drawTable, makeArt, SANS, SERIF } from './art.js';
+import { BACK_COLORS, CW, drawTable, EMOJI, makeArt, SANS, SERIF } from './art.js';
 import { CardSprite, centered, dispose } from './CardSprite.js';
 import { clamp, computeLayout, jitter, RATIO, slot } from './layout.js';
 import { buzz, loadPrefs, savePrefs } from './prefs.js';
@@ -32,6 +32,7 @@ function loadFonts() {
         document.fonts.load(`800 16px ${SANS}`),
         document.fonts.load(`600 16px ${SANS}`),
         document.fonts.load(`400 16px ${SANS}`),
+        document.fonts.load(`32px ${EMOJI}`, '😀👍😂😮😬😡🎉🤔😎🙏🔥'),
     ]).catch(() => undefined));
     return fontsReady;
 }
@@ -1217,7 +1218,7 @@ export class TableView {
         const ui = this.layout.ui;
         const bubble = new Container();
         const size = 34 * ui;
-        bubble.addChild(new Graphics().circle(0, 0, size * .78).fill({ color: 0xffffff, alpha: .95 }).stroke({ width: 3, color: parseInt(message.color.slice(1), 16) }), Object.assign(new Text({ text: message.emote, style: { fontSize: size } }), { anchor: { x: .5, y: .5 } }));
+        bubble.addChild(new Graphics().circle(0, 0, size * .78).fill({ color: 0xffffff, alpha: .95 }).stroke({ width: 3, color: parseInt(message.color.slice(1), 16) }), Object.assign(new Text({ text: message.emote, style: { fontSize: size, fontFamily: EMOJI } }), { anchor: { x: .5, y: .5 } }));
         const at = { x: clamp(seat.avatar.x + seat.avatar.r * .6, size, this.layout.w - size), y: Math.max(size, seat.avatar.y - seat.avatar.r - size * .6) };
         bubble.position.set(at.x, at.y);
         this.fxLayer.addChild(bubble);
