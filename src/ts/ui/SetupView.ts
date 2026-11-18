@@ -148,7 +148,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             initial.error ? el('p', {class: 'message error', role: 'alert'}, initial.error) : null,
             el('p', {class: 'hint'},
                 'Chacun joue sur son appareil et ne voit que ses cartes. ',
-                'La partie tourne sur l\'appareil de celui qui la crée : il doit garder la page ouverte.'));
+                'La partie tourne sur l\'appareil de celui qui la crée. S\'il quitte l\'application, elle reprend quand il revient.'));
     };
     // endregion
 
