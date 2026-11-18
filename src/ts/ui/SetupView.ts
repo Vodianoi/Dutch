@@ -1,4 +1,4 @@
-import {scoped} from '../env.js';
+import {HOT_SEAT, scoped} from '../env.js';
 import {DutchOptions, EffectType} from '../Dutch.js';
 import {MAX_NAME_LENGTH} from '../net/Protocol.js';
 import {normalizeCode} from '../net/Transport.js';
@@ -76,7 +76,8 @@ export interface SetupInitial {
 export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial: SetupInitial = {}) {
     const setup = loadSetup();
     while (setup.names.length < 10) setup.names.push(DEFAULT_NAMES[setup.names.length]);
-    if (initial.code) setup.mode = 'online';
+    // "Sur cet écran" is only for testing: the real site only offers online games
+    if (initial.code || !HOT_SEAT) setup.mode = 'online';
 
     const draw = () => {
         clear(root);
@@ -87,7 +88,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 'aria-pressed': String(setup.mode === 'local'), onclick: () => switchMode('local')}, 'Sur cet écran'));
 
         root.appendChild(el('section', {class: 'setup panel'},
-            tabs,
+            HOT_SEAT ? tabs : null,
             setup.mode === 'online' ? online() : local()));
     };
 
