@@ -59,11 +59,11 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
 
     const draw = () => {
         clear(root);
-        const tabs = el('div', {class: 'tabs', role: 'tablist'},
-            el('button', {role: 'tab', class: setup.mode === 'online' ? 'tab active' : 'tab', id: 'tab-online',
-                'aria-selected': String(setup.mode === 'online'), onclick: () => switchMode('online')}, 'En ligne'),
-            el('button', {role: 'tab', class: setup.mode === 'local' ? 'tab active' : 'tab', id: 'tab-local',
-                'aria-selected': String(setup.mode === 'local'), onclick: () => switchMode('local')}, 'Sur cet écran'));
+        const tabs = el('div', {class: 'tabs', role: 'group', 'aria-label': 'Mode de jeu'},
+            el('button', {class: setup.mode === 'online' ? 'tab active' : 'tab', id: 'tab-online',
+                'aria-pressed': String(setup.mode === 'online'), onclick: () => switchMode('online')}, 'En ligne'),
+            el('button', {class: setup.mode === 'local' ? 'tab active' : 'tab', id: 'tab-local',
+                'aria-pressed': String(setup.mode === 'local'), onclick: () => switchMode('local')}, 'Sur cet écran'));
 
         root.appendChild(el('section', {class: 'setup panel'},
             tabs,
@@ -79,21 +79,23 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
 
     // region Online
     const online = () => {
+        const nameError = el('p', {class: 'field-error', id: 'online-name-error'});
+        const codeError = el('p', {class: 'field-error', id: 'room-code-error'});
         const nameInput = el('input', {
-            type: 'text', id: 'online-name', maxlength: String(MAX_NAME_LENGTH), value: setup.onlineName,
+            type: 'text', id: 'online-name', 'aria-describedby': 'online-name-error', maxlength: String(MAX_NAME_LENGTH), value: setup.onlineName,
             placeholder: 'Votre prénom', autocomplete: 'nickname',
         });
         const codeInput = el('input', {
             type: 'text', id: 'room-code', maxlength: '8', value: initial.code ?? '', placeholder: 'CODE',
-            autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', class: 'code-input',
+            'aria-label': 'Code de la partie', 'aria-describedby': 'room-code-error', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', class: 'code-input',
         });
         const readName = (): string | null => {
             const name = nameInput.value.trim();
             if (!name) {
-                nameInput.focus();
-                nameInput.classList.add('invalid');
+                invalid(nameInput, nameError, 'Entrez votre prénom pour que les autres vous reconnaissent.');
                 return null;
             }
+            invalid(nameInput, nameError, null);
             setup.onlineName = name;
             saveSetup(setup);
             return name;
@@ -107,17 +109,17 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             const code = normalizeCode(codeInput.value);
             if (!name) return;
             if (code.length < 4) {
-                codeInput.focus();
-                codeInput.classList.add('invalid');
+                invalid(codeInput, codeError, 'Le code de la partie fait au moins 4 caractères.');
                 return;
             }
+            invalid(codeInput, codeError, null);
             handlers.onJoin(code, name);
         };
         codeInput.addEventListener('keydown', e => e.key === 'Enter' && join());
 
         const busy = !!initial.busy;
         return el('div', {class: 'setup-online'},
-            el('label', {class: 'stack'}, 'Votre nom', nameInput),
+            el('div', {class: 'stack'}, el('label', {for: 'online-name'}, 'Votre nom'), nameInput, nameError),
             el('div', {class: 'online-choices'},
                 el('div', {class: 'choice'},
                     el('h3', {}, 'Créer une partie'),
@@ -126,6 +128,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('div', {class: 'choice'},
                     el('h3', {}, 'Rejoindre'),
                     codeInput,
+                    codeError,
                     el('button', {id: 'join-room', class: 'primary', disabled: busy, onclick: join}, 'Rejoindre'))),
             initial.busy ? el('p', {class: 'message info', role: 'status'}, initial.busy) : null,
             initial.error ? el('p', {class: 'message error', role: 'alert'}, initial.error) : null,
@@ -150,9 +153,9 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
 
         const names = el('div', {class: 'setup-names'});
         for (let i = 0; i < setup.count; i++) {
-            const input = el('input', {type: 'text', maxlength: String(MAX_NAME_LENGTH), value: setup.names[i], 'aria-label': `Nom du joueur ${i + 1}`});
+            const input = el('input', {type: 'text', maxlength: String(MAX_NAME_LENGTH), value: setup.names[i]});
             nameInputs.push(input);
-            names.appendChild(input);
+            names.appendChild(el('label', {class: 'name-field'}, el('span', {}, `Joueur ${i + 1}`), input));
         }
 
         const options = gameOptions(setup);
@@ -182,6 +185,16 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
     // endregion
 
     draw();
+}
+
+/**
+ *  Show (or clear with null) the error of a field, next to it, and focus the field
+ */
+function invalid(input: HTMLInputElement, error: HTMLElement, message: string | null) {
+    input.classList.toggle('invalid', !!message);
+    input.setAttribute('aria-invalid', String(!!message));
+    error.textContent = message ?? '';
+    if (message) input.focus();
 }
 
 /**
