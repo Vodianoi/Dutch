@@ -7,7 +7,7 @@ import {joinNames, t} from '../i18n.js';
 import {Action, CardView, effectCard, GameView, logText, noticeText, PlayerView} from '../View.js';
 import {Art, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
 import {TableChrome} from './chrome.js';
-import {CardSprite, centered, dispose, Place, Target} from './CardSprite.js';
+import {CardSprite, centered, dispose, Place, stopTweens, Target} from './CardSprite.js';
 import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
 import {buzz, loadPrefs, Prefs} from './prefs.js';
 import {sfx, unlockAudio} from './sound.js';
@@ -237,7 +237,8 @@ export class TableView {
         document.body.classList.remove('in-game');
         if (this.app) {
             for (const s of this.sprites.values()) dispose(s);
-            gsap.killTweensOf(this.app.stage);
+            // Messages, effects, seats, buttons: nothing may still be animated once destroyed
+            stopTweens(this.app.stage);
             this.app.destroy(true, {children: true});
             this.app = null;
         }
@@ -970,6 +971,7 @@ export class TableView {
             gsap.to(path, {
                 p: 1, duration: .8 + Math.random() * .35, delay: Math.random() * .06, ease: 'power3.out',
                 onUpdate: () => {
+                    if (s.destroyed) return;
                     const a = start + turn * path.p * .9;
                     const d = reach * path.p;
                     s.position.set(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d);

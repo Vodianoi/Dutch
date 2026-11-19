@@ -4,7 +4,7 @@ import { joinNames, t } from '../i18n.js';
 import { effectCard, logText, noticeText } from '../View.js';
 import { CW, drawTable, EMOJI, makeArt, SANS, SERIF } from './art.js';
 import { TableChrome } from './chrome.js';
-import { CardSprite, centered, dispose } from './CardSprite.js';
+import { CardSprite, centered, dispose, stopTweens } from './CardSprite.js';
 import { cardWidth, clamp, computeLayout, jitter, RATIO, slot } from './layout.js';
 import { buzz, loadPrefs } from './prefs.js';
 import { sfx, unlockAudio } from './sound.js';
@@ -198,7 +198,8 @@ export class TableView {
         if (this.app) {
             for (const s of this.sprites.values())
                 dispose(s);
-            gsap.killTweensOf(this.app.stage);
+            // Messages, effects, seats, buttons: nothing may still be animated once destroyed
+            stopTweens(this.app.stage);
             this.app.destroy(true, { children: true });
             this.app = null;
         }
@@ -960,6 +961,8 @@ export class TableView {
             gsap.to(path, {
                 p: 1, duration: .8 + Math.random() * .35, delay: Math.random() * .06, ease: 'power3.out',
                 onUpdate: () => {
+                    if (s.destroyed)
+                        return;
                     const a = start + turn * path.p * .9;
                     const d = reach * path.p;
                     s.position.set(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d);
