@@ -15,7 +15,10 @@ import { button, CREAM, GOLD, label, SeatView } from './widgets.js';
  *  solo against bots, online (host or player) and one shared screen.
  */
 const REVEAL_MS = 3000;
+/** Card pictures, shared by the tables of one game; each new table draws them again (see init()) */
 const arts = new Map();
+/** After a long time in the background, the page comes back with a new table */
+const REBUILD_AFTER_MS = 60000;
 function artFor(back) {
     let art = arts.get(back);
     if (!art) {
@@ -43,6 +46,10 @@ export class TableView {
         this.app = null;
         this.prefs = loadPrefs();
         this.destroyed = false;
+        /** The browser took the graphics context (page in the background) */
+        this.drawingLost = false;
+        this.hiddenAt = null;
+        this.rebuilding = false;
         // Scene
         this.tableSprite = new Sprite();
         this.spots = new Container();
@@ -88,6 +95,17 @@ export class TableView {
         this.drag = null;
         this.syncQueued = false;
         this.myTurnBefore = false;
+        this.onVisibility = () => {
+            if (document.visibilityState === 'hidden') {
+                this.hiddenAt = Date.now();
+                return;
+            }
+            const away = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt;
+            this.hiddenAt = null;
+            const gl = this.app?.renderer?.gl;
+            if (this.drawingLost || gl?.isContextLost() || away > REBUILD_AFTER_MS)
+                this.rebuild();
+        };
         document.body.classList.add('in-game');
         this.screen = document.createElement('div');
         this.screen.className = 'table-screen';
@@ -136,6 +154,9 @@ export class TableView {
         this.app = app;
         this.host.appendChild(app.canvas);
         app.canvas.setAttribute('aria-hidden', 'true');
+        this.watchDrawing(app.canvas);
+        // Fresh card pictures for each table: those of a table whose drawing was lost may be blank
+        arts.clear();
         this.art = artFor(this.prefs.back);
         this.buildScene();
         app.renderer.on('resize', () => this.relayout());
@@ -144,8 +165,31 @@ export class TableView {
     render() {
         this.requestSync();
     }
+    /**
+     *  Phones take the graphics memory of a page left in the background: the table turns black, the card
+     *  pictures blank. When the drawing is lost, or the page comes back after a long time, the table is made again.
+     */
+    watchDrawing(canvas) {
+        canvas.addEventListener('webglcontextlost', () => this.drawingLost = true);
+        canvas.addEventListener('webglcontextrestored', () => {
+            if (document.visibilityState === 'visible')
+                this.rebuild();
+        });
+        document.addEventListener('visibilitychange', this.onVisibility);
+    }
+    rebuild() {
+        if (this.destroyed || this.rebuilding)
+            return;
+        this.rebuilding = true;
+        arts.clear();
+        if (this.options.onRebuild)
+            this.options.onRebuild();
+        else
+            this.rebuilding = false;
+    }
     destroy() {
         this.destroyed = true;
+        document.removeEventListener('visibilitychange', this.onVisibility);
         this.unsubscribe();
         this.revealed.forEach(r => clearTimeout(r.timer));
         clearTimeout(this.dutchTimer);
