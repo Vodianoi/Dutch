@@ -285,6 +285,7 @@ export class App {
                     }
                 },
                 onSettings: settings => host.setSettings(settings),
+                onKick: index => host.kick(index),
                 onLeave: () => this.home(),
             });
         };

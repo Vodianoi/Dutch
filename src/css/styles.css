@@ -2764,3 +2764,28 @@ button.small {
     font-size: 14px;
     flex: none;
 }
+
+/* Waiting room: the host can remove a player */
+.lobby-players .kick {
+    margin-left: auto;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 107, 107, .5);
+    background: transparent;
+    color: #ff9b9b;
+    font: 600 13px var(--font-body);
+    cursor: pointer;
+}
+
+.lobby-players .kick:hover,
+.lobby-players .kick:focus-visible {
+    background: rgba(255, 107, 107, .15);
+    outline: none;
+}
+
+.public-warning {
+    font-size: 12.5px;
+    margin-top: 8px;
+    opacity: .85;
+}

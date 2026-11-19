@@ -115,7 +115,7 @@ export function renderSetup(root, handlers, initial = {}) {
         codeInput.addEventListener('keydown', e => e.key === 'Enter' && join());
         const busy = !!initial.busy;
         const resume = initial.resume;
-        return el('div', { class: 'setup-online' }, resume && !busy ? el('section', { class: 'resume', 'aria-labelledby': 'resume-title' }, el('h3', { id: 'resume-title' }, resume.started ? t('Votre partie est en cours') : t('Votre salle d\'attente est ouverte')), el('p', { class: 'hint' }, t('Partie {code} avec {players}. ', { code: resume.code, players: resume.players.join(', ') }), t('Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.')), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.() }, t('Reprendre la partie')), el('button', { class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'online-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('div', { class: 'online-choices' }, el('div', { class: 'choice' }, el('h3', {}, t('Créer une partie')), el('p', { class: 'hint' }, t('Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.')), el('label', { class: 'switch public-switch', for: 'public-room' }, publicBox, el('span', {}, el('strong', {}, t('Partie publique')), ' ', t('· visible dans la liste, ouverte à tous jusqu\'à 10 joueurs'))), el('button', { id: 'create-room', class: 'primary', disabled: busy, onclick: create }, t('Créer'))), el('div', { class: 'choice' }, el('h3', {}, t('Rejoindre')), codeInput, codeError, el('button', { id: 'join-room', class: 'primary', disabled: busy, onclick: join }, t('Rejoindre')))), initial.busy ? el('p', { class: 'message info', role: 'status' }, initial.busy) : null, initial.error ? el('p', { class: 'message error', role: 'alert' }, initial.error) : null, handlers.onFindPublic && !busy ? publicGames(handlers.onFindPublic, game => {
+        return el('div', { class: 'setup-online' }, resume && !busy ? el('section', { class: 'resume', 'aria-labelledby': 'resume-title' }, el('h3', { id: 'resume-title' }, resume.started ? t('Votre partie est en cours') : t('Votre salle d\'attente est ouverte')), el('p', { class: 'hint' }, t('Partie {code} avec {players}. ', { code: resume.code, players: resume.players.join(', ') }), t('Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.')), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.() }, t('Reprendre la partie')), el('button', { class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'online-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('div', { class: 'online-choices' }, el('div', { class: 'choice' }, el('h3', {}, t('Créer une partie')), el('p', { class: 'hint' }, t('Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.')), el('label', { class: 'switch public-switch', for: 'public-room' }, publicBox, el('span', {}, el('strong', {}, t('Partie publique')), ' ', t('· visible dans la liste, ouverte à tous jusqu\'à 10 joueurs'))), el('p', { class: 'hint public-warning', id: 'public-warning' }, PRIVACY_NOTE()), el('button', { id: 'create-room', class: 'primary', disabled: busy, onclick: create }, t('Créer'))), el('div', { class: 'choice' }, el('h3', {}, t('Rejoindre')), codeInput, codeError, el('button', { id: 'join-room', class: 'primary', disabled: busy, onclick: join }, t('Rejoindre')))), initial.busy ? el('p', { class: 'message info', role: 'status' }, initial.busy) : null, initial.error ? el('p', { class: 'message error', role: 'alert' }, initial.error) : null, handlers.onFindPublic && !busy ? publicGames(handlers.onFindPublic, game => {
             const name = readName();
             if (name)
                 handlers.onJoin(game.code, name, setup.onlineColor);
@@ -255,6 +255,11 @@ function colorButton(initial, taken, label, onPick) {
     show();
     return button;
 }
+/**
+ *  The devices talk directly to each other: the others see the address (IP) of your connection,
+ *  which tells roughly where you are. Said where strangers come in.
+ */
+const PRIVACY_NOTE = () => t('Les appareils se connectent directement entre eux : les autres joueurs, et l\'hôte de chaque partie de la liste, voient l\'adresse IP de votre connexion (elle indique à peu près votre ville). L\'hôte voit toutes les cartes et pourrait tricher : jouez avec des inconnus pour le plaisir.');
 /** The public games are looked for again this often while the list is on screen */
 const PUBLIC_REFRESH_MS = 10000;
 /** Last list found: shown at once when the home screen is drawn again */
@@ -266,7 +271,7 @@ function publicGames(find, onJoin) {
     const list = el('ul', { class: 'public-list' });
     const status = el('p', { class: 'hint public-status', role: 'status' });
     const refresh = el('button', { type: 'button', class: 'secondary small', id: 'refresh-public' }, t('Actualiser'));
-    const section = el('section', { class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false' }, el('div', { class: 'public-head' }, el('h3', { id: 'public-title' }, t('Parties publiques')), refresh), status, list);
+    const section = el('section', { class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false' }, el('div', { class: 'public-head' }, el('h3', { id: 'public-title' }, t('Parties publiques')), refresh), status, list, el('p', { class: 'hint public-warning' }, PRIVACY_NOTE()));
     const show = (games) => {
         clear(list);
         if (!games) {
