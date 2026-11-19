@@ -149,7 +149,7 @@ export class TableView {
         root.replaceChildren(this.screen);
         this.chrome = new TableChrome({
             session, screen: this.screen, bar: left, prefs: this.prefs, chatBox: options.chatBox, debug: options.debug,
-            quitWarning: options.quitWarning, onQuit: options.onQuit, onBackChange: () => this.changeBack(), onTableChange: options.onTableChange,
+            quitWarning: options.quitWarning, onQuit: options.onQuit, onBackChange: () => this.changeBack(), onFeltChange: () => this.relayout(), onTableChange: options.onTableChange,
         });
         this.unsubscribe = session.on(event => this.onSessionEvent(event));
         void this.init();
@@ -315,7 +315,7 @@ export class TableView {
         const L = this.layout;
         this.hint.hidden = !L.cramped;
         const old = this.tableSprite.texture;
-        this.tableSprite.texture = Texture.from(drawTable(L.w, L.h, L.table, Math.min(app.renderer.resolution, 2)));
+        this.tableSprite.texture = Texture.from(drawTable(L.w, L.h, L.table, Math.min(app.renderer.resolution, 2), this.prefs.felt));
         this.tableSprite.width = L.w;
         this.tableSprite.height = L.h;
         if (old && old !== Texture.EMPTY) old.destroy(true);

@@ -366,16 +366,47 @@ export function spot(color = '255, 209, 102') {
     ctx.fillRect(0, 0, 256, 256);
     return c;
 }
+/** Looks of the flat table: felt, rail and room go together */
+export const TABLE_THEMES = {
+    green: {
+        name: 'Tapis vert', room: ['#2a1f17', '#0a0705'], rail: ['#9a6232', '#6b3c1c', '#4a2710'],
+        felt: ['#24885a', '#176642', '#0c3f28'], inlay: 'rgba(233, 196, 106, .55)', ink: '255, 236, 190',
+    },
+    blue: {
+        name: 'Bleu nuit', room: ['#161c2a', '#05070c'], rail: ['#5d3b26', '#3b2316', '#24140b'],
+        felt: ['#2a5c98', '#1b416f', '#0d2342'], inlay: 'rgba(200, 214, 240, .5)', ink: '220, 232, 255',
+    },
+    red: {
+        name: 'Bordeaux', room: ['#271612', '#090404'], rail: ['#b98a55', '#8a5f35', '#5e3d1f'],
+        felt: ['#93283b', '#6c1a2a', '#3e0c17'], inlay: 'rgba(240, 205, 140, .6)', ink: '255, 226, 200',
+    },
+    slate: {
+        name: 'Ardoise', room: ['#1d1d20', '#060607'], rail: ['#3a3a40', '#222226', '#121214'],
+        felt: ['#4a5560', '#323b44', '#1a2026'], inlay: 'rgba(233, 196, 106, .75)', ink: '235, 225, 200',
+    },
+    wood: {
+        name: 'Bois', room: ['#22262b', '#08090a'], rail: ['#4a2c17', '#33200f', '#1f1208'],
+        felt: ['#c08a52', '#9c6a3a', '#6e4623'], inlay: 'rgba(40, 20, 6, .5)', ink: '60, 30, 10', wood: true,
+    },
+};
+/** The same pattern every time the table is drawn again (resize, rotation) */
+function seeded(seed) {
+    return () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+    };
+}
 /**
- *  The room and the table: wooden rail, felt with a little grain, the game name printed on the felt
+ *  The room and the table: wooden rail, felt with a little grain (or a bare wooden top), the game name printed on it
  */
-export function drawTable(w, h, shape, resolution) {
+export function drawTable(w, h, shape, resolution, theme = 'green') {
+    const colors = TABLE_THEMES[theme] ?? TABLE_THEMES.green;
     const [c, ctx] = canvas(Math.round(w * resolution), Math.round(h * resolution));
     ctx.scale(resolution, resolution);
     const { cx, cy, rx, ry } = shape;
     const room = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * .8);
-    room.addColorStop(0, '#2a1f17');
-    room.addColorStop(1, '#0a0705');
+    room.addColorStop(0, colors.room[0]);
+    room.addColorStop(1, colors.room[1]);
     ctx.fillStyle = room;
     ctx.fillRect(0, 0, w, h);
     const rail = Math.max(10, Math.min(rx, ry) * .07);
@@ -387,9 +418,9 @@ export function drawTable(w, h, shape, resolution) {
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
     const wood = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
-    wood.addColorStop(0, '#9a6232');
-    wood.addColorStop(.5, '#6b3c1c');
-    wood.addColorStop(1, '#4a2710');
+    wood.addColorStop(0, colors.rail[0]);
+    wood.addColorStop(.5, colors.rail[1]);
+    wood.addColorStop(1, colors.rail[2]);
     ctx.fillStyle = wood;
     ctx.fill();
     ctx.restore();
@@ -413,24 +444,27 @@ export function drawTable(w, h, shape, resolution) {
     ctx.strokeStyle = 'rgba(255, 220, 170, .25)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    // Felt
+    // Felt, or the wooden top
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx - rail, ry - rail, 0, 0, Math.PI * 2);
     ctx.clip();
     const felt = ctx.createRadialGradient(cx, cy - ry * .2, 0, cx, cy, Math.max(rx, ry));
-    felt.addColorStop(0, '#24885a');
-    felt.addColorStop(.6, '#176642');
-    felt.addColorStop(1, '#0c3f28');
+    felt.addColorStop(0, colors.felt[0]);
+    felt.addColorStop(.6, colors.felt[1]);
+    felt.addColorStop(1, colors.felt[2]);
     ctx.fillStyle = felt;
     ctx.fillRect(0, 0, w, h);
+    if (colors.wood)
+        woodTop(ctx, w, h, cx, cy, rx, ry);
     // Grain
     const [noise, n] = canvas(96, 96);
     const pixels = n.createImageData(96, 96);
+    const random = seeded(7);
     for (let i = 0; i < pixels.data.length; i += 4) {
-        const v = Math.random() * 255;
+        const v = random() * 255;
         pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = v;
-        pixels.data[i + 3] = 13;
+        pixels.data[i + 3] = colors.wood ? 8 : 13;
     }
     n.putImageData(pixels, 0, 0);
     ctx.fillStyle = ctx.createPattern(noise, 'repeat');
@@ -450,23 +484,68 @@ export function drawTable(w, h, shape, resolution) {
     ctx.strokeStyle = 'rgba(0,0,0,.6)';
     ctx.stroke();
     ctx.restore();
-    // Gold inlay between the rail and the felt
+    // Inlay between the rail and the felt
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx - rail + 1, ry - rail + 1, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(233, 196, 106, .55)';
+    ctx.strokeStyle = colors.inlay;
     ctx.lineWidth = 1.5;
     ctx.stroke();
     // Printed line and name
     ctx.beginPath();
     ctx.ellipse(cx, cy, (rx - rail) * .8, (ry - rail) * .76, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 236, 190, .12)';
+    ctx.strokeStyle = `rgba(${colors.ink}, .12)`;
     ctx.lineWidth = 2;
     ctx.stroke();
     const size = Math.min(rx, ry) * .2;
     ctx.font = `italic 900 ${size}px ${SERIF}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255, 236, 190, .07)';
+    ctx.fillStyle = `rgba(${colors.ink}, ${colors.wood ? .12 : .07})`;
     ctx.fillText('Dutch', cx, cy + (ry - rail) * .5);
     return c;
+}
+/** Planks of a wooden table top: long boards with a soft grain, the same each time */
+function woodTop(ctx, w, h, cx, cy, rx, ry) {
+    const random = seeded(42);
+    const board = Math.max(46, Math.min(rx, ry) * .32);
+    const vertical = ry > rx;
+    const across = vertical ? w : h;
+    for (let i = -1; i * board < across + board; i++) {
+        const at = i * board;
+        // Each board slightly lighter or darker
+        ctx.fillStyle = random() < .5 ? `rgba(255, 230, 190, ${.03 + random() * .05})` : `rgba(40, 18, 4, ${.04 + random() * .07})`;
+        if (vertical)
+            ctx.fillRect(at, 0, board, h);
+        else
+            ctx.fillRect(0, at, w, board);
+        // Grain: wavy lines along the board
+        for (let k = 0; k < 7; k++) {
+            const offset = at + random() * board;
+            const wave = 2 + random() * 5, period = 120 + random() * 220, phase = random() * 6;
+            ctx.beginPath();
+            for (let along = 0; along <= (vertical ? h : w); along += 8) {
+                const side = offset + Math.sin(along / period * Math.PI * 2 + phase) * wave;
+                if (along === 0)
+                    ctx.moveTo(vertical ? side : along, vertical ? along : side);
+                else
+                    ctx.lineTo(vertical ? side : along, vertical ? along : side);
+            }
+            ctx.strokeStyle = `rgba(60, 28, 8, ${.08 + random() * .1})`;
+            ctx.lineWidth = .6 + random() * 1.2;
+            ctx.stroke();
+        }
+        // Gap between two boards
+        ctx.fillStyle = 'rgba(30, 12, 2, .35)';
+        if (vertical)
+            ctx.fillRect(at - .75, 0, 1.5, h);
+        else
+            ctx.fillRect(0, at - .75, w, 1.5);
+    }
+    // Varnish: a soft sheen across the top
+    const sheen = ctx.createLinearGradient(cx - rx, cy - ry, cx + rx, cy + ry);
+    sheen.addColorStop(0, 'rgba(255, 240, 210, .10)');
+    sheen.addColorStop(.5, 'rgba(255, 240, 210, 0)');
+    sheen.addColorStop(1, 'rgba(0, 0, 0, .12)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(0, 0, w, h);
 }

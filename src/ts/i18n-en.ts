@@ -99,6 +99,11 @@ export const EN: Record<string, string> = {
     'Bordeaux': 'Burgundy',
     'Marine': 'Navy',
     'Ébène': 'Ebony',
+    'Tapis': 'Table',
+    'Tapis vert': 'Green felt',
+    'Bleu nuit': 'Midnight blue',
+    'Ardoise': 'Slate',
+    'Bois': 'Wood',
     // endregion
 
     // region Home screen

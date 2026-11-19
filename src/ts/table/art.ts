@@ -2,8 +2,8 @@ import {CanvasSource, Texture} from 'pixi.js';
 import Card from '../Card.js';
 import {back, BackColor, compactFace, face, glowArt, halo, ring, spark, spot} from './cardArt.js';
 
-export {BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF} from './cardArt.js';
-export type {BackColor, TableShape} from './cardArt.js';
+export {BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF, TABLE_THEMES} from './cardArt.js';
+export type {BackColor, TableShape, TableTheme} from './cardArt.js';
 
 /**
  *  Texture with mipmaps: cards drawn much smaller than their 240px source (opponents' hands) stay smooth

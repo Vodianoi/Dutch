@@ -8,7 +8,7 @@ import {cardLabel, joinNames, lang, msg, render, setLang, t} from '../src/ts/i18
 import Dutch, {RuleError} from '../src/ts/Dutch.js';
 import Card from '../src/ts/Card.js';
 import {EFFECT_LABELS, PLAYER_COLORS} from '../src/ts/Settings.js';
-import {BACK_COLORS} from '../src/ts/table/cardArt.js';
+import {BACK_COLORS, TABLE_THEMES} from '../src/ts/table/cardArt.js';
 
 /** The old HTML game screen (?classic) stays in French */
 const SKIP = /(GameView|moves|CardView|i18n|i18n-en)\.ts$/;
@@ -71,7 +71,7 @@ function frenchSentences() {
 
 test('every French sentence of the game has its English version', () => {
     const missing = [...frenchSentences()].filter(([fr]) => !(fr in EN)).map(([fr, file]) => `${file}: ${fr}`);
-    for (const label of [...Object.values(EFFECT_LABELS).flatMap(l => [l.name, l.effect]), ...PLAYER_COLORS.map(c => c.name), ...Object.values(BACK_COLORS).map(b => b.name)]) {
+    for (const label of [...Object.values(EFFECT_LABELS).flatMap(l => [l.name, l.effect]), ...PLAYER_COLORS.map(c => c.name), ...Object.values(BACK_COLORS).map(b => b.name), ...Object.values(TABLE_THEMES).map(th => th.name)]) {
         if (!(label in EN)) missing.push(`label: ${label}`);
     }
     assert.deepEqual(missing, []);
