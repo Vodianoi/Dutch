@@ -23,6 +23,8 @@ interface Seat {
 export interface HostSnapshot {
     v: 1;
     code: string;
+    /** Id of the room (kept when the page reopens it) */
+    room?: string;
     seats: { name: string; token: string; color?: string }[];
     settings?: GameSettings;
     game: DutchSnapshot | null;
@@ -69,6 +71,8 @@ export class Host implements Session {
     private unsubscribeGame: (() => void) | null = null;
     private closed = false;
     private readonly chatLog: ChatMessage[] = [];
+    /** Id of this room: its players send it back when they reconnect */
+    private readonly roomId: string;
     private chatId = 0;
     /** Recent messages of each player (flood limit) */
     private readonly chatTimes = new Map<Seat, number[]>();
@@ -89,6 +93,7 @@ export class Host implements Session {
         this.timeoutMs = options.timeoutMs ?? 15000;
         this.persistTo = options.persist;
         const saved = options.restore;
+        this.roomId = saved?.room ?? randomToken();
         if (saved) {
             const colors = assignColors(saved.seats.map(s => s.color));
             this.seats = saved.seats.map((s, i) => ({name: s.name, color: colors[i], token: s.token, connection: null, lastSeen: 0}));
@@ -199,6 +204,7 @@ export class Host implements Session {
         return {
             v: 1,
             code: this.code,
+            room: this.roomId,
             seats: this.seats.map(s => ({name: s.name, token: s.token, color: s.color})),
             settings: this.settings,
             game: this.game ? this.game.snapshot() : null,
@@ -323,6 +329,8 @@ export class Host implements Session {
             return null;
         };
         if (hello.v !== PROTOCOL_VERSION) return refuse('Version du jeu différente : rechargez la page.');
+        // Player of another game that had this code before (public code taken again)
+        if (typeof hello.room === 'string' && hello.room !== this.roomId) return refuse('Cette partie est terminée.');
         if (typeof hello.token !== 'string' || hello.token.length < 8) return refuse('Connexion invalide.');
 
         let seat = this.seats.find((s, i) => i > 0 && s.token === hello.token);
@@ -340,7 +348,7 @@ export class Host implements Session {
             this.seats.push(seat);
         }
         seat.lastSeen = Date.now();
-        this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat)});
+        this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat), room: this.roomId});
         if (this.chatLog.length) this.send(seat, {t: 'chatLog', messages: this.chatLog});
         if (this.game) this.broadcastState();
         else this.broadcastLobby();

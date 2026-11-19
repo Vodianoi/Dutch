@@ -113,3 +113,46 @@ test('an answer that is not a room, or from another version, is not joinable', a
     assert.ok(big.host.length <= 16);
     assert.equal(big.settings.targetScore, 50, 'rules cleaned');
 });
+
+test('a player whose public game went away is refused by the next game on the same code, not seated', async () => {
+    const first = await publicHost('Eddy');
+    const client = await Client.join(transport, first.code, 'Inès', `token-ines-${Math.random()}`, {retryDelaysMs: [50], giveUpMs: 5000});
+    let closed = null;
+    client.on(e => {
+        if (e.type === 'closed') closed = e.reason;
+    });
+    await until(() => first.lobby.players.length === 2);
+    assert.ok(client.room, 'the host gave its room id');
+    // Phone of the host asleep: the code is free for a moment, another public game takes it
+    first.suspend();
+    const second = await publicHost('Zoé');
+    try {
+        assert.equal(second.code, first.code);
+        await until(() => closed !== null);
+        assert.match(closed, /terminée/);
+        assert.equal(second.lobby.players.length, 1, 'nobody was seated by mistake');
+    } finally {
+        client.leave();
+        second.close();
+        first.close();
+    }
+});
+
+test('a player coming back to his own public game gets his seat back', async () => {
+    const host = await publicHost('Eddy');
+    const token = `token-ines-${Math.random()}`;
+    const client = await Client.join(transport, host.code, 'Inès', token);
+    await until(() => host.lobby.players.length === 2);
+    const room = client.room;
+    host.start({deckCount: 1});
+    await until(() => client.state);
+    client.leave();
+    try {
+        const again = await Client.join(transport, host.code, 'Inès', token, {room});
+        await until(() => again.state);
+        assert.equal(again.seat, 1);
+        again.leave();
+    } finally {
+        host.close();
+    }
+});

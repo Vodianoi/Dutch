@@ -224,6 +224,7 @@ export const EN = {
     'L\'hôte a quitté la partie.': 'The host left the game.',
     'Version du jeu différente : rechargez la page.': 'Different game version: reload the page.',
     'Connexion invalide.': 'Invalid connection.',
+    'Cette partie est terminée.': 'This game is over.',
     'La partie est complète (10 joueurs).': 'The game is full (10 players).',
     'La partie n\'a pas commencé.': 'The game hasn\'t started.',
     'Seul l\'hôte lance la ronde suivante.': 'Only the host starts the next round.',

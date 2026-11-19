@@ -21,6 +21,8 @@ export class Client {
         this.state = null;
         this.lobby = null;
         this.seat = -1;
+        /** Id of the room, given by the host */
+        this.room = null;
         this.status = 'online';
         this.chatLog = [];
         this.chat = (() => {
@@ -49,6 +51,7 @@ export class Client {
         this.code = code;
         this.name = name;
         this.token = token;
+        this.room = options.room ?? null;
         this.timeoutMs = options.timeoutMs ?? 15000;
         this.welcomeTimeoutMs = options.welcomeTimeoutMs ?? 10000;
         this.retryDelaysMs = options.retryDelaysMs ?? [0, 1000, 2000, 4000, 8000];
@@ -178,7 +181,7 @@ export class Client {
             };
             this.welcomeListeners.push(done);
             this.lastSeen = Date.now();
-            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color });
+            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color, room: this.room ?? undefined });
         });
         this.attempts = 0;
         this.lostAt = 0;
@@ -254,6 +257,8 @@ export class Client {
         switch (message.t) {
             case 'welcome':
                 this.seat = message.seat;
+                if (typeof message.room === 'string')
+                    this.room = message.room;
                 this.welcomeListeners.slice().forEach(l => l());
                 break;
             case 'lobby':

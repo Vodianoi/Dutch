@@ -65,7 +65,8 @@ export function cleanChatText(text: unknown): string {
 
 /** Host -> player */
 export type HostMessage =
-    | { t: 'welcome'; seat: number }
+    /** `room`: id of this room, sent back by the player when he reconnects */
+    | { t: 'welcome'; seat: number; room?: string }
     | { t: 'lobby'; lobby: LobbyState; you: number }
     | { t: 'state'; state: GameView }
     | { t: 'reveal'; card: CardView }
@@ -82,7 +83,11 @@ export type HostMessage =
 
 /** Player -> host */
 export type ClientMessage =
-    | { t: 'hello'; v: number; name: string; token: string; color?: string }
+    /**
+     *  `room`: the room the player was in. A public code can be taken by another game while its host is
+     *  away: that other room refuses him instead of seating him as a stranger
+     */
+    | { t: 'hello'; v: number; name: string; token: string; color?: string; room?: string }
     /** Knock without joining: the host answers with its RoomInfo and hangs up */
     | { t: 'info' }
     | { t: 'action'; action: Action }

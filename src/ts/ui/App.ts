@@ -253,7 +253,8 @@ export class App {
         let host: Host;
         try {
             // Public game: the first free public code, so that the list finds it
-            const transport = isPublic ? await this.transport.hostFirstFree(PUBLIC_CODES) : await this.transport.host();
+            // In random order: a code freed for a moment by a host whose phone sleeps is less likely to be taken
+            const transport = isPublic ? await this.transport.hostFirstFree(shuffled(PUBLIC_CODES)) : await this.transport.host();
             host = new Host(transport, name, {color, settings, persist: snapshot => this.saveHost(name, snapshot)});
         } catch (e) {
             this.home({error: errorText(e)});
@@ -326,13 +327,13 @@ export class App {
         let client: Client;
         try {
             // The colour chosen on the home screen (the host gives another one if it is taken)
-            client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor});
+            client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor, room: this.storedRoom(code) ?? undefined});
         } catch (e) {
             this.forgetToken(code);
             this.home({code, error: errorText(e)});
             return;
         }
-        this.storeToken(code, token);
+        this.storeToken(code, token, client.room);
         this.reset();
         this.session = client;
         this.chatBox = new ChatBox(client.chat, client);
@@ -554,10 +555,24 @@ export class App {
         }
     }
 
-    private storeToken(code: string, token: string) {
+    /** Id of the room joined with this code (public codes are used by one game after another) */
+    private storedRoom(code: string): string | null {
+        try {
+            return sessionStorage.getItem(scoped(`room-${code}`))
+                ?? (this.localTransport ? null : localStorage.getItem(scoped(`room-${code}`)));
+        } catch {
+            return null;
+        }
+    }
+
+    private storeToken(code: string, token: string, room: string | null = null) {
         try {
             sessionStorage.setItem(scoped(`token-${code}`), token);
             if (!this.localTransport) localStorage.setItem(scoped(`token-${code}`), token);
+            if (room) {
+                sessionStorage.setItem(scoped(`room-${code}`), room);
+                if (!this.localTransport) localStorage.setItem(scoped(`room-${code}`), room);
+            }
         } catch {
             // ignore: reconnecting will just need a new seat
         }
@@ -565,8 +580,10 @@ export class App {
 
     private forgetToken(code: string) {
         try {
-            sessionStorage.removeItem(scoped(`token-${code}`));
-            localStorage.removeItem(scoped(`token-${code}`));
+            for (const key of [`token-${code}`, `room-${code}`]) {
+                sessionStorage.removeItem(scoped(key));
+                localStorage.removeItem(scoped(key));
+            }
         } catch {
             // ignore
         }
@@ -578,4 +595,13 @@ export class App {
 function errorText(e: unknown): string {
     if (e instanceof RuleError) return render(e.msg);
     return t((e as Error)?.message ?? String(e));
+}
+
+function shuffled<T>(list: T[]): T[] {
+    const copy = list.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
 }

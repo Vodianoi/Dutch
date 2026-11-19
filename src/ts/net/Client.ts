@@ -15,6 +15,8 @@ export interface ClientOptions {
     giveUpMs?: number;
     /** Colour wished by the player (the host gives another one if it is taken) */
     color?: string;
+    /** Room this player was in (page reloaded): another room with the same code refuses him */
+    room?: string;
 }
 
 /** Final answer of the host: no point in trying again */
@@ -35,6 +37,8 @@ export class Client implements Session {
     public state: GameView | null = null;
     public lobby: LobbyState | null = null;
     public seat = -1;
+    /** Id of the room, given by the host */
+    public room: string | null = null;
     public status: ConnectionStatus = 'online';
     private readonly chatLog: ChatMessage[] = [];
     public readonly chat: Chat = (() => {
@@ -78,6 +82,7 @@ export class Client implements Session {
         this.code = code;
         this.name = name;
         this.token = token;
+        this.room = options.room ?? null;
         this.timeoutMs = options.timeoutMs ?? 15000;
         this.welcomeTimeoutMs = options.welcomeTimeoutMs ?? 10000;
         this.retryDelaysMs = options.retryDelaysMs ?? [0, 1000, 2000, 4000, 8000];
@@ -204,7 +209,7 @@ export class Client implements Session {
             };
             this.welcomeListeners.push(done);
             this.lastSeen = Date.now();
-            this.send({t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color});
+            this.send({t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color, room: this.room ?? undefined});
         });
         this.attempts = 0;
         this.lostAt = 0;
@@ -277,6 +282,7 @@ export class Client implements Session {
         switch (message.t) {
             case 'welcome':
                 this.seat = message.seat;
+                if (typeof message.room === 'string') this.room = message.room;
                 this.welcomeListeners.slice().forEach(l => l());
                 break;
             case 'lobby':
