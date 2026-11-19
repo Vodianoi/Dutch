@@ -23,15 +23,21 @@ export class Host {
         this.unsubscribeGame = null;
         this.closed = false;
         this.chatLog = [];
+        /** Players the host removed from the waiting room: they can't come back to this room */
+        this.removed = new Set();
         this.chatId = 0;
         /** Recent messages of each player (flood limit) */
         this.chatTimes = new Map();
         const log = this.chatLog;
+        const host = this;
         this.chat = {
             get messages() {
                 return log;
             },
-            text: true,
+            // Public games (strangers): reactions only
+            get text() {
+                return !host.isPublic;
+            },
             send: text => this.post(this.seats[0], { text }),
             emote: emote => this.post(this.seats[0], { emote }),
         };
@@ -66,6 +72,25 @@ export class Host {
     }
     get started() {
         return this.game !== null;
+    }
+    /**
+     *  Remove a player from the waiting room (a stranger in a public game…): he is told so,
+     *  and this room refuses him from then on. Not once the cards are dealt (the game needs every hand).
+     */
+    kick(index) {
+        const seat = this.seats[index];
+        if (this.game || index <= 0 || !seat)
+            return;
+        this.removed.add(seat.token);
+        const connection = seat.connection;
+        seat.connection = null;
+        if (connection) {
+            connection.send({ t: 'ended', reason: 'L\'hôte vous a retiré de la partie.' });
+            setTimeout(() => connection.close(), 200);
+        }
+        this.seats.splice(index, 1);
+        this.chatTimes.delete(seat);
+        this.broadcastLobby();
     }
     /** Listed with the public games (code PUB01…) */
     get isPublic() {
@@ -206,7 +231,8 @@ export class Host {
         if (!seat || index < 0 || this.closed)
             return;
         const emote = typeof content.emote === 'string' && EMOTES.includes(content.emote) ? content.emote : null;
-        const text = cleanChatText(content.text);
+        // Public games: no free text between strangers, only reactions
+        const text = this.isPublic ? '' : cleanChatText(content.text);
         if (content.emote !== undefined ? !emote : !text)
             return;
         // At most 8 messages in 10 seconds per player
@@ -288,6 +314,8 @@ export class Host {
             return refuse('Cette partie est terminée.');
         if (typeof hello.token !== 'string' || hello.token.length < 8)
             return refuse('Connexion invalide.');
+        if (this.removed.has(hello.token))
+            return refuse('L\'hôte vous a retiré de la partie.');
         let seat = this.seats.find((s, i) => i > 0 && s.token === hello.token);
         if (seat) {
             // Same player coming back (page reloaded, phone woke up...)

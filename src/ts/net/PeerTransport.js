@@ -8,6 +8,8 @@ import { ConnectionBase, randomCode, TransportError } from './Transport.js';
  *    the game messages then go directly between the browsers
  */
 const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js';
+/** Hash of that exact file: a changed copy on the CDN is refused by the browser */
+const PEERJS_INTEGRITY = 'sha384-x0YgkOr/3UOZP2CRDxGW9e0Q+2Qjyr3uJrm4xU32Y7ZCNAo7Cc7bjhrZMi/dwczu';
 /** Prefix of the peer ids on the public server, so room codes don't collide with other apps */
 const ID_PREFIX = IS_DEV ? 'vodianoi-dutch-dev-' : 'vodianoi-dutch-';
 const CONNECT_TIMEOUT_MS = 15000;
@@ -28,6 +30,8 @@ function loadPeerJs() {
                 return resolve(existing);
             const script = document.createElement('script');
             script.src = PEERJS_URL;
+            script.integrity = PEERJS_INTEGRITY;
+            script.crossOrigin = 'anonymous';
             script.async = true;
             script.onload = () => {
                 const ctor = find();

@@ -285,6 +285,7 @@ export class App {
                     }
                 },
                 onSettings: settings => host.setSettings(settings),
+                onKick: index => host.kick(index),
                 onLeave: () => this.home(),
             });
         };
@@ -317,7 +318,9 @@ export class App {
             client = await Client.join(this.transport, code, name, token, { color: loadSetup().onlineColor, room: this.storedRoom(code) ?? undefined });
         }
         catch (e) {
-            this.forgetToken(code);
+            // Removed by the host: keep the token, the room goes on refusing it
+            if (!isRemoved(errorText(e)))
+                this.forgetToken(code);
             this.home({ code, error: errorText(e) });
             return;
         }
@@ -376,14 +379,17 @@ export class App {
     connectionLost(code, name, reason) {
         this.showBanner(false);
         this.dialog?.remove();
-        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title' }, el('h2', { id: 'lost-title' }, t('Partie interrompue')), el('p', {}, t(reason)), el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, t('Réessayer')), el('button', { class: 'secondary', onclick: () => {
-                this.forgetToken(code);
+        // Removed by the host: no « try again », and his token is kept so that this room keeps refusing him
+        const removed = isRemoved(reason);
+        this.dialog = el('div', { class: 'overlay lost' }, el('section', { class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title' }, el('h2', { id: 'lost-title' }, t('Partie interrompue')), el('p', {}, t(reason)), removed ? null : el('button', { class: 'primary', id: 'reconnect', onclick: () => this.join(code, name) }, t('Réessayer')), el('button', { class: 'secondary', id: 'lost-home', onclick: () => {
+                if (!removed)
+                    this.forgetToken(code);
                 this.home();
             } }, t('Retour à l\'accueil'))));
         document.body.appendChild(this.dialog);
         // The game behind the dialog can not be used anymore
         this.root.setAttribute('inert', '');
-        this.dialog.querySelector('#reconnect')?.focus();
+        this.dialog.querySelector('#reconnect, #lost-home')?.focus();
     }
     // endregion
     // region Helpers
@@ -595,4 +601,8 @@ function shuffled(list) {
         [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy;
+}
+/** The host removed this player from the room */
+function isRemoved(reason) {
+    return reason === t('L\'hôte vous a retiré de la partie.') || reason === 'L\'hôte vous a retiré de la partie.';
 }

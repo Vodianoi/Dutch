@@ -194,6 +194,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                     el('p', {class: 'hint'}, t('Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.')),
                     el('label', {class: 'switch public-switch', for: 'public-room'}, publicBox,
                         el('span', {}, el('strong', {}, t('Partie publique')), ' ', t('· visible dans la liste, ouverte à tous jusqu\'à 10 joueurs'))),
+                    el('p', {class: 'hint public-warning', id: 'public-warning'}, PRIVACY_NOTE()),
                     el('button', {id: 'create-room', class: 'primary', disabled: busy, onclick: create}, t('Créer'))),
                 el('div', {class: 'choice'},
                     el('h3', {}, t('Rejoindre')),
@@ -381,6 +382,12 @@ function colorButton(initial: string, taken: () => string[], label: string, onPi
     return button;
 }
 
+/**
+ *  The devices talk directly to each other: the others see the address (IP) of your connection,
+ *  which tells roughly where you are. Said where strangers come in.
+ */
+const PRIVACY_NOTE = () => t('Les appareils se connectent directement entre eux : les autres joueurs, et l\'hôte de chaque partie de la liste, voient l\'adresse IP de votre connexion (elle indique à peu près votre ville). L\'hôte voit toutes les cartes et pourrait tricher : jouez avec des inconnus pour le plaisir.');
+
 /** The public games are looked for again this often while the list is on screen */
 const PUBLIC_REFRESH_MS = 10_000;
 /** Last list found: shown at once when the home screen is drawn again */
@@ -395,7 +402,8 @@ function publicGames(find: () => Promise<PublicGame[]>, onJoin: (game: PublicGam
     const refresh = el('button', {type: 'button', class: 'secondary small', id: 'refresh-public'}, t('Actualiser'));
     const section = el('section', {class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false'},
         el('div', {class: 'public-head'}, el('h3', {id: 'public-title'}, t('Parties publiques')), refresh),
-        status, list);
+        status, list,
+        el('p', {class: 'hint public-warning'}, PRIVACY_NOTE()));
 
     const show = (games: PublicGame[] | null) => {
         clear(list);

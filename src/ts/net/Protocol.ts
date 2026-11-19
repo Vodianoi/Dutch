@@ -103,6 +103,12 @@ export function cleanName(name: unknown, fallback: string): string {
     return text || fallback;
 }
 
+/**
+ *  Secret that gives a player his seat back: 128 random bits from the browser's secure generator
+ *  (Math.random can be guessed)
+ */
 export function randomToken(): string {
-    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }

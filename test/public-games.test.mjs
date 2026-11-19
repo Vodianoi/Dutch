@@ -156,3 +156,87 @@ test('a player coming back to his own public game gets his seat back', async () 
         host.close();
     }
 });
+
+test('player tokens are long secure random values', async () => {
+    const {randomToken} = await import('../src/ts/net/Protocol.js');
+    const tokens = new Set(Array.from({length: 200}, randomToken));
+    assert.equal(tokens.size, 200);
+    for (const token of tokens) assert.match(token, /^[0-9a-f]{32}$/);
+});
+
+test('the host removes a stranger from the waiting room: he is told, and can\'t come back', async () => {
+    const host = await publicHost('Eddy');
+    const token = `token-troll-${Math.random()}`;
+    const troll = await Client.join(transport, host.code, 'Troll', token);
+    const friend = await Client.join(transport, host.code, 'Inès', `token-ines-${Math.random()}`);
+    let reason = null;
+    troll.on(e => {
+        if (e.type === 'closed') reason = e.reason;
+    });
+    try {
+        await until(() => host.lobby.players.length === 3);
+        host.kick(1);
+        await until(() => reason !== null);
+        assert.match(reason, /retiré/);
+        assert.deepEqual(host.lobby.players.map(p => p.name), ['Eddy', 'Inès']);
+        await until(() => friend.lobby?.players.length === 2);
+        await assert.rejects(Client.join(transport, host.code, 'Troll', token), /retiré/);
+        // Once the cards are dealt nobody can be removed (every hand is in the game)
+        host.start({deckCount: 1});
+        host.kick(1);
+        assert.equal(host.lobby.players.length, 2);
+    } finally {
+        troll.leave();
+        friend.leave();
+        host.close();
+    }
+});
+
+test('public games: reactions only, no free text between strangers; private games keep the chat', async () => {
+    const host = await publicHost('Eddy');
+    const client = await Client.join(transport, host.code, 'Inès', `token-ines-${Math.random()}`);
+    const privateHost = new Host(await transport.host(), 'Léa', {heartbeatMs: 100000});
+    const friend = await Client.join(transport, privateHost.code, 'Hugo', `token-hugo-${Math.random()}`);
+    try {
+        await until(() => host.lobby.players.length === 2 && privateHost.lobby.players.length === 2);
+        assert.equal(host.chat.text, false);
+        assert.equal(client.chat.text, false);
+        assert.equal(privateHost.chat.text, true);
+        assert.equal(friend.chat.text, true);
+        client.chat.send('hello stranger');
+        host.chat.send('hi');
+        client.chat.emote('👍');
+        await until(() => host.chat.messages.length === 1 && client.chat.messages.length === 1);
+        await wait(100);
+        assert.deepEqual(host.chat.messages.map(m => m.emote ?? m.text), ['👍']);
+        friend.chat.send('salut');
+        await until(() => privateHost.chat.messages.some(m => m.text === 'salut'));
+    } finally {
+        client.leave();
+        friend.leave();
+        host.close();
+        privateHost.close();
+    }
+});
+
+test('a player cleans the rules a host sends (a stranger could send anything)', async () => {
+    const room = await transport.host();
+    room.onConnection(connection => connection.onMessage(message => {
+        if (message.t !== 'hello') return;
+        connection.send({t: 'welcome', seat: 1, room: 'r'});
+        connection.send({
+            t: 'lobby', you: 1, lobby: {
+                code: room.code, started: false, players: [{name: 'Bad', color: '#000', connected: true}, {name: 'Me', color: '#fff', connected: true}],
+                settings: {targetScore: '<img src=x onerror=alert(1)>', deckCount: 99, effects: ['NOPE', 'ACE'], peekVariant: 'yes'},
+            },
+        });
+    }));
+    const client = await Client.join(transport, room.code, 'Me', `token-me-${Math.random()}`);
+    try {
+        await until(() => client.lobby);
+        assert.deepEqual(client.lobby.settings, {deckCount: 1, cardsPerPlayer: 4, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE']});
+    } finally {
+        client.leave();
+        room.close();
+    }
+});
