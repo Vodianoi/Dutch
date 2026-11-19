@@ -1,3 +1,4 @@
+import {cardLabel, CardRef, msg, Msg, Params, render, t} from './i18n.js';
 import Card, {Suit, Value} from './Card.js';
 import Dutch, {EffectType, LogEntry, MoveType, Phase, RuleError} from './Dutch.js';
 import {GameSettings} from './Settings.js';
@@ -67,7 +68,7 @@ export interface GameView {
     deckRemaining: number;
     topDiscard: CardView | null;
     drawn: { card: CardView; source: 'pile' | 'discard' } | null;
-    activeEffect: { type: EffectType; playerId: number; cardName: string } | null;
+    activeEffect: { type: EffectType; playerId: number; cardName: string; card?: CardRef } | null;
     players: PlayerView[];
     log: LogEntry[];
     lastMove: MoveView | null;
@@ -93,8 +94,32 @@ export type Action =
     | { type: 'nextRound'; playerId: number };
 
 export interface Notice {
+    /** In French (older pages show this one) */
     text: string;
     kind: 'error' | 'info';
+    /** The same, shown by each device in its own language */
+    msg?: Msg;
+}
+
+/** A notice in French, with its message for every language */
+export function notice(kind: Notice['kind'], template: string | Msg, params?: Params): Notice {
+    const m = typeof template === 'string' ? msg(template, params) : template;
+    return {text: render(m, 'fr'), kind, msg: m};
+}
+
+/** Name of the card whose effect is being played, in the language of this device */
+export function effectCard(effect: NonNullable<GameView['activeEffect']>): string {
+    return effect.card ? cardLabel(effect.card) : effect.cardName;
+}
+
+/** Line of the game log in the language of this device */
+export function logText(entry: { message: string; msg?: Msg }): string {
+    return entry.msg ? render(entry.msg) : entry.message;
+}
+
+/** Text of a notice in the language of this device */
+export function noticeText(n: Notice): string {
+    return n.msg ? render(n.msg) : t(n.text);
 }
 // endregion
 
@@ -157,7 +182,7 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
         drawn: game.drawn
             ? {card: drawnVisible ? faceUp(game.drawn.card) : faceDown(game.drawn.card), source: game.drawn.source}
             : null,
-        activeEffect: effect ? {type: effect.type, playerId: effect.playerId, cardName: effect.card.name} : null,
+        activeEffect: effect ? {type: effect.type, playerId: effect.playerId, cardName: effect.card.name, card: effect.card.longRef} : null,
         players: game.players.map(p => ({
             id: p.id,
             name: p.name,
@@ -207,7 +232,7 @@ export function applyAction(game: Dutch, action: Action): Notice | null {
         case 'discardDrawn': game.discardDrawn(id); break;
         case 'throwCard':
             if (!game.throwCard(id, action.cardId)) {
-                return {text: `Raté ! ${game.players[id].name} reçoit une carte de pénalité.`, kind: 'error'};
+                return notice('error', 'Raté ! {name} reçoit une carte de pénalité.', {name: game.players[id].name});
             }
             break;
         case 'endTurn': game.endTurn(id, action.dutch); break;

@@ -1,15 +1,18 @@
 import Card from './Card.js';
 import Deck from './Deck.js';
 import Player from './Player.js';
-import { ALL_EFFECTS, assignColors, checkSettings } from './Settings.js';
+import { msg, render } from './i18n.js';
+import { ALL_EFFECTS, assignColors, settingsProblem } from './Settings.js';
 const cardData = (card) => ({ id: card.id, value: card.value, suit: card.suit });
 const toCard = (data) => new Card(data.id, data.value, data.suit);
 /**
  *  Thrown when an action is not allowed by the rules; the message is shown to the players
  */
 export class RuleError extends Error {
-    constructor(message) {
-        super(message);
+    constructor(message, params) {
+        const m = typeof message === 'string' ? msg(message, params) : message;
+        super(render(m, 'fr'));
+        this.msg = m;
         this.name = 'RuleError';
     }
 }
@@ -68,7 +71,7 @@ class Dutch {
         this.dutchPenalty = options.dutchPenalty ?? 10;
         this.peekVariant = options.peekVariant ?? false;
         this.effectsEnabled = ALL_EFFECTS.filter(e => (options.effects ?? ALL_EFFECTS).includes(e));
-        const problem = checkSettings(this.players.length, { deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer });
+        const problem = settingsProblem(this.players.length, { deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer });
         if (problem)
             throw new RuleError(problem);
         this.rng = options.rng ?? Math.random;
@@ -178,7 +181,7 @@ class Dutch {
     getPlayer(id) {
         const player = this.players[id];
         if (!player)
-            throw new RuleError(`Joueur inconnu (${id}).`);
+            throw new RuleError('Joueur inconnu ({id}).', { id });
         return player;
     }
     /**
@@ -245,8 +248,9 @@ class Dutch {
     move(type, playerId, cardIds = [], playerIds = [], card) {
         this.lastMove = { seq: ++this.moveSeq, type, playerId, playerIds, cardIds, card };
     }
-    addLog(message, kind = 'info') {
-        this.log.push({ round: this.round, kind, message });
+    addLog(template, params, kind = 'info') {
+        const m = msg(template, params);
+        this.log.push({ round: this.round, kind, message: render(m, 'fr'), msg: m });
     }
     // endregion
     // region Round lifecycle
@@ -273,14 +277,14 @@ class Dutch {
         this.lastResult = null;
         this.lastMove = null;
         this.currentPlayerIndex = this.firstPlayerIndex;
-        this.addLog(`— Ronde ${this.round} — ${this.deck.deckCount * 52} cartes, ${this.cardsPerPlayer} cartes chacun.`, 'info');
+        this.addLog('— Ronde {round} — {cards} cartes, {each} cartes chacun.', { round: this.round, cards: this.deck.deckCount * 52, each: this.cardsPerPlayer }, 'info');
         if (this.peekVariant) {
             this.phase = 'peek';
-            this.addLog('Chaque joueur regarde ses 2 dernières cartes.', 'info');
+            this.addLog('Chaque joueur regarde ses 2 dernières cartes.', undefined, 'info');
         }
         else {
             this.phase = 'draw';
-            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
+            this.addLog('C\'est au tour de {name}.', { name: this.currentPlayer.name }, 'info');
         }
         this.changed();
     }
@@ -293,16 +297,16 @@ class Dutch {
             throw new RuleError('Ce n\'est pas le moment de regarder ses cartes.');
         const player = this.getPlayer(playerId);
         if (player.ready)
-            throw new RuleError(`${player.name} a déjà regardé ses cartes.`);
+            throw new RuleError('{name} a déjà regardé ses cartes.', { name: player.name });
         // The 2 last places: the bottom row of the square, the cards nearest to the player
         const cards = player.cards.slice(-2);
         cards.forEach(card => this.reveal(player, card));
         player.ready = true;
         this.move('peek', player.id, cards.map(c => c.id));
-        this.addLog(`${player.name} regarde ses 2 dernières cartes.`, 'info');
+        this.addLog('{name} regarde ses 2 dernières cartes.', { name: player.name }, 'info');
         if (this.players.every(p => p.ready)) {
             this.phase = 'draw';
-            this.addLog(`C'est au tour de ${this.currentPlayer.name}.`, 'info');
+            this.addLog('C\'est au tour de {name}.', { name: this.currentPlayer.name }, 'info');
         }
         this.changed();
         return cards;
@@ -328,15 +332,17 @@ class Dutch {
             p.score += roundTotal;
             return { playerId: p.id, points: points[i], penalty, total: p.score };
         });
-        this.addLog(`Fin de la ronde ${this.round} : ` + scores
-            .map(s => `${this.players[s.playerId].name} ${s.points}${s.penalty ? ` (+${s.penalty})` : ''}`)
-            .join(', '), 'score');
+        this.addLog('Fin de la ronde {round} : {scores}', {
+            round: this.round,
+            scores: scores.map(s => `${this.players[s.playerId].name} ${s.points}${s.penalty ? ` (+${s.penalty})` : ''}`).join(', '),
+        }, 'score');
         const gameOver = this.players.some(p => p.score >= this.targetScore);
         let winners = [];
         if (gameOver) {
             const best = Math.min(...this.players.map(p => p.score));
             winners = this.players.filter(p => p.score === best).map(p => p.id);
-            this.addLog(`Partie terminée ! Victoire de ${winners.map(id => this.players[id].name).join(' et ')} avec ${best} points.`, 'dutch');
+            const names = winners.map(id => this.players[id].name);
+            this.addLog(names.length > 1 ? 'Partie terminée ! Victoire de {names} et {last} avec {best} points.' : 'Partie terminée ! Victoire de {last} avec {best} points.', { names: names.slice(0, -1).join(', '), last: names[names.length - 1], best }, 'dutch');
         }
         this.lastResult = { round: this.round, dutchCallerId: this.dutchCallerId, scores, hands, gameOver, winners };
         this.phase = gameOver ? 'gameOver' : 'roundOver';
@@ -356,13 +362,13 @@ class Dutch {
         if (!this.isRoundRunning)
             throw new RuleError('Aucune ronde en cours.');
         if (playerId !== this.currentPlayerIndex) {
-            throw new RuleError(`Ce n'est pas le tour de ${this.getPlayer(playerId).name}.`);
+            throw new RuleError('Ce n\'est pas le tour de {name}.', { name: this.getPlayer(playerId).name });
         }
     }
     assertNoEffect() {
         const effect = this.activeEffect;
         if (effect) {
-            throw new RuleError(`${this.players[effect.playerId].name} doit d'abord résoudre l'effet de: ${effect.card.name}.`);
+            throw new RuleError('{name} doit d\'abord résoudre l\'effet de: {card}.', { name: this.players[effect.playerId].name, card: effect.card.longRef });
         }
     }
     /**
@@ -378,11 +384,11 @@ class Dutch {
         if (!card)
             throw new RuleError('Il n\'y a plus de carte dans la pioche.');
         if (reshuffled)
-            this.addLog('La pioche est vide : la pile de rejet est mélangée pour refaire la pioche.', 'info');
+            this.addLog('La pioche est vide : la pile de rejet est mélangée pour refaire la pioche.', undefined, 'info');
         this.drawn = { card, source: 'pile' };
         this.phase = 'drawn';
         this.move('draw', playerId, [card.id]);
-        this.addLog(`${this.currentPlayer.name} pioche une carte.`, 'info');
+        this.addLog('{name} pioche une carte.', { name: this.currentPlayer.name }, 'info');
         this.changed();
         return card;
     }
@@ -403,7 +409,7 @@ class Dutch {
         this.drawn = { card, source: 'discard' };
         this.phase = 'drawn';
         this.move('takeDiscard', playerId, [card.id], [], card);
-        this.addLog(`${this.currentPlayer.name} prend ${card} de la pile de rejet.`, 'info');
+        this.addLog('{name} prend {card} de la pile de rejet.', { name: this.currentPlayer.name, card: card.ref }, 'info');
         this.changed();
         return card;
     }
@@ -421,7 +427,7 @@ class Dutch {
             throw new RuleError('Cette carte n\'est pas dans votre main.');
         this.drawn = null;
         this.phase = 'played';
-        this.addLog(`${player.name} échange une carte et jette ${old}.`, 'info');
+        this.addLog('{name} échange une carte et jette {card}.', { name: player.name, card: old.ref }, 'info');
         this.move('swap', player.id, [newCard.id, old.id], [], old);
         this.discardCard(player, old);
         // The player now knows the card he just placed
@@ -441,7 +447,7 @@ class Dutch {
         const card = this.drawn.card;
         this.drawn = null;
         this.phase = 'played';
-        this.addLog(`${this.currentPlayer.name} jette ${card}.`, 'info');
+        this.addLog('{name} jette {card}.', { name: this.currentPlayer.name, card: card.ref }, 'info');
         this.move('discardDrawn', playerId, [card.id], [], card);
         this.discardCard(this.currentPlayer, card);
         this.changed();
@@ -458,10 +464,10 @@ class Dutch {
             throw new RuleError('Aucune ronde en cours.');
         this.assertNoEffect();
         if (this.phase === 'drawn') {
-            throw new RuleError(`Attendez que ${this.currentPlayer.name} ait joué sa carte.`);
+            throw new RuleError('Attendez que {name} ait joué sa carte.', { name: this.currentPlayer.name });
         }
         if (player.locked)
-            throw new RuleError(`${player.name} s'est trompé : plus de carte à jeter durant ce tour.`);
+            throw new RuleError('{name} s\'est trompé : plus de carte à jeter durant ce tour.', { name: player.name });
         const card = player.getCard(cardId);
         if (!card)
             throw new RuleError('Cette carte n\'est pas dans votre main.');
@@ -470,7 +476,7 @@ class Dutch {
             throw new RuleError('La pile de rejet est vide.');
         if (card.matches(top)) {
             player.removeCard(cardId);
-            this.addLog(`${player.name} jette ${card} sur ${top} !`, 'good');
+            this.addLog('{name} jette {card} sur {top} !', { name: player.name, card: card.ref, top: top.ref }, 'good');
             this.move('throw', player.id, [card.id], [], card);
             this.discardCard(player, card);
             this.changed();
@@ -483,10 +489,10 @@ class Dutch {
         this.move('wrongThrow', player.id, penalty ? [card.id, penalty.id] : [card.id], [], card);
         if (penalty) {
             player.addCard(penalty);
-            this.addLog(`${player.name} se trompe (${card} ≠ ${top}) : carte de pénalité.`, 'bad');
+            this.addLog('{name} se trompe ({card} ≠ {top}) : carte de pénalité.', { name: player.name, card: card.ref, top: top.ref }, 'bad');
         }
         else {
-            this.addLog(`${player.name} se trompe (${card} ≠ ${top}), mais il n'y a plus de carte de pénalité.`, 'bad');
+            this.addLog('{name} se trompe ({card} ≠ {top}), mais il n\'y a plus de carte de pénalité.', { name: player.name, card: card.ref, top: top.ref }, 'bad');
         }
         this.changed();
         return false;
@@ -502,11 +508,11 @@ class Dutch {
         const player = this.currentPlayer;
         if (callDutch) {
             if (this.dutchCallerId !== null) {
-                throw new RuleError(`${this.players[this.dutchCallerId].name} a déjà dit Dutch.`);
+                throw new RuleError('{name} a déjà dit Dutch.', { name: this.players[this.dutchCallerId].name });
             }
             this.dutchCallerId = player.id;
             this.finalTurnsLeft = this.players.length - 1;
-            this.addLog(`${player.name} dit «\u00a0Dutch\u00a0» ! Dernier tour pour les autres joueurs.`, 'dutch');
+            this.addLog('{name} dit «\u00a0Dutch\u00a0» ! Dernier tour pour les autres joueurs.', { name: player.name }, 'dutch');
             this.move('dutch', player.id);
         }
         else {
@@ -521,7 +527,7 @@ class Dutch {
         }
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
         this.phase = 'draw';
-        this.addLog(`${this.isFinalRound ? 'Dernier tour' : 'Au tour'} de ${this.currentPlayer.name}.`, 'info');
+        this.addLog(this.isFinalRound ? 'Dernier tour de {name}.' : 'Au tour de {name}.', { name: this.currentPlayer.name }, 'info');
         this.changed();
     }
     // endregion
@@ -545,7 +551,7 @@ class Dutch {
         }
         if (type && this.effectsEnabled.includes(type)) {
             this.effects.push({ type, playerId: player.id, card });
-            this.addLog(`${card.name} : ${player.name} gagne un effet.`, 'effect');
+            this.addLog('{card} : {name} gagne un effet.', { card: card.longRef, name: player.name }, 'effect');
         }
     }
     assertEffect(playerId, type) {
@@ -553,7 +559,7 @@ class Dutch {
         if (!effect || effect.type !== type)
             throw new RuleError('Aucun effet de ce type à résoudre.');
         if (effect.playerId !== playerId) {
-            throw new RuleError(`C'est à ${this.players[effect.playerId].name} de résoudre l'effet.`);
+            throw new RuleError('C\'est à {name} de résoudre l\'effet.', { name: this.players[effect.playerId].name });
         }
         return effect;
     }
@@ -570,7 +576,7 @@ class Dutch {
             throw new RuleError('Carte introuvable.');
         for (const owner of [ownerA, ownerB]) {
             if (this.isImmune(owner.id) && owner.id !== playerId) {
-                throw new RuleError(`${owner.name} a dit Dutch : ses cartes sont protégées.`);
+                throw new RuleError('{name} a dit Dutch : ses cartes sont protégées.', { name: owner.name });
             }
         }
         const indexA = ownerA.hand.findIndex(c => c?.id === cardIdA);
@@ -578,8 +584,11 @@ class Dutch {
         const cardA = ownerA.hand[indexA];
         ownerA.hand[indexA] = ownerB.hand[indexB];
         ownerB.hand[indexB] = cardA;
-        const who = ownerA === ownerB ? `deux cartes ${de(ownerA.name)}` : `une carte ${de(ownerA.name)} et une carte ${de(ownerB.name)}`;
-        this.addLog(`${this.players[playerId].name} (Valet) échange ${who}.`, 'effect');
+        const name = this.players[playerId].name;
+        if (ownerA === ownerB)
+            this.addLog('{name} (Valet) échange deux cartes {deA}.', { name, a: ownerA.name, deA: de(ownerA.name) }, 'effect');
+        else
+            this.addLog('{name} (Valet) échange une carte {deA} et une carte {deB}.', { name, a: ownerA.name, b: ownerB.name, deA: de(ownerA.name), deB: de(ownerB.name) }, 'effect');
         this.move('jackSwap', playerId, [cardIdA, cardIdB], [ownerA.id, ownerB.id]);
         this.effects.shift();
         this.changed();
@@ -595,7 +604,7 @@ class Dutch {
         if (!card)
             throw new RuleError('Choisissez une de vos cartes.');
         this.reveal(player, card);
-        this.addLog(`${player.name} (Dame) regarde une de ses cartes.`, 'effect');
+        this.addLog('{name} (Dame) regarde une de ses cartes.', { name: player.name }, 'effect');
         this.move('queenPeek', playerId, [card.id]);
         this.effects.shift();
         this.changed();
@@ -608,15 +617,15 @@ class Dutch {
         this.assertEffect(playerId, 'ACE');
         const target = this.getPlayer(targetId);
         if (this.isImmune(target.id))
-            throw new RuleError(`${target.name} a dit Dutch : il est protégé.`);
+            throw new RuleError('{name} a dit Dutch : il est protégé.', { name: target.name });
         const card = this.deck.draw();
         this.move('aceGive', playerId, card ? [card.id] : [], [target.id]);
         if (card) {
             target.addCard(card);
-            this.addLog(`${this.players[playerId].name} (As) donne une carte de la pioche à ${target.name}.`, 'effect');
+            this.addLog('{name} (As) donne une carte de la pioche à {target}.', { name: this.players[playerId].name, target: target.name }, 'effect');
         }
         else {
-            this.addLog('Plus de carte dans la pioche : l\'As n\'a pas d\'effet.', 'effect');
+            this.addLog('Plus de carte dans la pioche : l\'As n\'a pas d\'effet.', undefined, 'effect');
         }
         this.effects.shift();
         this.changed();
@@ -629,9 +638,9 @@ class Dutch {
         if (!effect)
             throw new RuleError('Aucun effet à résoudre.');
         if (effect.playerId !== playerId) {
-            throw new RuleError(`C'est à ${this.players[effect.playerId].name} de résoudre l'effet.`);
+            throw new RuleError('C\'est à {name} de résoudre l\'effet.', { name: this.players[effect.playerId].name });
         }
-        this.addLog(`${this.players[playerId].name} n'utilise pas l'effet de ${effect.card.name}.`, 'effect');
+        this.addLog('{name} n\'utilise pas l\'effet de {card}.', { name: this.players[playerId].name, card: effect.card.longRef }, 'effect');
         this.move('skipEffect', playerId, [], [], effect.card);
         this.effects.shift();
         this.changed();

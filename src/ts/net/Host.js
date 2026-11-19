@@ -1,7 +1,7 @@
 import Dutch, { RuleError } from '../Dutch.js';
-import { assignColors, checkSettings, cleanSettings, isPlayerColor } from '../Settings.js';
+import { assignColors, cleanSettings, isPlayerColor, settingsProblem } from '../Settings.js';
 import { Emitter, findHandCard } from '../Session.js';
-import { applyAction, buildView, faceUp } from '../View.js';
+import { applyAction, buildView, faceUp, notice } from '../View.js';
 import { CHAT_HISTORY, cleanChatText, cleanName, EMOTES, MAX_PLAYERS, PROTOCOL_VERSION, randomToken, } from './Protocol.js';
 /**
  *  Online game, host side.
@@ -99,7 +99,7 @@ export class Host {
         if (this.seats.length < 2)
             throw new RuleError('Il faut au moins 2 joueurs.');
         this.settings = cleanSettings({ ...this.settings, ...options });
-        const problem = checkSettings(this.seats.length, this.settings);
+        const problem = settingsProblem(this.seats.length, this.settings);
         if (problem)
             throw new RuleError(problem);
         const game = new Dutch({
@@ -367,17 +367,17 @@ export class Host {
     }
     run(action, fromHost) {
         if (!this.game)
-            return { text: 'La partie n\'a pas commencé.', kind: 'error' };
+            return notice('error', 'La partie n\'a pas commencé.');
         if (action.type === 'nextRound' && !fromHost)
-            return { text: 'Seul l\'hôte lance la ronde suivante.', kind: 'error' };
+            return notice('error', 'Seul l\'hôte lance la ronde suivante.');
         try {
             return applyAction(this.game, action);
         }
         catch (e) {
             if (e instanceof RuleError)
-                return { text: e.message, kind: 'error' };
+                return notice('error', e.msg);
             console.error('Invalid action', action, e);
-            return { text: 'Action invalide.', kind: 'error' };
+            return notice('error', 'Action invalide.');
         }
     }
     send(seat, message) {

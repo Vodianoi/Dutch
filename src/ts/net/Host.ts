@@ -1,7 +1,7 @@
 import Dutch, {DutchSnapshot, RuleError} from '../Dutch.js';
-import {assignColors, checkSettings, cleanSettings, GameSettings, isPlayerColor} from '../Settings.js';
+import {assignColors, cleanSettings, GameSettings, isPlayerColor, settingsProblem} from '../Settings.js';
 import {Chat, Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
-import {Action, applyAction, buildView, faceUp, GameView} from '../View.js';
+import {Action, applyAction, buildView, faceUp, GameView, notice} from '../View.js';
 import {
     CHAT_HISTORY, ChatMessage, cleanChatText, ClientMessage, cleanName, EMOTES, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken,
 } from './Protocol.js';
@@ -146,7 +146,7 @@ export class Host implements Session {
         }
         if (this.seats.length < 2) throw new RuleError('Il faut au moins 2 joueurs.');
         this.settings = cleanSettings({...this.settings, ...options});
-        const problem = checkSettings(this.seats.length, this.settings);
+        const problem = settingsProblem(this.seats.length, this.settings);
         if (problem) throw new RuleError(problem);
         const game = new Dutch({
             ...this.settings,
@@ -396,14 +396,14 @@ export class Host implements Session {
     }
 
     private run(action: Action, fromHost: boolean) {
-        if (!this.game) return {text: 'La partie n\'a pas commencé.', kind: 'error' as const};
-        if (action.type === 'nextRound' && !fromHost) return {text: 'Seul l\'hôte lance la ronde suivante.', kind: 'error' as const};
+        if (!this.game) return notice('error', 'La partie n\'a pas commencé.');
+        if (action.type === 'nextRound' && !fromHost) return notice('error', 'Seul l\'hôte lance la ronde suivante.');
         try {
             return applyAction(this.game, action);
         } catch (e) {
-            if (e instanceof RuleError) return {text: e.message, kind: 'error' as const};
+            if (e instanceof RuleError) return notice('error', e.msg);
             console.error('Invalid action', action, e);
-            return {text: 'Action invalide.', kind: 'error' as const};
+            return notice('error', 'Action invalide.');
         }
     }
 

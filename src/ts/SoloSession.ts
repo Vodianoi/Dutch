@@ -2,7 +2,7 @@ import {BotOptions, Bots} from './Bots.js';
 import Dutch, {DutchSnapshot, RuleError} from './Dutch.js';
 import {ChatMessage, EMOTES} from './net/Protocol.js';
 import {Chat, Emitter, findHandCard, Session, SessionEvent} from './Session.js';
-import {Action, applyAction, buildView, faceUp, GameView} from './View.js';
+import {Action, applyAction, buildView, faceUp, GameView, notice} from './View.js';
 
 /**
  *  "Contre l'ordinateur": this device plays seat 0, computer players play the other seats.
@@ -65,7 +65,7 @@ export class SoloSession implements Session {
             if (notice) this.events.emit({type: 'notice', notice});
         } catch (e) {
             if (!(e instanceof RuleError)) throw e;
-            this.events.emit({type: 'notice', notice: {text: e.message, kind: 'error'}});
+            this.events.emit({type: 'notice', notice: notice('error', e.msg)});
         }
     }
 

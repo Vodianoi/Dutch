@@ -1,4 +1,5 @@
 import type {EffectType} from './Dutch.js';
+import {msg, Msg, render, t} from './i18n.js';
 
 /**
  *  Rules chosen when a game is created (local setup or online lobby)
@@ -86,10 +87,17 @@ export function cleanSettings(raw: Partial<GameSettings> | null | undefined): Ga
  *  @returns the problem, null if fine
  */
 export function checkSettings(players: number, settings: Pick<GameSettings, 'deckCount' | 'cardsPerPlayer'>): string | null {
+    const problem = settingsProblem(players, settings);
+    return problem ? render(problem) : null;
+}
+
+/** The same problem, to show on every device in its own language */
+export function settingsProblem(players: number, settings: Pick<GameSettings, 'deckCount' | 'cardsPerPlayer'>): Msg | null {
     // Every hand, the first card of the discard pile, and some cards left to draw
     const needed = players * settings.cardsPerPlayer + 1 + players;
     if (needed > settings.deckCount * 52) {
-        return `Pas assez de cartes pour ${players} joueurs à ${settings.cardsPerPlayer} cartes : prenez 2 paquets ou moins de cartes par joueur.`;
+        return msg('Pas assez de cartes pour {players} joueurs à {cards} cartes : prenez 2 paquets ou moins de cartes par joueur.',
+            {players, cards: settings.cardsPerPlayer});
     }
     return null;
 }
@@ -99,16 +107,17 @@ export function checkSettings(players: number, settings: Pick<GameSettings, 'dec
  */
 export function describeSettings(settings: GameSettings): string[] {
     const effects = settings.effects.length === ALL_EFFECTS.length
-        ? 'Valet, Dame et As actifs'
+        ? t('Valet, Dame et As actifs')
         : settings.effects.length === 0
-            ? 'Aucune carte spéciale'
-            : `Cartes spéciales : ${settings.effects.map(e => EFFECT_LABELS[e].name).join(' et ')} seulement`;
+            ? t('Aucune carte spéciale')
+            : t('Cartes spéciales : {names} seulement', {names: settings.effects.map(e => t(EFFECT_LABELS[e].name)).join(` ${t('et')} `)});
     return [
-        `${settings.cardsPerPlayer} cartes par joueur, ${settings.deckCount} paquet${settings.deckCount > 1 ? 's' : ''}`,
-        `Fin de partie à ${settings.targetScore} points`,
-        settings.dutchPenalty ? `Dutch raté : +${settings.dutchPenalty} points` : 'Dutch raté : pas de pénalité',
+        t(settings.deckCount > 1 ? '{cards} cartes par joueur, {decks} paquets' : '{cards} cartes par joueur, {decks} paquet',
+            {cards: settings.cardsPerPlayer, decks: settings.deckCount}),
+        t('Fin de partie à {score} points', {score: settings.targetScore}),
+        settings.dutchPenalty ? t('Dutch raté : +{penalty} points', {penalty: settings.dutchPenalty}) : t('Dutch raté : pas de pénalité'),
         effects,
-        ...(settings.peekVariant ? ['Chacun regarde ses 2 dernières cartes en début de ronde'] : []),
+        ...(settings.peekVariant ? [t('Chacun regarde ses 2 dernières cartes en début de ronde')] : []),
     ];
 }
 
@@ -133,7 +142,7 @@ export function isPlayerColor(value: unknown): value is string {
 }
 
 export function colorName(value: string): string {
-    return PLAYER_COLORS.find(c => c.value === value)?.name ?? 'couleur';
+    return t(PLAYER_COLORS.find(c => c.value === value)?.name ?? 'couleur');
 }
 
 /**

@@ -1,5 +1,5 @@
 import Dutch, {RuleError} from './Dutch.js';
-import {Action, applyAction, buildView, CardView, faceUp, GameView, Notice} from './View.js';
+import {Action, applyAction, buildView, CardView, faceUp, GameView, notice, Notice} from './View.js';
 import type {ChatMessage} from './net/Protocol.js';
 
 /**
@@ -110,7 +110,7 @@ export class LocalSession implements Session {
             if (notice) this.events.emit({type: 'notice', notice});
         } catch (e) {
             if (!(e instanceof RuleError)) throw e;
-            this.events.emit({type: 'notice', notice: {text: e.message, kind: 'error'}});
+            this.events.emit({type: 'notice', notice: notice('error', e.msg)});
         }
     }
 

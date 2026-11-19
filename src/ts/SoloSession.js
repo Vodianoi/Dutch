@@ -2,7 +2,7 @@ import { Bots } from './Bots.js';
 import { RuleError } from './Dutch.js';
 import { EMOTES } from './net/Protocol.js';
 import { Emitter, findHandCard } from './Session.js';
-import { applyAction, buildView, faceUp } from './View.js';
+import { applyAction, buildView, faceUp, notice } from './View.js';
 /**
  *  "Contre l'ordinateur": this device plays seat 0, computer players play the other seats.
  *  Like an online game, the player only sees his own cards when they are revealed to him.
@@ -67,7 +67,7 @@ export class SoloSession {
         catch (e) {
             if (!(e instanceof RuleError))
                 throw e;
-            this.events.emit({ type: 'notice', notice: { text: e.message, kind: 'error' } });
+            this.events.emit({ type: 'notice', notice: notice('error', e.msg) });
         }
     }
     setShowAll(on) {

@@ -1,3 +1,4 @@
+import { rankLabel, valueName } from '../i18n.js';
 import { CH, CW } from './size.js';
 export { CH, CW };
 const RADIUS = 18;
@@ -7,11 +8,8 @@ export const EMOJI = '"Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji",
 const RED = '#c4202f';
 const BLACK = '#1c1c26';
 const SYMBOLS = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' };
-const RANKS = {
-    ACE: 'A', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
-    '8': '8', '9': '9', '10': '10', JACK: 'V', QUEEN: 'D', KING: 'R',
-};
-const COURT = { JACK: 'VALET', QUEEN: 'DAME', KING: 'ROI' };
+/** Name written on the court cards, in the language of this device (VALET / JACK…) */
+const court = (value) => ['JACK', 'QUEEN', 'KING'].includes(value) ? valueName(value).toUpperCase() : undefined;
 function canvas(w, h) {
     const c = document.createElement('canvas');
     c.width = w;
@@ -96,12 +94,12 @@ export function face(card, vintage = false) {
     const color = card.isRed ? (vintage ? VINTAGE_RED : RED) : (vintage ? VINTAGE_BLACK : BLACK);
     const suit = SYMBOLS[card.suit];
     ctx.fillStyle = color;
-    corner(ctx, RANKS[card.value], suit);
-    const court = COURT[card.value];
+    corner(ctx, rankLabel(card.value), suit);
+    const courtName = court(card.value);
     if (card.value === 'ACE') {
         symbol(ctx, suit, CW / 2, CH / 2, 150);
     }
-    else if (court) {
+    else if (courtName) {
         // Court card: a framed panel with the initial (no portrait art)
         const x = 58, y = 58, w = CW - 116, h = CH - 116;
         const g = ctx.createLinearGradient(0, y, 0, y + h);
@@ -122,10 +120,10 @@ export function face(card, vintage = false) {
         ctx.font = `900 112px ${SERIF}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(RANKS[card.value], CW / 2, CH / 2 + 6);
+        ctx.fillText(rankLabel(card.value), CW / 2, CH / 2 + 6);
         ctx.font = `700 15px ${SANS}`;
         ctx.letterSpacing = '3px';
-        ctx.fillText(court, CW / 2 + 1.5, y + h - 72);
+        ctx.fillText(courtName, CW / 2 + 1.5, y + h - 72);
         ctx.letterSpacing = '0px';
         if (card.value === 'KING' && card.isRed) {
             // Red king: worth 0 point, worth showing
@@ -161,7 +159,7 @@ export function compactFace(card, vintage = false) {
     ctx.fillStyle = card.isRed ? (vintage ? VINTAGE_RED : RED) : (vintage ? VINTAGE_BLACK : BLACK);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const rank = RANKS[card.value];
+    const rank = rankLabel(card.value);
     ctx.font = `900 ${rank.length > 1 ? 120 : 150}px ${SERIF}`;
     ctx.fillText(rank, CW / 2, CH * .34);
     ctx.font = `150px ${SERIF}`;

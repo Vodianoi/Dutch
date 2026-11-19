@@ -1,5 +1,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
+import { joinNames, t } from '../i18n.js';
+import { effectCard, logText, noticeText } from '../View.js';
 import { CW, drawTable, EMOJI, makeArt, SANS, SERIF } from './art.js';
 import { TableChrome } from './chrome.js';
 import { CardSprite, centered, dispose } from './CardSprite.js';
@@ -103,7 +105,7 @@ export class TableView {
         this.hint = document.createElement('p');
         this.hint.className = 'table-hint';
         this.hint.hidden = true;
-        this.hint.textContent = 'Tenez le téléphone droit pour mieux voir la table';
+        this.hint.textContent = t('Tenez le téléphone droit pour mieux voir la table');
         this.screen.append(this.host, bar, this.live, this.hint);
         root.replaceChildren(this.screen);
         this.chrome = new TableChrome({
@@ -178,7 +180,7 @@ export class TableView {
                 sfx.bad();
                 buzz(this.prefs, 20);
             }
-            this.chip(this.bottomId(), event.notice.text, event.notice.kind === 'error' ? 0xff6b6b : GOLD);
+            this.chip(this.bottomId(), noticeText(event.notice), event.notice.kind === 'error' ? 0xff6b6b : GOLD);
         }
     }
     requestSync() {
@@ -207,7 +209,7 @@ export class TableView {
     }
     nameOf(playerId) {
         const s = this.state;
-        return s.viewerId === playerId ? 'vous' : s.players[playerId].name;
+        return s.viewerId === playerId ? t('vous') : s.players[playerId].name;
     }
     order(s) {
         const ids = s.players.map(p => p.id);
@@ -315,7 +317,7 @@ export class TableView {
         for (const p of s.players) {
             let view = this.seatViews.get(p.id);
             if (!view) {
-                view = new SeatView(p.id, p.color, p.id === s.viewerId && p.name !== 'Vous' ? `${p.name} (vous)` : p.name, this.art);
+                view = new SeatView(p.id, p.color, p.id === s.viewerId && p.name !== 'Vous' && p.name !== t('Vous') ? t('{name} (vous)', { name: p.name }) : p.name, this.art);
                 view.on('pointertap', () => this.tapSeat(p.id));
                 this.seatsLayer.addChild(view);
                 this.spots.addChild(view.spot);
@@ -515,7 +517,7 @@ export class TableView {
         this.myTurnBefore = turnStarts;
         const stack = Math.min(this.deckStack.length, Math.ceil(s.deckRemaining / 8));
         this.deckStack.forEach((sprite, i) => sprite.visible = i < stack);
-        this.deckCount.text = s.deckRemaining ? `${s.deckRemaining}` : 'vide';
+        this.deckCount.text = s.deckRemaining ? `${s.deckRemaining}` : t('vide');
         this.deckGlow.alpha = canDraw ? .85 : 0;
         // Places of the hands: an empty place stays visible
         this.slots.clear();
@@ -563,7 +565,7 @@ export class TableView {
         }
         for (const p of s.players) {
             const running = s.phase === 'peek' ? !!effect : s.phase === 'draw' || s.phase === 'drawn' || s.phase === 'played';
-            const badge = s.dutchCallerId === p.id ? 'DUTCH' : !p.connected ? 'HORS LIGNE' : p.locked ? 'BLOQUÉ' : null;
+            const badge = s.dutchCallerId === p.id ? 'DUTCH' : !p.connected ? t('HORS LIGNE') : p.locked ? t('BLOQUÉ') : null;
             this.seatViews.get(p.id)?.update({
                 score: p.score,
                 active: running && (effect ? effect.playerId === p.id : cur === p.id),
@@ -588,46 +590,46 @@ export class TableView {
         const effect = s.activeEffect;
         const cur = s.players[s.currentPlayerIndex];
         const myTurn = this.mine(cur.id);
-        const who = (id) => s.viewerId === null ? `${s.players[id].name} : ` : 'À vous : ';
+        const who = (id) => s.viewerId === null ? t('{name} : ', { name: s.players[id].name }) : t('À vous : ');
         const canThrow = s.viewerId !== null && s.players[s.viewerId].canThrow;
         if (s.phase === 'peek' && !effect) {
             const peeker = this.peeker(s);
             if (peeker !== null)
-                return `${who(peeker)}regardez vos 2 cartes du bas et retenez-les !`;
-            return `Les autres regardent leurs cartes…${canThrow ? ' · une carte identique ? Glissez-la sur la défausse' : ''}`;
+                return who(peeker) + t('regardez vos 2 cartes du bas et retenez-les !');
+            return t('Les autres regardent leurs cartes…') + (canThrow ? t(' · une carte identique ? Glissez-la sur la défausse') : '');
         }
         if (s.phase === 'roundOver' || s.phase === 'gameOver')
-            return 'Fin de la manche : on retourne les cartes';
+            return t('Fin de la manche : on retourne les cartes');
         let text;
         if (effect) {
             const owner = s.players[effect.playerId];
             if (!this.mine(owner.id))
-                text = `${owner.name} utilise ${effect.cardName}…`;
+                text = t('{name} utilise {card}…', { name: owner.name, card: effectCard(effect) });
             else if (effect.type === 'QUEEN')
-                text = `${who(owner.id)}Dame : touchez une de vos cartes pour la regarder`;
+                text = who(owner.id) + t('Dame : touchez une de vos cartes pour la regarder');
             else if (effect.type === 'JACK')
-                text = this.jackPick ? 'Valet : touchez la 2ᵉ carte à échanger' : `${who(owner.id)}Valet : touchez deux cartes à échanger`;
+                text = this.jackPick ? t('Valet : touchez la 2ᵉ carte à échanger') : who(owner.id) + t('Valet : touchez deux cartes à échanger');
             else
-                text = `${who(owner.id)}As : touchez un joueur, il reçoit une carte`;
+                text = who(owner.id) + t('As : touchez un joueur, il reçoit une carte');
         }
         else if (myTurn && s.phase === 'draw') {
-            text = s.isStuck ? 'Plus rien à piocher : passez votre tour' : `${who(cur.id)}piochez, ou prenez la défausse`;
+            text = s.isStuck ? t('Plus rien à piocher : passez votre tour') : who(cur.id) + t('piochez, ou prenez la défausse');
         }
         else if (myTurn && s.phase === 'drawn') {
             text = s.drawn?.source === 'pile'
-                ? 'Touchez une de vos cartes pour l\'échanger, ou la défausse pour jeter celle-ci'
-                : 'Touchez la carte de votre jeu à remplacer';
+                ? t('Touchez une de vos cartes pour l\'échanger, ou la défausse pour jeter celle-ci')
+                : t('Touchez la carte de votre jeu à remplacer');
         }
         else if (myTurn && s.phase === 'played') {
-            text = s.dutchCallerId === null ? 'Finissez votre tour… ou annoncez Dutch !' : 'Finissez votre tour';
+            text = s.dutchCallerId === null ? t('Finissez votre tour… ou annoncez Dutch !') : t('Finissez votre tour');
         }
         else {
-            text = `Tour de ${cur.name}`;
+            text = t('Tour de {name}', { name: cur.name });
             if (canThrow)
-                text += ' · une carte identique ? Glissez-la sur la défausse';
+                text += t(' · une carte identique ? Glissez-la sur la défausse');
         }
         if (s.isFinalRound)
-            text = `Dernier tour · ${text}`;
+            text = t('Dernier tour · {text}', { text });
         return text;
     }
     updateBanner(s) {
@@ -650,16 +652,16 @@ export class TableView {
         const list = [];
         const peeker = this.peeker(s);
         if (effect && this.mine(effect.playerId)) {
-            list.push(['Passer l\'effet', 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
+            list.push([t('Passer l\'effet'), 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
         }
         else if (peeker !== null && !effect) {
-            list.push([s.viewerId === null ? `${s.players[peeker].name} : regarder` : 'Regarder mes cartes', 'primary',
+            list.push([s.viewerId === null ? t('{name} : regarder', { name: s.players[peeker].name }) : t('Regarder mes cartes'), 'primary',
                 () => this.dispatch({ type: 'peek', playerId: peeker })]);
         }
         else if (myTurn && !effect && s.phase === 'played') {
-            list.push(['Finir mon tour', 'primary', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
+            list.push([t('Finir mon tour'), 'primary', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
             if (s.dutchCallerId === null) {
-                list.push([this.dutchArmed ? 'Confirmer : Dutch !' : 'Dutch !', 'danger', () => {
+                list.push([this.dutchArmed ? t('Confirmer : Dutch !') : 'Dutch !', 'danger', () => {
                         if (!this.dutchArmed) {
                             // Saying Dutch ends the round: one more tap to be sure
                             this.dutchArmed = true;
@@ -677,7 +679,7 @@ export class TableView {
             }
         }
         else if (myTurn && !effect && s.phase === 'draw' && s.isStuck) {
-            list.push(['Passer', 'primary', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
+            list.push([t('Passer'), 'primary', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
         }
         if (!(myTurn && s.phase === 'played'))
             this.dutchArmed = false;
@@ -732,7 +734,7 @@ export class TableView {
         if (this.throwButton)
             return;
         const owner = place.player;
-        this.throwButton = button('Jeter sur la défausse', 'primary', this.layout.ui * .85, () => {
+        this.throwButton = button(t('Jeter sur la défausse'), 'primary', this.layout.ui * .85, () => {
             this.dispatch({ type: 'throwCard', playerId: owner, cardId: id });
         });
         const target = sprite.target;
@@ -743,7 +745,7 @@ export class TableView {
         gsap.from(this.throwButton, { alpha: 0, y: this.throwButton.y + 10, duration: .2 });
     }
     updateInfo(s) {
-        const text = `Manche ${s.round} · ${s.targetScore} pts`;
+        const text = t('Manche {round} · {target} pts', { round: s.round, target: s.targetScore });
         if (this.info.textContent !== text)
             this.info.textContent = text;
     }
@@ -849,19 +851,22 @@ export class TableView {
         const end = log[log.length - 1];
         this.lastLog = end ? { round: end.round, message: end.message } : null;
         for (const entry of fresh.slice(-6)) {
-            if (TableView.SKIP.test(entry.message) || entry.kind === 'dutch')
+            // Tested on the French template: the same whatever the language of this device
+            const source = entry.msg?.t ?? entry.message;
+            const text = logText(entry);
+            if (TableView.SKIP.test(source) || entry.kind === 'dutch')
                 continue;
-            if (TableView.QUIET.test(entry.message)) {
-                this.live.textContent = entry.message;
+            if (TableView.QUIET.test(source)) {
+                this.live.textContent = text;
                 continue;
             }
-            const actor = s.players.find(p => entry.message.startsWith(p.name)) ?? s.players.find(p => entry.message.includes(p.name));
+            const actor = s.players.find(p => text.startsWith(p.name)) ?? s.players.find(p => text.includes(p.name));
             // This device's own routine moves are not announced: the player just did them
             if (actor && s.viewerId === actor.id && entry.kind === 'info')
                 continue;
             const color = actor ? parseInt(actor.color.slice(1), 16) : GOLD;
-            this.chip(actor ? actor.id : null, entry.message, color);
-            this.live.textContent = entry.message;
+            this.chip(actor ? actor.id : null, text, color);
+            this.live.textContent = text;
         }
     }
     sparks(at) {
@@ -890,13 +895,13 @@ export class TableView {
             },
         });
         big.anchor.set(.5);
-        const small = label(me ? 'Vous annoncez la fin : dernier tour pour les autres' : `${name} annonce la fin : dernier tour pour les autres`, 15 * L.ui, 0xffffff, '800');
+        const small = label(me ? t('Vous annoncez la fin : dernier tour pour les autres') : t('{name} annonce la fin : dernier tour pour les autres', { name }), 15 * L.ui, 0xffffff, '800');
         small.anchor.set(.5, 0);
         small.y = big.height / 2;
         box.addChild(big, small);
         box.position.set(L.w / 2, L.h * .45);
         this.fxLayer.addChild(box);
-        this.live.textContent = me ? 'Vous dites Dutch !' : `${name} dit Dutch !`;
+        this.live.textContent = me ? t('Vous dites Dutch !') : t('{name} dit Dutch !', { name });
         gsap.timeline({ onComplete: () => dispose(box) })
             .from(box.scale, { x: 2.4, y: 2.4, duration: .45, ease: 'back.out(1.6)' })
             .from(box, { alpha: 0, duration: .25 }, 0)
@@ -949,10 +954,10 @@ export class TableView {
         const box = new Container();
         box.position.set(L.w / 2, L.h / 2);
         box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, 18).fill({ color: 0x12100d, alpha: .96 }).stroke({ width: 2, color: GOLD, alpha: .5 }));
-        let title = `Fin de la manche ${result.round}`;
+        let title = t('Fin de la manche {round}', { round: result.round });
         if (result.gameOver) {
-            const names = result.winners.map(id => id === s.viewerId ? 'vous' : s.players[id].name);
-            title = result.winners.length === 1 && result.winners[0] === s.viewerId ? 'Vous gagnez !' : `Victoire : ${names.join(' et ')}`;
+            const names = result.winners.map(id => id === s.viewerId ? t('vous') : s.players[id].name);
+            title = result.winners.length === 1 && result.winners[0] === s.viewerId ? t('Vous gagnez !') : t('Victoire : {names}', { names: joinNames(names) });
         }
         const titleText = new Text({ text: title, style: { fontFamily: SERIF, fontWeight: '900', fontSize: 24 * ui, fill: GOLD } });
         titleText.anchor.set(.5, 0);
@@ -963,7 +968,7 @@ export class TableView {
             const y = -h / 2 + 62 * ui + i * rowH + rowH / 2;
             const won = result.winners.includes(r.playerId);
             box.addChild(new Graphics().circle(-w / 2 + 28 * ui, y, 9 * ui).fill(player.color));
-            const name = label(`${player.name}${r.playerId === s.viewerId ? ' (vous)' : ''}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}`, 15 * ui, won ? GOLD : CREAM, '800');
+            const name = label(`${r.playerId === s.viewerId ? t('{name} (vous)', { name: player.name }) : player.name}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}`, 15 * ui, won ? GOLD : CREAM, '800');
             name.anchor.set(0, .5);
             name.position.set(-w / 2 + 46 * ui, y);
             const pts = label(`+${r.points}${r.penalty ? ` (+${r.penalty})` : ''}`, 14 * ui, r.penalty ? 0xff8a8a : 0xd9c9a3, '600');
@@ -976,7 +981,7 @@ export class TableView {
         });
         const bottom = h / 2 - 34 * ui;
         if (this.session.isHost) {
-            const next = button(result.gameOver ? 'Nouvelle partie' : 'Manche suivante', 'primary', ui, () => {
+            const next = button(result.gameOver ? t('Nouvelle partie') : t('Manche suivante'), 'primary', ui, () => {
                 if (result.gameOver)
                     this.options.onNewGame();
                 else
@@ -986,7 +991,7 @@ export class TableView {
             box.addChild(next);
         }
         else {
-            const wait = label(result.gameOver ? 'En attente d\'une nouvelle partie…' : `En attente de ${s.players[0].name} pour la suite…`, 14 * ui, 0xd9c9a3, '600');
+            const wait = label(result.gameOver ? t('En attente d\'une nouvelle partie…') : t('En attente de {name} pour la suite…', { name: s.players[0].name }), 14 * ui, 0xd9c9a3, '600');
             wait.anchor.set(.5);
             wait.y = bottom;
             box.addChild(wait);
@@ -1163,7 +1168,7 @@ export class TableView {
             return;
         if (message.text) {
             this.chip(message.seat, `« ${message.text} »`, parseInt(message.color.slice(1), 16), 4);
-            this.live.textContent = `${message.name} : ${message.text}`;
+            this.live.textContent = t('{name} : {text}', { name: message.name, text: message.text });
             return;
         }
         if (!message.emote)
@@ -1180,7 +1185,7 @@ export class TableView {
         const at = { x: clamp(from.x, size, this.layout.w - size), y: Math.max(size, from.y - size * .6) };
         bubble.position.set(at.x, at.y);
         this.fxLayer.addChild(bubble);
-        this.live.textContent = `${message.name} : ${message.emote}`;
+        this.live.textContent = t('{name} : {text}', { name: message.name, text: message.emote });
         gsap.timeline({ onComplete: () => dispose(bubble) })
             .from(bubble.scale, { x: 0, y: 0, duration: .35, ease: 'back.out(2.5)' })
             .to(bubble, { y: at.y - 26 * ui, duration: 1.6, ease: 'sine.out' }, '+=.3')

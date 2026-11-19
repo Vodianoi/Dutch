@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { CH, CW, SANS } from './art.js';
 import { centered } from './CardSprite.js';
 import { handH, handW } from './layout.js';
+import { points } from '../i18n.js';
 import { sfx } from './sound.js';
 export const GOLD = 0xffd166;
 export const CREAM = 0xf6ead0;
@@ -108,7 +109,7 @@ export class SeatView extends Container {
             this.badge.position.set(0, -r - 14);
     }
     update(o) {
-        this.scoreText.text = `${o.score} pt${o.score > 1 ? 's' : ''}`;
+        this.scoreText.text = points(o.score);
         this.badge.visible = !!o.badge;
         if (o.badge && this.badgeText.text !== o.badge)
             this.badgeText.text = o.badge;
