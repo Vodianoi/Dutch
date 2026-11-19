@@ -1,5 +1,6 @@
 import Dutch, {RuleError} from './Dutch.js';
-import {Action, applyAction, buildView, CardView, faceUp, GameView, Notice} from './View.js';
+import {Action, applyAction, buildView, CardView, faceUp, GameView, notice, Notice} from './View.js';
+import type {ChatMessage} from './net/Protocol.js';
 
 /**
  *  A Session is what the game screen talks to:
@@ -19,6 +20,8 @@ export type SessionEvent =
     | { type: 'lobby' }
     /** Online player: connection to the host lost (reconnecting on its own) or back */
     | { type: 'connection'; status: ConnectionStatus }
+    /** Chat line or emote (see Chat) */
+    | { type: 'chat'; message: ChatMessage; history?: boolean }
     | { type: 'closed'; reason: string };
 
 export type ConnectionStatus = 'online' | 'reconnecting';
@@ -34,6 +37,20 @@ export interface Session {
     dispatch(action: Action): void;
     setShowAll(on: boolean): void;
     on(listener: (event: SessionEvent) => void): () => void;
+    /** Chat between the players, when the session has one */
+    readonly chat?: Chat;
+}
+
+/**
+ *  Chat of a session: online games (lines and emotes), solo games (emotes, the bots answer)
+ */
+export interface Chat {
+    /** Messages so far, oldest first */
+    readonly messages: ChatMessage[];
+    /** Text lines can be sent (not only emotes) */
+    readonly text: boolean;
+    send(text: string): void;
+    emote(emote: string): void;
 }
 
 /**
@@ -93,7 +110,7 @@ export class LocalSession implements Session {
             if (notice) this.events.emit({type: 'notice', notice});
         } catch (e) {
             if (!(e instanceof RuleError)) throw e;
-            this.events.emit({type: 'notice', notice: {text: e.message, kind: 'error'}});
+            this.events.emit({type: 'notice', notice: notice('error', e.msg)});
         }
     }
 

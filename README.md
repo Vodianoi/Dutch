@@ -12,8 +12,25 @@ Temps approximatif d'une partie: 30 minutes
 
 Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
+Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
+
+Table en 3D (prototype, style vieux casino) : seulement sur la version de test et en développement (localhost), jamais sur le vrai site. Dans le menu d'une partie, « Table en 3D » ; ou https://vodianoi.github.io/Dutch/dev/?table=3d. Chaque appareil choisit sa table, même dans une partie en ligne. Code dans `src/ts/table3d/` (Three.js, chargé seulement par les appareils qui l'utilisent).
+
+* **Contre l'ordinateur** : vous jouez contre 1 à 9 adversaires de l'ordinateur. Ils ne voient pas vos cartes et ne retiennent que celles qu'on leur a montrées. La partie est enregistrée à chaque coup : l'accueil propose de la reprendre.
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
-* **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »).
+* **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »). Réservé aux tests : proposé sur la version de test et en développement (localhost), pas sur le vrai site.
+
+### Sons
+
+Les sons des cartes (`sounds/`) viennent du pack « Casino Audio » de Kenney (www.kenney.nl), sous licence CC0 (domaine public) : voir `sounds/LICENSE.txt`. Les autres sons (réussite, erreur, « Dutch », boutons) sont synthétisés dans le navigateur (`src/ts/table/sound.ts`).
+
+### Langues / Languages
+
+Le jeu est en français et en anglais : la langue du navigateur est choisie au premier lancement (français si le navigateur est en français, anglais sinon), et l'accueil propose « Français / English ». En ligne, chaque appareil affiche la partie dans sa langue (le journal de la partie et les erreurs voyagent sous forme de modèles traduits sur chaque appareil).
+
+The game is available in French and English: the browser language is used on the first visit, and the home screen has a « Français / English » switch. In an online game each device shows the game in its own language.
+
+Pour les développeurs : le code est écrit avec les phrases françaises, passées à `t()` (`src/ts/i18n.ts`) ; leur version anglaise est dans `src/ts/i18n-en.ts`. Le test `test/i18n.test.mjs` (lancé par la CI) échoue si une phrase n'a pas sa traduction. L'ancien écran HTML (`?classic`) reste en français.
 
 ### Comment marche le jeu en ligne
 
@@ -21,8 +38,8 @@ Il n'y a pas de serveur de jeu : la partie tourne dans le navigateur de celui qu
 
 * Chaque joueur ne reçoit que sa propre vue : les cartes face cachée sont envoyées sans leur valeur, la carte piochée n'est visible que par celui qui l'a piochée, et les cartes regardées (Dame, échange, variante) ne sont montrées qu'à leur propriétaire. Une erreur de jet est montrée à tous.
 * L'hôte vérifie toutes les actions : un joueur ne peut jouer que pour lui-même.
-* Un joueur qui recharge la page ou perd la connexion retrouve sa place (même onglet) ; s'il est déconnecté, la partie l'attend.
-* L'hôte doit garder la page ouverte : s'il la ferme, la partie s'arrête pour tout le monde.
+* Un joueur qui perd la connexion, quitte l'application ou recharge la page se reconnecte tout seul et retrouve sa place et ses cartes ; en attendant, la partie l'attend.
+* La partie est sauvegardée sur l'appareil de l'hôte : s'il quitte l'application ou ferme la page, elle reprend quand il revient (rechargement ou « Reprendre la partie » sur l'accueil), et les autres joueurs se reconnectent tout seuls.
 * Certains réseaux très restrictifs (réseaux d'entreprise, certains opérateurs mobiles) peuvent bloquer les connexions WebRTC directes.
 
 Pour tester le mode en ligne sur un seul ordinateur, ajoutez `?transport=local` à l'URL et ouvrez la partie dans plusieurs onglets : les onglets communiquent entre eux sans réseau.
@@ -36,19 +53,30 @@ npm test         # tests du moteur de jeu (node --test)
 python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 ```
 
-Ajouter `?debug` à l'URL affiche une case « Tout voir » qui retourne toutes les cartes (seulement sur un même écran).
+### Publication
+
+Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`.
+
+Chaque push et chaque pull request est vérifié par GitHub Actions (`.github/workflows/ci.yml`) : compilation TypeScript sans erreur, tests (`npm test`) et fichiers `.js` versionnés à jour par rapport aux `.ts` (sinon : `npm run build` puis commit des `.js`).
+
+* Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
+* Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
+
+La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et animée avec [GSAP](https://gsap.com), chargés depuis un CDN (versions fixées dans `index.html`) ; les paquets npm ne servent qu'aux types. Code de la table : `src/ts/table/`. Ajouter `?classic` à l'URL affiche l'ancien écran de jeu (HTML), et `?debug` ajoute au menu une case « Voir toutes les cartes » (sans le jeu en ligne côté joueur).
 
 **Comment jouer à l'écran**
 
-* Le joueur dont c'est le tour clique sur la pioche ou sur la pile de rejet, puis sur la carte de sa main à remplacer (ou sur « Jeter » pour défausser la carte piochée).
-* À tout moment, n'importe quel joueur peut cliquer sur une de ses cartes pour la jeter si elle a la même valeur que la carte visible du rejet. En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* Le joueur dont c'est le tour touche la pioche ou la pile de rejet, puis la carte de sa main à remplacer (ou la pile de rejet pour jeter la carte piochée). On peut aussi faire glisser la carte piochée sur une de ses cartes ou sur la pile de rejet.
+* À tout moment, même pendant que les joueurs regardent leurs premières cartes, un joueur peut jeter une de ses cartes si elle a la même valeur que la carte visible du rejet : en la faisant glisser sur la pile de rejet, ou en la touchant puis en appuyant sur « Jeter sur la défausse ». En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
+* Le bouton « Menu » donne les règles de la partie, les réglages de l'appareil (sons, vibrations, animations rapides, dos des cartes) et permet de quitter la partie.
 * Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
-* Le tour se termine avec « Fin du tour » ou « Dutch ! », seulement après avoir joué et résolu les effets.
+* Le tour se termine avec « Finir mon tour » ou « Dutch ! » (à confirmer d'une deuxième pression), seulement après avoir joué et résolu les effets.
 * Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
+* Les joueurs sont assis autour de la table : soi-même en bas (le premier joueur sur un écran partagé), les autres dans le sens des aiguilles d'une montre, dans l'ordre du jeu. Les places ne bougent pas pendant la partie. Sur téléphone tenu droit, les autres joueurs sont sur une ou deux rangées au-dessus du milieu de la table.
 * Les cartes de chaque joueur sont posées en carré (2 rangées) et gardent leur place : une carte jetée laisse un emplacement vide, pour se souvenir de la position de ses cartes. Une carte reçue (pénalité, As) prend le premier emplacement vide.
 * Quand la pioche est vide, la pile de rejet (sauf la carte visible) est mélangée pour refaire la pioche.
-* Variante optionnelle au lancement : chacun regarde ses 2 dernières cartes en début de ronde.
-* Règles réglables avant de distribuer (sur cet écran, ou par l'hôte dans la salle d'attente, visibles par tous) : nombre de cartes par joueur (3 à 6), 1 ou 2 paquets, score de fin de partie (50 à 200), pénalité d'un « Dutch » raté (0 à 20), et Valet, Dame ou As actifs ou non.
+* Variante (activée par défaut, désactivable au lancement) : chacun regarde ses 2 dernières cartes en début de ronde.
+* Règles réglables avant de distribuer (sur cet écran, ou par l'hôte dans la salle d'attente, visibles par tous) : nombre de cartes par joueur (3 à 6), 1 ou 2 paquets, score de fin de partie (50 à 200), pénalité d'un « Dutch » raté (0 à 20), et Valet, Dame ou As actifs ou non. Par défaut : partie courte en 50 points, 1 paquet, variante activée.
 * Chaque joueur choisit sa couleur (en ligne, si elle est déjà prise, l'hôte lui en donne une autre).
 
 ## But du jeu

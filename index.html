@@ -2,13 +2,31 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Dutch</title>
-    <link rel="icon" href="data:,">
-    <meta name="theme-color" content="#0d3b26">
+    <link rel="icon" href="icons/favicon-64.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#120d09">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,700;0,900;1,900&display=swap" rel="stylesheet">
+    <!-- Colour emojis of the reactions only (same look on every device) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap&text=%F0%9F%98%80%F0%9F%91%8D%F0%9F%98%82%F0%9F%98%AE%F0%9F%98%AC%F0%9F%98%A1%F0%9F%8E%89%F0%9F%A4%94%F0%9F%98%8E%F0%9F%99%8F%F0%9F%94%A5" rel="stylesheet">
+    <!-- PixiJS (WebGL table) and GSAP (animations), pinned versions -->
+    <script type="importmap">
+        {
+            "imports": {
+                "pixi.js": "https://cdn.jsdelivr.net/npm/pixi.js@8.22.0/dist/pixi.min.mjs",
+                "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.15.0/+esm",
+                "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.min.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+            }
+        }
+    </script>
     <link href="src/css/styles.css" rel="stylesheet">
     <script type="module" src="index.js"></script>
 </head>

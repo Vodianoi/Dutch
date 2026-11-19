@@ -1,0 +1,54 @@
+# Publish the site on GitHub Pages:
+# - main (the real game) at https://vodianoi.github.io/Dutch/
+# - dev (the test version) at https://vodianoi.github.io/Dutch/dev/
+# Both branches are published together on every push to either of them.
+name: Pages
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, never cancel one in progress
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Real game (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: _site
+
+      - name: Test version (dev) under /dev/
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" dev > /dev/null; then
+            git clone --depth 1 --branch dev "https://github.com/${{ github.repository }}" _site/dev
+          else
+            echo "No dev branch: only main is published"
+          fi
+
+      - name: Remove what is not part of the site
+        # The prototypes (proto/, proto3d/) stay on the test version only
+        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

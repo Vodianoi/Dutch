@@ -1,5 +1,10 @@
-import Dutch, {DutchOptions, RuleError} from '../Dutch.js';
+import {IS_DEV, scoped, TABLE_3D} from '../env.js';
+import {render, t} from '../i18n.js';
+import Dutch, {DutchOptions, DutchSnapshot, RuleError} from '../Dutch.js';
 import {LocalSession, Session} from '../Session.js';
+import {SoloSession} from '../SoloSession.js';
+import {TableOptions, TableView} from '../table/TableView.js';
+import {loadPrefs, savePrefs} from '../table/prefs.js';
 import {BroadcastTransport} from '../net/BroadcastTransport.js';
 import {Client} from '../net/Client.js';
 import {Host, HostSnapshot} from '../net/Host.js';
@@ -7,6 +12,7 @@ import {PeerTransport} from '../net/PeerTransport.js';
 import {randomToken} from '../net/Protocol.js';
 import {TransportFactory} from '../net/Transport.js';
 import GameView from './GameView.js';
+import {ChatBox} from './ChatBox.js';
 import {renderLobby} from './LobbyView.js';
 import {GameSettings} from '../Settings.js';
 import {loadSetup, renderSetup, SetupInitial} from './SetupView.js';
@@ -19,9 +25,11 @@ interface SavedHost {
     snapshot: HostSnapshot;
 }
 
-const HOST_KEY = 'dutch-host';
+const HOST_KEY = scoped('host');
+/** Solo game in progress, saved after every change */
+const SOLO_KEY = scoped('solo');
 /** Which room this tab hosts: a reload of this tab reopens it */
-const HOST_TAB_KEY = 'dutch-host-room';
+const HOST_TAB_KEY = scoped('host-room');
 /** A saved room is offered back for this long */
 const HOST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
@@ -39,7 +47,11 @@ export class App {
     private readonly localTransport: boolean;
     private readonly transport: TransportFactory;
 
-    private view: GameView | null = null;
+    private view: { render(): void; destroy(): void } | null = null;
+    /** Chat of the online game (waiting room, then game) */
+    private chatBox: ChatBox | null = null;
+    /** `?classic`: the previous game screen (HTML), kept while the new table is being tested */
+    private readonly classic: boolean;
     private session: Session | null = null;
     private cleanup: (() => void)[] = [];
     /** Dialog shown above the game (outside of the root re-rendered by the game) */
@@ -49,8 +61,22 @@ export class App {
 
     constructor(root: HTMLElement) {
         this.root = root;
+        if (IS_DEV) {
+            // The test version must never be taken for the real one
+            document.title = t('Dutch (version de test)');
+            document.querySelector('.site-header')?.appendChild(
+                el('span', {class: 'dev-badge', title: t('Branche dev : les parties sont séparées de celles du vrai site')}, t('Version de test')));
+        }
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
+        this.classic = params.has('classic');
+        // `?table=3d` / `?table=2d`: choose the table of this device (kept in its settings), test version only
+        const table = params.get('table');
+        if (TABLE_3D && (table === '3d' || table === '2d')) {
+            const prefs = loadPrefs();
+            prefs.table = table;
+            savePrefs(prefs);
+        }
         this.localTransport = params.get('transport') === 'local';
         this.transport = this.localTransport ? new BroadcastTransport() : new PeerTransport();
         window.addEventListener('beforeunload', e => {
@@ -113,7 +139,18 @@ export class App {
                 },
             };
         }
+        const solo = this.savedSolo();
+        if (solo) initial = {...initial, soloResume: {round: solo.round, players: solo.players.map(p => p.name)}};
         renderSetup(this.root, {
+            onSolo: options => this.playSolo(options),
+            onResumeSolo: () => {
+                const again = this.savedSolo();
+                if (again) this.resumeSolo(again);
+            },
+            onForgetSolo: () => {
+                this.forgetSolo();
+                this.home();
+            },
             onLocal: options => this.playLocal(options),
             onHost: (name, color, settings) => this.host(name, color, settings),
             onJoin: (code, name) => this.join(code, name),
@@ -137,22 +174,61 @@ export class App {
         this.root.removeAttribute('inert');
         this.view?.destroy();
         this.view = null;
+        this.chatBox?.destroy();
+        this.chatBox = null;
         if (this.session instanceof Host) {
             // Leaving the room from the app: the game is over for everybody
             this.session.close();
             this.forgetHost();
         }
         if (this.session instanceof Client) this.session.leave();
+        // The solo game stays saved: it can be continued from the home screen
+        if (this.session instanceof SoloSession) this.session.close();
         this.session = null;
         clear(this.root);
     }
 
     private savedName(): string {
         try {
-            return JSON.parse(localStorage.getItem('dutch-setup') ?? '{}').onlineName ?? '';
+            return JSON.parse(localStorage.getItem(scoped('setup')) ?? '{}').onlineName ?? '';
         } catch {
             return '';
         }
+    }
+    // endregion
+
+    // region Solo game
+    private playSolo(options: DutchOptions) {
+        this.reset();
+        this.forgetSolo();
+        const game = new Dutch(options);
+        this.runSolo(game, options);
+        game.startRound();
+    }
+
+    private resumeSolo(snapshot: DutchSnapshot) {
+        this.reset();
+        let game: Dutch;
+        try {
+            game = Dutch.restore(snapshot);
+        } catch {
+            this.forgetSolo();
+            this.home({error: t('La partie enregistrée n\'a pas pu être reprise.')});
+            return;
+        }
+        const options: DutchOptions = {
+            players: game.players.map(p => p.name), playerColors: game.players.map(p => p.color),
+            deckCount: game.deckCount, cardsPerPlayer: game.cardsPerPlayer, targetScore: game.targetScore,
+            dutchPenalty: game.dutchPenalty, peekVariant: game.peekVariant, effects: game.effectsEnabled,
+        };
+        this.runSolo(game, options);
+    }
+
+    private runSolo(game: Dutch, options: DutchOptions) {
+        const session = new SoloSession(game, snapshot => this.saveSolo(snapshot));
+        this.session = session;
+        this.showGame(session, () => this.playSolo(options), () => this.home());
+        (window as unknown as { dutch: Dutch }).dutch = game;
     }
     // endregion
 
@@ -162,7 +238,7 @@ export class App {
         const game = new Dutch(options);
         const session = new LocalSession(game);
         this.session = session;
-        this.showGame(session, () => this.home());
+        this.showGame(session, () => this.home(), () => this.home());
         game.startRound();
         // Handy in the console while developing
         (window as unknown as { dutch: Dutch }).dutch = game;
@@ -171,13 +247,13 @@ export class App {
 
     // region Online: host
     private async host(name: string, color: string, settings: GameSettings) {
-        this.home({busy: 'Création de la partie…'});
+        this.home({busy: t('Création de la partie…')});
         let host: Host;
         try {
             const transport = await this.transport.host();
             host = new Host(transport, name, {color, settings, persist: snapshot => this.saveHost(name, snapshot)});
         } catch (e) {
-            this.home({error: (e as Error).message});
+            this.home({error: errorText(e)});
             return;
         }
         this.runHost(host);
@@ -188,13 +264,13 @@ export class App {
      */
     private async resumeHost(saved: SavedHost) {
         const code = saved.snapshot.code;
-        this.home({busy: `Reprise de la partie ${code}…`, code});
+        this.home({busy: t('Reprise de la partie {code}…', {code}), code});
         let host: Host;
         try {
             const transport = await this.transport.host(code);
             host = new Host(transport, saved.name, {restore: saved.snapshot, persist: snapshot => this.saveHost(saved.name, snapshot)});
         } catch (e) {
-            this.home({error: `Impossible de reprendre la partie ${code} : ${(e as Error).message}`});
+            this.home({error: t('Impossible de reprendre la partie {code} : {error}', {code, error: errorText(e)})});
             return;
         }
         this.runHost(host);
@@ -203,19 +279,20 @@ export class App {
     private runHost(host: Host) {
         this.reset();
         this.session = host;
+        this.chatBox = new ChatBox(host.chat, host);
         this.setRoomInUrl(host.code);
         this.markHostTab(host.code);
         let lobbyError: string | undefined;
         const lobby = () => {
             if (host.started) return;
             renderLobby(this.root, {
-                lobby: host.lobby, you: 0, isHost: true, link: this.link(host.code), error: lobbyError,
+                lobby: host.lobby, you: 0, isHost: true, link: this.link(host.code), error: lobbyError, chat: this.chatBox ?? undefined,
                 onStart: options => {
                     try {
                         host.start(options);
                     } catch (e) {
                         if (!(e instanceof RuleError)) throw e;
-                        lobbyError = e.message;
+                        lobbyError = render(e.msg);
                         lobby();
                     }
                 },
@@ -226,7 +303,7 @@ export class App {
         this.cleanup.push(host.on(event => {
             if (event.type === 'lobby' || event.type === 'state') {
                 if (host.started) {
-                    if (!this.view) this.showGame(host, () => host.newGame());
+                    if (!this.view) this.showHostGame(host);
                 } else {
                     this.view?.destroy();
                     this.view = null;
@@ -234,14 +311,14 @@ export class App {
                 }
             }
         }));
-        if (host.started) this.showGame(host, () => host.newGame());
+        if (host.started) this.showHostGame(host);
         else lobby();
     }
     // endregion
 
     // region Online: player
     private async join(code: string, name: string) {
-        this.home({busy: `Connexion à la partie ${code}…`, code});
+        this.home({busy: t('Connexion à la partie {code}…', {code}), code});
         const token = this.storedToken(code) ?? randomToken();
         let client: Client;
         try {
@@ -249,22 +326,26 @@ export class App {
             client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor});
         } catch (e) {
             this.forgetToken(code);
-            this.home({code, error: (e as Error).message});
+            this.home({code, error: errorText(e)});
             return;
         }
         this.storeToken(code, token);
         this.reset();
         this.session = client;
+        this.chatBox = new ChatBox(client.chat, client);
         this.setRoomInUrl(code);
 
         const update = () => {
             if (client.state) {
-                if (!this.view) this.showGame(client, () => undefined);
+                if (!this.view) this.showGame(client, () => undefined, () => {
+                    this.forgetToken(code);
+                    this.home();
+                });
             } else if (client.lobby) {
                 this.view?.destroy();
                 this.view = null;
                 renderLobby(this.root, {
-                    lobby: client.lobby, you: client.seat, isHost: false, link: this.link(code),
+                    lobby: client.lobby, you: client.seat, isHost: false, link: this.link(code), chat: this.chatBox ?? undefined,
                     onLeave: () => {
                         this.forgetToken(code);
                         this.home();
@@ -296,9 +377,9 @@ export class App {
         this.banner = el('div', {class: 'net-banner', role: 'status'},
             el('span', {class: 'spinner', 'aria-hidden': 'true'}),
             el('span', {},
-                el('strong', {}, 'Reconnexion… '),
-                'La partie reprend dès que l\'hôte est là.'),
-            onQuit ? el('button', {class: 'secondary', onclick: onQuit}, 'Quitter') : null);
+                el('strong', {}, t('Reconnexion… ')),
+                t('La partie reprend dès que l\'hôte est là.')),
+            onQuit ? el('button', {class: 'secondary', onclick: onQuit}, t('Quitter')) : null);
         document.body.appendChild(this.banner);
     }
 
@@ -307,13 +388,13 @@ export class App {
         this.dialog?.remove();
         this.dialog = el('div', {class: 'overlay lost'},
             el('section', {class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title'},
-                el('h2', {id: 'lost-title'}, 'Partie interrompue'),
-                el('p', {}, reason),
-                el('button', {class: 'primary', id: 'reconnect', onclick: () => this.join(code, name)}, 'Réessayer'),
+                el('h2', {id: 'lost-title'}, t('Partie interrompue')),
+                el('p', {}, t(reason)),
+                el('button', {class: 'primary', id: 'reconnect', onclick: () => this.join(code, name)}, t('Réessayer')),
                 el('button', {class: 'secondary', onclick: () => {
                     this.forgetToken(code);
                     this.home();
-                }}, 'Retour à l\'accueil')));
+                }}, t('Retour à l\'accueil'))));
         document.body.appendChild(this.dialog);
         // The game behind the dialog can not be used anymore
         this.root.setAttribute('inert', '');
@@ -322,10 +403,46 @@ export class App {
     // endregion
 
     // region Helpers
-    private showGame(session: Session, onNewGame: () => void) {
+    private showGame(session: Session, onNewGame: () => void, onQuit: () => void, quitWarning?: string) {
         this.view?.destroy();
-        this.view = new GameView(this.root, session, onNewGame, this.debug);
-        this.view.render();
+        this.view = null;
+        if (this.classic) {
+            this.view = new GameView(this.root, session, onNewGame, this.debug);
+            this.view.render();
+            return;
+        }
+        const options: TableOptions = {
+            onNewGame, onQuit, quitWarning, debug: this.debug, chatBox: this.chatBox ?? undefined,
+            // Other table chosen in the menu: the same game, drawn by the other table (test version only)
+            onTableChange: TABLE_3D ? () => {
+                if (this.session === session) this.showGame(session, onNewGame, onQuit, quitWarning);
+            } : undefined,
+        };
+        const flat = () => {
+            this.view = new TableView(this.root, session, options);
+            this.view.render();
+        };
+        if (!TABLE_3D || loadPrefs().table !== '3d') return flat();
+        // The 3D table (Three.js) is only loaded by the devices that use it
+        let cancelled = false;
+        const waiting = {render: () => undefined, destroy: () => cancelled = true};
+        this.view = waiting;
+        import('../table3d/Table3DView.js')
+            .then(module => {
+                if (cancelled || this.view !== waiting) return;
+                this.view = new module.Table3DView(this.root, session, options);
+                this.view.render();
+            })
+            .catch(error => {
+                // No WebGL, or the 3D files didn't load: the flat table
+                console.warn('3D table unavailable', error);
+                if (!cancelled && this.view === waiting) flat();
+            });
+    }
+
+    private showHostGame(host: Host) {
+        this.showGame(host, () => host.newGame(), () => this.home(),
+            t('Vous êtes l\'hôte : si vous quittez, la partie s\'arrête pour tout le monde. Quitter quand même ?'));
     }
 
     private link(code: string): string {
@@ -346,6 +463,34 @@ export class App {
     // endregion
 
     // region Storage
+    /** Solo game saved on this device, if not over */
+    private savedSolo(): DutchSnapshot | null {
+        try {
+            const saved = JSON.parse(localStorage.getItem(SOLO_KEY) ?? 'null') as DutchSnapshot | null;
+            if (!saved || saved.v !== 1 || saved.phase === 'gameOver') return null;
+            return saved;
+        } catch {
+            return null;
+        }
+    }
+
+    private saveSolo(snapshot: DutchSnapshot) {
+        try {
+            if (snapshot.phase === 'gameOver') localStorage.removeItem(SOLO_KEY);
+            else localStorage.setItem(SOLO_KEY, JSON.stringify(snapshot));
+        } catch {
+            // Storage full or refused: the game goes on, it just can't be continued later
+        }
+    }
+
+    private forgetSolo() {
+        try {
+            localStorage.removeItem(SOLO_KEY);
+        } catch {
+            // ignore
+        }
+    }
+
     /**
      *  Room hosted by this device (for `code` if given), if recent enough.
      *  Between tabs of one browser (?transport=local), only the tab that created the room reopens it.
@@ -395,8 +540,8 @@ export class App {
      */
     private storedToken(code: string): string | null {
         try {
-            return sessionStorage.getItem(`dutch-token-${code}`)
-                ?? (this.localTransport ? null : localStorage.getItem(`dutch-token-${code}`));
+            return sessionStorage.getItem(scoped(`token-${code}`))
+                ?? (this.localTransport ? null : localStorage.getItem(scoped(`token-${code}`)));
         } catch {
             return null;
         }
@@ -404,8 +549,8 @@ export class App {
 
     private storeToken(code: string, token: string) {
         try {
-            sessionStorage.setItem(`dutch-token-${code}`, token);
-            if (!this.localTransport) localStorage.setItem(`dutch-token-${code}`, token);
+            sessionStorage.setItem(scoped(`token-${code}`), token);
+            if (!this.localTransport) localStorage.setItem(scoped(`token-${code}`), token);
         } catch {
             // ignore: reconnecting will just need a new seat
         }
@@ -413,11 +558,17 @@ export class App {
 
     private forgetToken(code: string) {
         try {
-            sessionStorage.removeItem(`dutch-token-${code}`);
-            localStorage.removeItem(`dutch-token-${code}`);
+            sessionStorage.removeItem(scoped(`token-${code}`));
+            localStorage.removeItem(scoped(`token-${code}`));
         } catch {
             // ignore
         }
     }
     // endregion
+}
+
+/** An error for the player, in the language of this device */
+function errorText(e: unknown): string {
+    if (e instanceof RuleError) return render(e.msg);
+    return t((e as Error)?.message ?? String(e));
 }

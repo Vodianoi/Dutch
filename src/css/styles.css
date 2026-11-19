@@ -317,19 +317,6 @@ input.invalid {
     }
 }
 
-/* The table: felt with a wooden rail */
-.table-area {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 14px;
-    border: 10px solid;
-    border-color: var(--rail-light) var(--rail) var(--rail-dark) var(--rail);
-    border-radius: 28px;
-    background: radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.06), transparent 65%);
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08), inset 0 12px 30px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.3);
-}
-
 .status {
     display: flex;
     flex-direction: column;
@@ -515,13 +502,6 @@ input.invalid {
     border-left: 2px dashed rgba(255, 255, 255, 0.4);
 }
 
-.players {
-    display: grid;
-    /* Square hands are narrow: more players side by side */
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-    gap: 12px;
-}
-
 @media (max-width: 480px) {
     :root {
         --card-w: 62px;
@@ -531,12 +511,6 @@ input.invalid {
     body {
         padding-left: 12px;
         padding-right: 12px;
-    }
-
-    .table-area {
-        border-width: 6px;
-        border-radius: 20px;
-        padding: 8px;
     }
 
     .center {
@@ -1470,3 +1444,1222 @@ details.rules summary {
     list-style: none;
 }
 /* endregion Settings and player colours */
+
+/* region Table board: players sit around an oval table */
+/* The side panel (scores, rules, log) goes under the table unless the screen is very wide */
+.board {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    align-items: start;
+    position: static;
+}
+
+@media (min-width: 1500px) {
+    .board {
+        grid-template-columns: minmax(0, 1fr) 300px;
+    }
+
+    .side {
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 12px;
+    }
+}
+
+.table-board {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+        "left top right"
+        "left center right"
+        "left bottom right";
+    gap: 14px;
+    padding: 8px 4px;
+    align-items: center;
+}
+
+/* The table itself: felt with a wooden rail, under the seats that sit on its edge */
+.table-board::before {
+    content: '';
+    position: absolute;
+    inset: 70px 24px;
+    border-radius: 50% / 42%;
+    border: 14px solid;
+    border-color: var(--rail-light) var(--rail) var(--rail-dark) var(--rail);
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light), var(--felt) 55%, #17603c);
+    box-shadow:
+        inset 0 0 0 3px rgba(255, 255, 255, 0.08),
+        inset 0 18px 40px rgba(0, 0, 0, 0.35),
+        0 18px 40px rgba(0, 0, 0, 0.4);
+}
+
+.table-board > * {
+    position: relative;
+}
+
+.seats {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: center;
+}
+
+.seats:empty {
+    display: none;
+}
+
+.seats-left {
+    grid-area: left;
+    flex-direction: column;
+}
+
+.seats-right {
+    grid-area: right;
+    flex-direction: column;
+}
+
+.seats-top {
+    grid-area: top;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+.seats-bottom {
+    grid-area: bottom;
+}
+
+.table-center {
+    grid-area: center;
+    justify-self: center;
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 8px;
+}
+
+/* On the felt: the piles need no extra background */
+.table-center .center {
+    background: transparent;
+    box-shadow: none;
+    padding: 4px 0;
+}
+
+.turn-actions {
+    justify-content: center;
+}
+
+/* A seat: compact block on the edge of the table, readable over the felt */
+.seat {
+    --card-w: 58px;
+    --card-h: 82px;
+    padding: 10px 12px;
+    gap: 6px;
+    background: var(--surface-strong);
+    max-width: 100%;
+}
+
+.seat .card {
+    font-size: 11px;
+}
+
+.seat header {
+    gap: 6px;
+}
+
+.seat .avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+}
+
+.seat h2 {
+    font-size: 16px;
+}
+
+.seat .score {
+    font-size: 14px;
+}
+
+.seat .badge {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.seat .hand {
+    gap: 12px 8px;
+}
+
+/* This device's seat (or the first player on a shared screen): bigger cards */
+.seat-bottom {
+    --card-w: 80px;
+    --card-h: 113px;
+    padding: 12px 16px;
+}
+
+.seat-bottom .card {
+    font-size: 15px;
+}
+
+.seat-bottom h2 {
+    font-size: 19px;
+}
+
+/* Phones: the other players in turn order above the middle of the table, this device at the bottom */
+@media (max-width: 760px) {
+    .table-board {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas: none;
+        gap: 10px;
+        padding: 0;
+    }
+
+    .table-board::before {
+        display: none;
+    }
+
+    .seats {
+        display: contents;
+    }
+
+    .seat {
+        order: var(--turn);
+        --card-w: 44px;
+        --card-h: 62px;
+        padding: 8px 10px;
+    }
+
+    .seat .card {
+        font-size: 10px;
+    }
+
+    .table-center {
+        order: 50;
+        /* no named areas on phones: reset the desktop placement */
+        grid-area: auto;
+        grid-column: 1 / -1;
+        padding: 0;
+        max-width: none;
+    }
+
+    .table-center .center {
+        background: rgba(0, 0, 0, 0.2);
+        box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.25);
+        padding: 14px 8px 10px;
+        border-radius: 18px;
+    }
+
+    .seat-bottom {
+        order: 99;
+        grid-column: 1 / -1;
+        --card-w: 70px;
+        --card-h: 99px;
+    }
+
+    .seat-bottom .card {
+        font-size: 13px;
+    }
+}
+/* endregion Table board */
+
+/* region Test version (dev branch, published under /dev/) */
+.site-header {
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dev-badge {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--violet-strong);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 3px 0 #45229e;
+}
+/* endregion Test version */
+
+/* region New look: card room (PixiJS table, menus in the same style) */
+:root {
+    --room: #120d09;
+    --room-light: #2a1f17;
+    --cream: #f6ead0;
+    --cream-muted: #d9c9a3;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --surface: rgba(18, 16, 13, 0.82);
+    --surface-strong: rgba(18, 16, 13, 0.94);
+    --line: rgba(255, 236, 190, 0.18);
+    --ink: var(--cream);
+    --ink-muted: var(--cream-muted);
+}
+
+html {
+    background: var(--room);
+}
+
+body {
+    background: radial-gradient(ellipse at 50% 20%, var(--room-light) 0%, var(--room) 70%) fixed;
+    color: var(--ink);
+}
+
+.site-header .title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: .01em;
+    text-shadow: 0 3px 0 #5a0f1d, 0 8px 24px rgba(0, 0, 0, .5);
+}
+
+/* Menus: felt panels with a gold rim */
+.panel {
+    background:
+        radial-gradient(ellipse at 50% 0%, rgba(36, 136, 90, .35), transparent 70%),
+        linear-gradient(180deg, #17402c, #0f2c1f);
+    border: 1px solid rgba(255, 209, 102, .35);
+    box-shadow: 0 0 0 6px rgba(74, 39, 16, .9), 0 0 0 7px rgba(255, 220, 170, .18), 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+.panel h2, .panel h3, .resume h3 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    color: var(--gold);
+}
+
+button.primary {
+    background: linear-gradient(180deg, #ffe08a, #f2c14e 55%, #d9a531);
+    color: #2a1805;
+    border: 1px solid #ffe7a3;
+    box-shadow: 0 2px 0 #8a6416, 0 6px 16px rgba(0, 0, 0, .35);
+}
+
+.tabs {
+    background: rgba(0, 0, 0, .3);
+    border: 1px solid var(--line);
+}
+
+.tab.active {
+    background: var(--gold);
+    color: #2a1805;
+}
+
+input[type="text"], select {
+    background: rgba(0, 0, 0, .35);
+    border-color: rgba(255, 236, 190, .3);
+    color: var(--cream);
+}
+
+/* Game: the table fills the screen */
+body.in-game {
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+body.in-game .site-header {
+    display: none;
+}
+
+.table-screen {
+    position: fixed;
+    inset: 0;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.table-canvas {
+    position: absolute;
+    inset: 0;
+}
+
+.table-canvas canvas {
+    display: block;
+}
+
+.table-bar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 44px;
+    padding: env(safe-area-inset-top) max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.table-menu-button, .table-info {
+    pointer-events: auto;
+    min-height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 236, 190, .25);
+    background: rgba(10, 7, 5, .55);
+    color: var(--cream);
+    font: 600 13px var(--font-body);
+}
+
+.table-menu-button {
+    cursor: pointer;
+}
+
+.table-menu-button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.table-info {
+    pointer-events: none;
+}
+
+/* Menu during the game */
+.table-menu {
+    z-index: var(--z-overlay);
+}
+
+.menu-panel {
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.menu-panel h2 {
+    margin: 0;
+    text-align: center;
+}
+
+.menu-panel details {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+
+.menu-panel summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.menu-panel fieldset {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.menu-panel legend {
+    padding: 0 6px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+.switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    cursor: pointer;
+}
+
+.switch input {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--gold);
+}
+
+.backs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.back-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.back-choice input {
+    position: absolute;
+    opacity: 0;
+}
+
+.back-swatch {
+    width: 44px;
+    height: 62px;
+    border-radius: 6px;
+    border: 3px solid #fffdf7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+}
+
+.back-choice input:checked + .back-swatch {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.back-choice input:focus-visible + .back-swatch {
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Titles of the card back and table choices in the menu */
+.choice-title {
+    margin: 6px 0 -2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+/* Table looks: small round tables */
+.felts {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.felt-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 64px;
+    font-size: 12.5px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.felt-choice input {
+    position: absolute;
+    opacity: 0;
+}
+
+.felt-swatch {
+    width: 58px;
+    height: 40px;
+    border-radius: 50%;
+    border: 4px solid;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .45), inset 0 0 8px rgba(0, 0, 0, .45);
+}
+
+.felt-swatch.felt-wood {
+    background-image: repeating-linear-gradient(90deg, rgba(60, 28, 8, .18) 0 1px, transparent 1px 9px), radial-gradient(ellipse at 50% 40%, #c08a52, #9c6a3a 60%, #6e4623) !important;
+}
+
+.felt-choice input:checked + .felt-swatch {
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.felt-choice input:focus-visible + .felt-swatch {
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+}
+
+.back-red { background: repeating-linear-gradient(45deg, #8e1f30 0 6px, #7a1828 6px 12px); }
+.back-blue { background: repeating-linear-gradient(45deg, #24427a 0 6px, #1b3463 6px 12px); }
+.back-black { background: repeating-linear-gradient(45deg, #34343a 0 6px, #26262b 6px 12px); }
+
+.menu-panel .danger {
+    color: var(--danger);
+    border-color: rgba(255, 128, 128, .5);
+}
+
+input[type=checkbox] {
+    accent-color: var(--gold);
+}
+
+button {
+    font-family: var(--font-body);
+    font-weight: 800;
+}
+
+/* The main action of a screen takes the whole width */
+#start-solo, #start, #create-room, #join-room {
+    width: 100%;
+}
+
+.resume {
+    border-color: rgba(255, 209, 102, .5);
+    background: rgba(255, 209, 102, .08);
+}
+/* endregion New look */
+
+/* region Chat and emotes */
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, .22);
+}
+
+.chat-title {
+    margin: 0;
+    font-size: 17px;
+}
+
+.chat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overscroll-behavior: contain;
+}
+
+.chat-list:empty {
+    display: none;
+}
+
+.chat-line {
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+
+.chat-name {
+    font-weight: 800;
+    margin-right: 6px;
+}
+
+.chat-name::after {
+    content: ' :';
+}
+
+.chat-line.emote .chat-text {
+    font-size: 22px;
+    line-height: 1;
+    vertical-align: -3px;
+}
+
+.chat-empty {
+    margin: 0;
+}
+
+.chat-emotes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.emote-button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .06);
+    box-shadow: none;
+}
+
+.emote-button:active {
+    transform: scale(.92);
+}
+
+.chat-form {
+    display: flex;
+    gap: 8px;
+}
+
+.chat-input {
+    flex: 1;
+    min-width: 0;
+}
+
+button.chat-send {
+    width: auto;
+    padding: 0 16px;
+}
+
+/* In the game: buttons in the top bar, emote strip, chat drawer */
+.table-bar-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.table-emote-button {
+    min-width: 44px;
+    justify-content: center;
+    font-size: 18px;
+    padding: 0 10px;
+}
+
+.table-menu-button .unread {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--danger-strong);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    display: inline-grid;
+    place-items: center;
+}
+
+.emote-pop {
+    position: absolute;
+    top: calc(52px + env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: 10px;
+    max-width: 360px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 16px;
+    background: rgba(18, 16, 13, .94);
+    border: 1px solid rgba(255, 209, 102, .35);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+    z-index: 5;
+}
+
+.chat-overlay {
+    z-index: var(--z-overlay);
+    align-items: flex-end;
+}
+
+.chat-drawer {
+    width: min(460px, 100vw);
+    max-height: min(560px, 85dvh);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+
+.chat-drawer .chat {
+    margin: 0 0 10px;
+    min-height: 0;
+    flex: 1;
+}
+
+.chat-drawer .chat-list {
+    max-height: none;
+    flex: 1;
+    min-height: 120px;
+}
+/* endregion Chat and emotes */
+
+:root {
+    --font-emoji: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+}
+
+.emote-button, .chat-line.emote .chat-text, .table-emote-button {
+    font-family: var(--font-emoji);
+}
+
+.table-hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(10, 7, 5, .8);
+    border: 1px solid rgba(255, 209, 102, .4);
+    color: var(--cream);
+    font: 600 13px var(--font-body);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* region Menus: folded rules, entrance and press feedback */
+.rules-details {
+    margin: 12px 0;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, .18);
+}
+
+.rules-details > summary {
+    list-style: none;
+    cursor: pointer;
+    min-height: 48px;
+    padding: 10px 44px 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    position: relative;
+}
+
+.rules-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Chevron drawn in CSS: turns when the rules open */
+.rules-details > summary::after {
+    content: '';
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--gold);
+    border-bottom: 2px solid var(--gold);
+    transform: translateY(-70%) rotate(45deg);
+    transition: transform 200ms var(--ease-out);
+}
+
+.rules-details[open] > summary::after {
+    transform: translateY(-30%) rotate(-135deg);
+}
+
+.rules-details > summary strong {
+    color: var(--gold);
+    font-family: var(--font-display);
+    font-size: 17px;
+}
+
+.rules-summary {
+    color: var(--cream-muted);
+    font-size: 14px;
+}
+
+.rules-details > summary:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 14px;
+}
+
+.rules-details .game-options {
+    border: 0;
+    margin: 0;
+    padding: 0 14px 14px;
+}
+
+.rules-details .game-options > legend {
+    display: none;
+}
+
+/* Screens come in softly, from below */
+@keyframes rise-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+.panel {
+    animation: rise-in 280ms var(--ease-out) both;
+}
+
+.menu-panel, .chat-drawer {
+    animation: rise-in 220ms var(--ease-out) both;
+}
+
+.overlay {
+    animation: fade-in 180ms ease-out both;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+}
+
+/* Press feedback on every button, without moving the layout */
+button {
+    transition: transform 120ms var(--ease-out), filter 120ms ease-out, background-color 160ms ease-out;
+}
+
+button:active:not(:disabled) {
+    transform: scale(.97);
+}
+
+button:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
+
+.tab {
+    transition: background-color 200ms ease-out, color 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel, .menu-panel, .chat-drawer, .overlay {
+        animation: none;
+    }
+
+    button, .rules-details > summary::after {
+        transition: none;
+    }
+}
+/* endregion Menus */
+
+/* region 3D table: old casino */
+.table3d {
+    --brass: #c9a050;
+    --brass-light: #f0d79a;
+    --brass-dark: #7a5a22;
+    --leather: #2a0d0b;
+    --ivory: #f3ead3;
+    --ink: #2a1c10;
+    background: #090605;
+}
+
+.table3d-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.table3d-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* Top bar: brass and dark leather */
+.table3d .table-menu-button, .table3d .table-info {
+    background: linear-gradient(180deg, rgba(42, 13, 11, .92), rgba(24, 8, 6, .92));
+    border: 1px solid var(--brass);
+    color: var(--brass-light);
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+/* Instructions: an engraved brass plaque */
+@media (max-width: 480px) {
+    .table3d-banner {
+        font-size: 14px;
+        padding: 6px 14px;
+    }
+}
+
+.table3d-banner {
+    position: absolute;
+    top: calc(54px + env(safe-area-inset-top));
+    /* Centred with margins (left: 50% would leave it only half the width to lay out its text) */
+    left: 12px;
+    right: 12px;
+    margin-inline: auto;
+    width: fit-content;
+    max-width: 640px;
+    padding: 8px 20px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #e9cf8d, #c9a050 45%, #a07a32);
+    border: 1px solid #5c4214;
+    box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7), inset 0 -2px 0 rgba(70, 45, 10, .5), 0 6px 18px rgba(0, 0, 0, .55);
+    color: #2a1a06;
+    font: 700 15px/1.3 var(--font-display);
+    text-align: center;
+    text-shadow: 0 1px 0 rgba(255, 240, 200, .6);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.table3d-actions {
+    position: absolute;
+    left: 50%;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 2;
+}
+
+/* Buttons: polished brass, the important one in oxblood */
+.table3d-button {
+    min-height: 48px;
+    padding: 0 22px;
+    border-radius: 8px;
+    border: 1px solid #5c4214;
+    background: linear-gradient(180deg, #f2dc9e, #c9a050 50%, #9c752f);
+    color: #24170a;
+    font: 800 15px var(--font-display);
+    letter-spacing: .02em;
+    box-shadow: inset 0 1px 0 rgba(255, 248, 220, .8), 0 3px 0 #4a3410, 0 10px 22px rgba(0, 0, 0, .5);
+    cursor: pointer;
+    animation: rise-in 240ms var(--ease-out) both;
+}
+
+.table3d-button.danger {
+    background: linear-gradient(180deg, #a3303a, #6e141d);
+    color: var(--ivory);
+    border-color: #3a070c;
+    box-shadow: inset 0 1px 0 rgba(255, 200, 200, .35), 0 3px 0 #2a0408, 0 10px 22px rgba(0, 0, 0, .5);
+}
+
+.table3d-button.ghost {
+    background: linear-gradient(180deg, rgba(42, 13, 11, .95), rgba(24, 8, 6, .95));
+    color: var(--brass-light);
+    border-color: var(--brass);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .45);
+}
+
+.table3d-button:focus-visible {
+    outline: 2px solid var(--brass-light);
+    outline-offset: 3px;
+}
+
+/* Name tags next to the chips: dark leather with gold letters */
+.table3d-tag {
+    padding: 3px 10px 4px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(48, 16, 12, .94), rgba(28, 9, 7, .94));
+    border: 1px solid rgba(201, 160, 80, .55);
+    color: var(--brass-light);
+    font: 700 13px var(--font-display);
+    text-align: center;
+    white-space: nowrap;
+    transition: border-color 200ms, box-shadow 200ms, opacity 200ms;
+}
+
+.table3d-tag small {
+    display: block;
+    font: 400 11px var(--font-body);
+    color: rgba(243, 234, 211, .8);
+}
+
+.table3d-tag .badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--brass);
+    color: #24170a;
+    font: 800 10px var(--font-body);
+    vertical-align: 1px;
+}
+
+.table3d-tag.active {
+    border-color: var(--brass-light);
+    box-shadow: 0 0 0 2px rgba(240, 215, 154, .35), 0 0 20px rgba(240, 200, 120, .4);
+}
+
+.table3d-tag.offline {
+    opacity: .5;
+}
+
+.table3d-count {
+    color: rgba(243, 234, 211, .8);
+    font: 600 12px var(--font-display);
+}
+
+/* Messages: little ivory notes */
+.table3d-bubble {
+    max-width: min(230px, 70vw);
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--ivory);
+    border: 2px solid var(--c, var(--brass));
+    color: var(--ink);
+    font: 600 12.5px/1.35 var(--font-body);
+    text-align: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+    animation: rise-in 220ms var(--ease-out) both;
+    transition: opacity 300ms;
+}
+
+.table3d-bubble.emote {
+    padding: 2px 8px;
+    font: 30px/1.2 var(--font-emoji);
+    border-radius: 999px;
+}
+
+.table3d-bubble.leaving {
+    opacity: 0;
+}
+
+/* Score panel: a vintage card, ivory with a gold frame */
+.table3d-panel {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, .5);
+    z-index: 4;
+    animation: fade-in 200ms ease-out both;
+}
+
+.table3d-panel[hidden] {
+    display: none;
+}
+
+.table3d-panel section {
+    width: min(400px, calc(100% - 32px));
+    padding: 20px 22px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f7efd9, #e6d9b8);
+    border: 2px solid var(--brass);
+    box-shadow: inset 0 0 0 6px #f7efd9, inset 0 0 0 7px var(--brass), 0 24px 60px rgba(0, 0, 0, .6);
+    color: var(--ink);
+    animation: rise-in 280ms var(--ease-out) both;
+}
+
+.table3d-panel h2 {
+    margin: 0 0 12px;
+    text-align: center;
+    font: italic 900 26px var(--font-display);
+    color: #6e141d;
+}
+
+.table3d-panel ol {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+}
+
+.table3d-panel li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(90, 60, 25, .2);
+}
+
+.table3d-panel .dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .6);
+}
+
+.table3d-panel .who {
+    flex: 1;
+    font-weight: 800;
+}
+
+.table3d-panel .pts {
+    opacity: .75;
+}
+
+.table3d-panel .total {
+    width: 44px;
+    text-align: right;
+    font: 900 17px var(--font-display);
+}
+
+.table3d-panel li.win .who {
+    color: #6e141d;
+}
+
+.table3d-panel .table3d-button {
+    width: 100%;
+}
+
+.table3d-panel .wait {
+    margin: 0;
+    text-align: center;
+    font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .table3d-button, .table3d-bubble, .table3d-panel, .table3d-panel section {
+        animation: none;
+    }
+}
+/* endregion 3D table */
+
+/* Crowded table: smaller name tags */
+.table3d-tag.small {
+    padding: 2px 7px 3px;
+    font-size: 11px;
+}
+
+.table3d-tag.small small {
+    font-size: 10px;
+}
+
+/* Short screens (phone held sideways): the instructions go in the top bar */
+@media (max-height: 500px) {
+    .table3d-banner {
+        top: calc(5px + env(safe-area-inset-top));
+        left: 180px;
+        right: 180px;
+        max-width: none;
+        padding: 5px 12px;
+        font-size: 13px;
+    }
+
+    .table3d-button {
+        min-height: 42px;
+    }
+}
+
+/* Reactions button next to the own token (flat table): where the thumb is on phones */
+.table-menu-button.seat-emote-button {
+    position: absolute;
+    z-index: 4;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+    font-size: 22px;
+    background: rgba(10, 7, 5, .7);
+    border: 1.5px solid rgba(255, 209, 102, .55);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .45);
+}
+
+.table-menu-button.seat-emote-button[aria-expanded="true"] {
+    background: rgba(255, 209, 102, .25);
+    border-color: var(--gold);
+}
+
+.emote-pop.from-seat {
+    right: auto;
+    max-width: min(360px, calc(100vw - 20px));
+}
+
+/* Français / English, under the home screen */
+.lang-switch {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 14px auto 0;
+}
+
+.lang-switch button {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 236, 190, .25);
+    background: transparent;
+    color: var(--cream);
+    font: 600 14px var(--font-body);
+    cursor: pointer;
+}
+
+.lang-switch button.active {
+    background: rgba(255, 209, 102, .18);
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+.lang-switch button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}

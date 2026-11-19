@@ -1,3 +1,5 @@
+import {t} from '../i18n.js';
+import {scoped} from '../env.js';
 import {Connection, ConnectionBase, HostTransport, randomCode, TransportError, TransportFactory} from './Transport.js';
 
 /**
@@ -18,7 +20,7 @@ type Packet =
 const HOST = 'host';
 
 function channelName(code: string) {
-    return `dutch-room-${code}`;
+    return scoped(`room-${code}`);
 }
 
 function randomId() {
@@ -122,9 +124,9 @@ export class BroadcastTransport implements TransportFactory {
             const channel = new BroadcastChannel(channelName(candidate));
             if (!await this.someoneAnswers(channel)) return new BroadcastHost(candidate, channel);
             channel.close();
-            if (code) throw new TransportError('Ce code de partie est déjà utilisé.');
+            if (code) throw new TransportError(t('Ce code de partie est déjà utilisé.'));
         }
-        throw new TransportError('Impossible de créer la partie.');
+        throw new TransportError(t('Impossible de créer la partie.'));
     }
 
     public join(code: string): Promise<Connection> {
@@ -134,7 +136,7 @@ export class BroadcastTransport implements TransportFactory {
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 channel.close();
-                reject(new TransportError(`Partie ${code} introuvable.`));
+                reject(new TransportError(t('Partie {code} introuvable.', {code})));
             }, this.timeoutMs);
             channel.onmessage = (e: MessageEvent<Packet>) => {
                 const packet = e.data;

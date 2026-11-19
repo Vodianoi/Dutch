@@ -1,5 +1,23 @@
+import { cardLabel, msg, render, t } from './i18n.js';
 import Card from './Card.js';
 import { RuleError } from './Dutch.js';
+/** A notice in French, with its message for every language */
+export function notice(kind, template, params) {
+    const m = typeof template === 'string' ? msg(template, params) : template;
+    return { text: render(m, 'fr'), kind, msg: m };
+}
+/** Name of the card whose effect is being played, in the language of this device */
+export function effectCard(effect) {
+    return effect.card ? cardLabel(effect.card) : effect.cardName;
+}
+/** Line of the game log in the language of this device */
+export function logText(entry) {
+    return entry.msg ? render(entry.msg) : entry.message;
+}
+/** Text of a notice in the language of this device */
+export function noticeText(n) {
+    return n.msg ? render(n.msg) : t(n.text);
+}
 // endregion
 // region Cards
 export function faceUp(card) {
@@ -47,7 +65,7 @@ export function buildView(game, viewerId, options = {}) {
         drawn: game.drawn
             ? { card: drawnVisible ? faceUp(game.drawn.card) : faceDown(game.drawn.card), source: game.drawn.source }
             : null,
-        activeEffect: effect ? { type: effect.type, playerId: effect.playerId, cardName: effect.card.name } : null,
+        activeEffect: effect ? { type: effect.type, playerId: effect.playerId, cardName: effect.card.name, card: effect.card.longRef } : null,
         players: game.players.map(p => ({
             id: p.id,
             name: p.name,
@@ -106,7 +124,7 @@ export function applyAction(game, action) {
             break;
         case 'throwCard':
             if (!game.throwCard(id, action.cardId)) {
-                return { text: `Raté ! ${game.players[id].name} reçoit une carte de pénalité.`, kind: 'error' };
+                return notice('error', 'Raté ! {name} reçoit une carte de pénalité.', { name: game.players[id].name });
             }
             break;
         case 'endTurn':
