@@ -4,7 +4,7 @@ import {Session} from '../Session.js';
 import {t} from '../i18n.js';
 import {describeSettings} from '../Settings.js';
 import {ChatBox} from '../ui/ChatBox.js';
-import {BACK_COLORS, BackColor} from './cardArt.js';
+import {BACK_COLORS, BackColor, TABLE_THEMES, TableTheme} from './cardArt.js';
 import {Prefs, savePrefs} from './prefs.js';
 import {setMuted, unlockAudio} from './sound.js';
 
@@ -26,6 +26,8 @@ export interface ChromeOptions {
     onQuit(): void;
     /** Card back choice (flat table only) */
     onBackChange?(): void;
+    /** Table look choice (flat table only) */
+    onFeltChange?(): void;
     /** The player chose the other table (flat / 3D) */
     onTableChange?(mode: '2d' | '3d'): void;
 }
@@ -261,6 +263,11 @@ export class TableChrome {
         const rules = s ? describeSettings(s.settings).map(line => `<li>${escape(line)}</li>`).join('') : '';
         const backs = this.o.onBackChange ? `<div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${(Object.keys(BACK_COLORS) as BackColor[]).map(key =>
             `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
+        const felts = this.o.onFeltChange ? `<div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${(Object.keys(TABLE_THEMES) as TableTheme[]).map(key => {
+            const c = TABLE_THEMES[key];
+            const swatch = `background: radial-gradient(ellipse at 50% 40%, ${c.felt[0]}, ${c.felt[1]} 60%, ${c.felt[2]}); border-color: ${c.rail[1]}`;
+            return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch${c.wood ? ' felt-wood' : ''}" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
+        }).join('')}</div>` : '';
         dialog.innerHTML = `
             <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">
                 <h2 id="menu-title">${t('Menu')}</h2>
@@ -272,6 +279,7 @@ export class TableChrome {
                     <label class="switch"><input type="checkbox" name="fast" ${prefs.speed === 'fast' ? 'checked' : ''}> ${t('Animations rapides')}</label>
                     ${this.o.onTableChange ? `<label class="switch"><input type="checkbox" name="table3d" ${prefs.table === '3d' ? 'checked' : ''}> ${t('Table en 3D (prototype)')}</label>` : ''}
                     ${backs}
+                    ${felts}
                     ${this.o.debug && this.o.session.canShowAll ? `<label class="switch"><input type="checkbox" name="showAll"> ${t('Voir toutes les cartes (debug)')}</label>` : ''}
                 </fieldset>
                 <button type="button" class="secondary danger" data-act="quit">${t('Quitter la partie')}</button>
@@ -295,6 +303,10 @@ export class TableChrome {
             if (input.name === 'vibration') prefs.vibration = input.checked;
             if (input.name === 'fast') prefs.speed = input.checked ? 'fast' : 'normal';
             if (input.name === 'showAll') this.o.session.setShowAll(input.checked);
+            if (input.name === 'felt') {
+                prefs.felt = input.value as TableTheme;
+                this.o.onFeltChange?.();
+            }
             if (input.name === 'back') {
                 prefs.back = input.value as BackColor;
                 this.o.onBackChange?.();

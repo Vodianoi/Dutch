@@ -96,6 +96,11 @@ export const EN = {
     'Bordeaux': 'Burgundy',
     'Marine': 'Navy',
     'Ébène': 'Ebony',
+    'Tapis': 'Table',
+    'Tapis vert': 'Green felt',
+    'Bleu nuit': 'Midnight blue',
+    'Ardoise': 'Slate',
+    'Bois': 'Wood',
     // endregion
     // region Home screen
     'Mode de jeu': 'Game mode',
