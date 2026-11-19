@@ -20,6 +20,14 @@ Table en 3D (prototype, style vieux casino) : seulement sur la version de test e
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
 * **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »). Réservé aux tests : proposé sur la version de test et en développement (localhost), pas sur le vrai site.
 
+### Langues / Languages
+
+Le jeu est en français et en anglais : la langue du navigateur est choisie au premier lancement (français si le navigateur est en français, anglais sinon), et l'accueil propose « Français / English ». En ligne, chaque appareil affiche la partie dans sa langue (le journal de la partie et les erreurs voyagent sous forme de modèles traduits sur chaque appareil).
+
+The game is available in French and English: the browser language is used on the first visit, and the home screen has a « Français / English » switch. In an online game each device shows the game in its own language.
+
+Pour les développeurs : le code est écrit avec les phrases françaises, passées à `t()` (`src/ts/i18n.ts`) ; leur version anglaise est dans `src/ts/i18n-en.ts`. Le test `test/i18n.test.mjs` (lancé par la CI) échoue si une phrase n'a pas sa traduction. L'ancien écran HTML (`?classic`) reste en français.
+
 ### Comment marche le jeu en ligne
 
 Il n'y a pas de serveur de jeu : la partie tourne dans le navigateur de celui qui l'a créée (l'hôte), qui sert d'arbitre. Les appareils se connectent directement entre eux en WebRTC grâce à [PeerJS](https://peerjs.com) ; le serveur public gratuit de PeerJS sert uniquement à les mettre en relation.
