@@ -417,6 +417,10 @@ export class App {
             onTableChange: TABLE_3D ? () => {
                 if (this.session === session) this.showGame(session, onNewGame, onQuit, quitWarning);
             } : undefined,
+            // Drawing lost while the page was in the background: the same game on a new table
+            onRebuild: () => {
+                if (this.session === session) this.showGame(session, onNewGame, onQuit, quitWarning);
+            },
         };
         const flat = () => {
             this.view = new TableView(this.root, session, options);

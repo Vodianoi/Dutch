@@ -7,7 +7,7 @@ import {joinNames, t} from '../i18n.js';
 import {Action, CardView, effectCard, GameView, logText, noticeText, PlayerView} from '../View.js';
 import {Art, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
 import {TableChrome} from './chrome.js';
-import {CardSprite, centered, dispose, Place, Target} from './CardSprite.js';
+import {CardSprite, centered, dispose, Place, stopTweens, Target} from './CardSprite.js';
 import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
 import {buzz, loadPrefs, Prefs} from './prefs.js';
 import {sfx, unlockAudio} from './sound.js';
@@ -33,9 +33,15 @@ export interface TableOptions {
     chatBox?: ChatBox;
     /** The player chose the other table (flat / 3D) */
     onTableChange?(mode: '2d' | '3d'): void;
+    /** The drawing was lost (phone put the page aside): draw the same game again with a new table */
+    onRebuild?(): void;
 }
 
+/** Card pictures, shared by the tables of one game; each new table draws them again (see init()) */
 const arts = new Map<BackColor, Art>();
+
+/** After a long time in the background, the page comes back with a new table */
+const REBUILD_AFTER_MS = 60_000;
 
 function artFor(back: BackColor): Art {
     let art = arts.get(back);
@@ -71,6 +77,10 @@ export class TableView {
     private art!: Art;
     private prefs: Prefs = loadPrefs();
     private destroyed = false;
+    /** The browser took the graphics context (page in the background) */
+    private drawingLost = false;
+    private hiddenAt: number | null = null;
+    private rebuilding = false;
     private readonly unsubscribe: () => void;
 
     // Scene
@@ -173,6 +183,9 @@ export class TableView {
         this.app = app;
         this.host.appendChild(app.canvas);
         app.canvas.setAttribute('aria-hidden', 'true');
+        this.watchDrawing(app.canvas);
+        // Fresh card pictures for each table: those of a table whose drawing was lost may be blank
+        arts.clear();
         this.art = artFor(this.prefs.back);
         this.buildScene();
         app.renderer.on('resize', () => this.relayout());
@@ -183,8 +196,40 @@ export class TableView {
         this.requestSync();
     }
 
+    /**
+     *  Phones take the graphics memory of a page left in the background: the table turns black, the card
+     *  pictures blank. When the drawing is lost, or the page comes back after a long time, the table is made again.
+     */
+    private watchDrawing(canvas: HTMLCanvasElement) {
+        canvas.addEventListener('webglcontextlost', () => this.drawingLost = true);
+        canvas.addEventListener('webglcontextrestored', () => {
+            if (document.visibilityState === 'visible') this.rebuild();
+        });
+        document.addEventListener('visibilitychange', this.onVisibility);
+    }
+
+    private readonly onVisibility = () => {
+        if (document.visibilityState === 'hidden') {
+            this.hiddenAt = Date.now();
+            return;
+        }
+        const away = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt;
+        this.hiddenAt = null;
+        const gl = (this.app?.renderer as { gl?: WebGLRenderingContext } | undefined)?.gl;
+        if (this.drawingLost || gl?.isContextLost() || away > REBUILD_AFTER_MS) this.rebuild();
+    };
+
+    private rebuild() {
+        if (this.destroyed || this.rebuilding) return;
+        this.rebuilding = true;
+        arts.clear();
+        if (this.options.onRebuild) this.options.onRebuild();
+        else this.rebuilding = false;
+    }
+
     public destroy() {
         this.destroyed = true;
+        document.removeEventListener('visibilitychange', this.onVisibility);
         this.unsubscribe();
         this.revealed.forEach(r => clearTimeout(r.timer));
         clearTimeout(this.dutchTimer);
@@ -192,7 +237,8 @@ export class TableView {
         document.body.classList.remove('in-game');
         if (this.app) {
             for (const s of this.sprites.values()) dispose(s);
-            gsap.killTweensOf(this.app.stage);
+            // Messages, effects, seats, buttons: nothing may still be animated once destroyed
+            stopTweens(this.app.stage);
             this.app.destroy(true, {children: true});
             this.app = null;
         }
@@ -925,6 +971,7 @@ export class TableView {
             gsap.to(path, {
                 p: 1, duration: .8 + Math.random() * .35, delay: Math.random() * .06, ease: 'power3.out',
                 onUpdate: () => {
+                    if (s.destroyed) return;
                     const a = start + turn * path.p * .9;
                     const d = reach * path.p;
                     s.position.set(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d);
