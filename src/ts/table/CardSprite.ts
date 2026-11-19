@@ -27,15 +27,26 @@ export function centered<T extends Sprite>(sprite: T): T {
  *  (a tween left on a destroyed object throws on every frame and stops the other animations)
  */
 export function dispose(object: Container) {
-    if (object.destroyed) return;
+    if (object.destroyed || disposing.has(object)) return;
+    disposing.add(object);
     const stop = (o: Container) => {
         gsap.killTweensOf(o);
         gsap.killTweensOf(o.scale);
         o.children.forEach(stop);
     };
     stop(object);
-    object.destroy({children: true});
+    object.visible = false;
+    object.removeFromParent();
+    // Destroyed once the current animation frame is over: GSAP may still render, in this frame, a tween
+    // of this object that comes after the one whose end called dispose()
+    queueMicrotask(() => {
+        disposing.delete(object);
+        stop(object);
+        if (!object.destroyed) object.destroy({children: true});
+    });
 }
+
+const disposing = new WeakSet<Container>();
 
 /**
  *  One card on the table. Its face is only known once the card is shown to this device.
