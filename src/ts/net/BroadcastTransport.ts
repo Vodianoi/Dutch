@@ -40,7 +40,11 @@ class BroadcastConnection extends ConnectionBase implements Connection {
 
     public close() {
         if (this.closed) return;
-        this.channel.postMessage({kind: 'close', from: this.self, to: this.peer} satisfies Packet);
+        try {
+            this.channel.postMessage({kind: 'close', from: this.self, to: this.peer} satisfies Packet);
+        } catch {
+            // The room is already closed: nobody to tell
+        }
         this.closed = true;
         this.onLocalClose();
     }
@@ -129,7 +133,37 @@ export class BroadcastTransport implements TransportFactory {
         throw new TransportError(t('Impossible de créer la partie.'));
     }
 
-    public join(code: string): Promise<Connection> {
+    public async hostFirstFree(codes: string[]): Promise<HostTransport> {
+        for (const code of codes) {
+            const channel = new BroadcastChannel(channelName(code));
+            if (!await this.someoneAnswers(channel)) return new BroadcastHost(code, channel);
+            channel.close();
+        }
+        throw new TransportError(t('Toutes les places de parties publiques sont prises : réessayez plus tard.'));
+    }
+
+    public async ask(codes: string[], question: unknown, timeoutMs: number): Promise<Map<string, unknown>> {
+        const answers = new Map<string, unknown>();
+        await Promise.all(codes.map(code => new Promise<void>(resolve => {
+            const timer = setTimeout(() => resolve(), timeoutMs);
+            this.join(code, Math.min(timeoutMs, 400)).then(connection => {
+                connection.onMessage(answer => {
+                    if (answers.has(code)) return;
+                    answers.set(code, answer);
+                    connection.close();
+                    clearTimeout(timer);
+                    resolve();
+                });
+                connection.send(question);
+            }, () => {
+                clearTimeout(timer);
+                resolve();
+            });
+        })));
+        return answers;
+    }
+
+    public join(code: string, timeoutMs = this.timeoutMs): Promise<Connection> {
         const channel = new BroadcastChannel(channelName(code));
         const self = randomId();
         const connection = new BroadcastConnection(channel, self, HOST, () => channel.close());
@@ -137,7 +171,7 @@ export class BroadcastTransport implements TransportFactory {
             const timer = setTimeout(() => {
                 channel.close();
                 reject(new TransportError(t('Partie {code} introuvable.', {code})));
-            }, this.timeoutMs);
+            }, timeoutMs);
             channel.onmessage = (e: MessageEvent<Packet>) => {
                 const packet = e.data;
                 if (packet.kind === 'opened' && packet.to === self) {

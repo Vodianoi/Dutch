@@ -267,6 +267,66 @@ export class PeerTransport implements TransportFactory {
         throw new TransportError(t('Impossible de créer la partie.'));
     }
 
+    public async hostFirstFree(codes: string[]): Promise<HostTransport> {
+        const Peer = await loadPeerJs();
+        for (const code of codes) {
+            try {
+                return new PeerHost(code, await openPeer(Peer, ID_PREFIX + code, code), Peer);
+            } catch (e) {
+                if ((e as { type?: string }).type !== 'unavailable-id') throw e;
+            }
+        }
+        throw new TransportError(t('Toutes les places de parties publiques sont prises : réessayez plus tard.'));
+    }
+
+    /**
+     *  One peer knocks on every room: the server answers « peer-unavailable » at once for an empty room,
+     *  a room that is there gets the question and answers
+     */
+    public async ask(codes: string[], question: unknown, timeoutMs: number): Promise<Map<string, unknown>> {
+        const Peer = await loadPeerJs();
+        const answers = new Map<string, unknown>();
+        return new Promise(resolve => {
+            const peer = new Peer(undefined, {debug: 0});
+            const pending = new Set(codes);
+            const connections: DataConnection[] = [];
+            const finish = () => {
+                clearTimeout(timer);
+                connections.forEach(c => c.close());
+                peer.destroy();
+                resolve(answers);
+            };
+            const done = (code: string) => {
+                pending.delete(code);
+                if (!pending.size) finish();
+            };
+            const timer = setTimeout(finish, timeoutMs);
+            peer.on('error', error => {
+                if (error.type === 'peer-unavailable') {
+                    // « Could not connect to peer vodianoi-dutch-PUB03 »
+                    const code = codes.find(c => error.message.endsWith(ID_PREFIX + c));
+                    if (code) done(code);
+                } else if (!['network', 'disconnected'].includes(error.type)) {
+                    finish();
+                }
+            });
+            peer.on('open', () => {
+                for (const code of codes) {
+                    const connection = peer.connect(ID_PREFIX + code, {reliable: true, serialization: 'json'});
+                    connections.push(connection);
+                    connection.on('open', () => connection.send(question));
+                    connection.on('data', data => {
+                        if (!pending.has(code)) return;
+                        answers.set(code, data);
+                        connection.close();
+                        done(code);
+                    });
+                    connection.on('error', () => done(code));
+                }
+            });
+        });
+    }
+
     public async join(code: string): Promise<Connection> {
         const Peer = await loadPeerJs();
         return new Promise((resolve, reject) => {
