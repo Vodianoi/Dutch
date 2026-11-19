@@ -1,5 +1,6 @@
 import {ChatMessage, EMOTES, MAX_CHAT_LENGTH} from '../net/Protocol.js';
 import {Chat, Session} from '../Session.js';
+import {t} from '../i18n.js';
 import {el} from './dom.js';
 
 /**
@@ -17,15 +18,15 @@ export class ChatBox {
     public onMessage: ((message: ChatMessage) => void) | null = null;
 
     constructor(private readonly chat: Chat, private readonly session: Session) {
-        this.list = el('ol', {class: 'chat-list', 'aria-live': 'polite', 'aria-relevant': 'additions', 'aria-label': 'Messages'});
-        this.empty = el('p', {class: 'chat-empty hint'}, chat.text ? 'Pas encore de message : dites bonjour !' : 'Réagissez avec un emoji : les autres joueurs répondent parfois.');
-        const emotes = el('div', {class: 'chat-emotes', role: 'group', 'aria-label': 'Réactions'},
-            ...EMOTES.map(emote => el('button', {type: 'button', class: 'emote-button', 'aria-label': `Envoyer ${emote}`, onclick: () => chat.emote(emote)}, emote)));
+        this.list = el('ol', {class: 'chat-list', 'aria-live': 'polite', 'aria-relevant': 'additions', 'aria-label': t('Messages')});
+        this.empty = el('p', {class: 'chat-empty hint'}, chat.text ? t('Pas encore de message : dites bonjour !') : t('Réagissez avec un emoji : les autres joueurs répondent parfois.'));
+        const emotes = el('div', {class: 'chat-emotes', role: 'group', 'aria-label': t('Réactions')},
+            ...EMOTES.map(emote => el('button', {type: 'button', class: 'emote-button', 'aria-label': t('Envoyer {emote}', {emote}), onclick: () => chat.emote(emote)}, emote)));
         let form: HTMLElement | null = null;
         if (chat.text) {
             const input = el('input', {
                 type: 'text', id: 'chat-input', class: 'chat-input', maxlength: String(MAX_CHAT_LENGTH),
-                placeholder: 'Votre message…', 'aria-label': 'Message', autocomplete: 'off', enterkeyhint: 'send',
+                placeholder: t('Votre message…'), 'aria-label': t('Message'), autocomplete: 'off', enterkeyhint: 'send',
             });
             this.input = input;
             form = el('form', {class: 'chat-form', onsubmit: (e: Event) => {
@@ -34,10 +35,10 @@ export class ChatBox {
                 if (!text) return;
                 chat.send(text);
                 input.value = '';
-            }}, input, el('button', {type: 'submit', class: 'primary chat-send'}, 'Envoyer'));
+            }}, input, el('button', {type: 'submit', class: 'primary chat-send'}, t('Envoyer')));
         }
-        this.element = el('section', {class: 'chat', 'aria-label': chat.text ? 'Discussion' : 'Réactions'},
-            el('h3', {class: 'chat-title'}, chat.text ? 'Discussion' : 'Réactions'),
+        this.element = el('section', {class: 'chat', 'aria-label': chat.text ? t('Discussion') : t('Réactions')},
+            el('h3', {class: 'chat-title'}, chat.text ? t('Discussion') : t('Réactions')),
             this.list, this.empty, emotes, form);
         chat.messages.forEach(m => this.add(m));
         this.unsubscribe = session.on(event => {
@@ -60,7 +61,7 @@ export class ChatBox {
         this.shown.add(message.id);
         const me = message.seat === this.session.viewerId;
         this.list.appendChild(el('li', {class: `chat-line${me ? ' me' : ''}${message.emote ? ' emote' : ''}`},
-            el('span', {class: 'chat-name', style: {color: lighten(message.color)}}, me ? 'Vous' : message.name),
+            el('span', {class: 'chat-name', style: {color: lighten(message.color)}}, me ? t('Vous') : message.name),
             el('span', {class: 'chat-text'}, message.emote ?? message.text ?? '')));
         this.empty.hidden = true;
     }

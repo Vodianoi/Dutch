@@ -1,6 +1,7 @@
 import {gsap} from 'gsap';
 import {ChatMessage, EMOTES} from '../net/Protocol.js';
 import {Session} from '../Session.js';
+import {t} from '../i18n.js';
 import {describeSettings} from '../Settings.js';
 import {ChatBox} from '../ui/ChatBox.js';
 import {BACK_COLORS, BackColor} from './cardArt.js';
@@ -46,7 +47,7 @@ export class TableChrome {
         menuButton.type = 'button';
         menuButton.className = 'table-menu-button';
         menuButton.setAttribute('aria-haspopup', 'dialog');
-        menuButton.innerHTML = '<span aria-hidden="true">☰</span> Menu';
+        menuButton.innerHTML = `<span aria-hidden="true">☰</span> ${t('Menu')}`;
         menuButton.addEventListener('click', () => this.openMenu());
         o.bar.append(menuButton);
         if (o.session.chat) this.buildChat();
@@ -92,7 +93,7 @@ export class TableChrome {
         const emoteButton = document.createElement('button');
         emoteButton.type = 'button';
         emoteButton.className = 'table-menu-button table-emote-button';
-        emoteButton.setAttribute('aria-label', 'Réactions');
+        emoteButton.setAttribute('aria-label', t('Réactions'));
         emoteButton.setAttribute('aria-expanded', 'false');
         emoteButton.textContent = '😀';
         emoteButton.addEventListener('click', () => this.toggleEmotes(emoteButton));
@@ -166,13 +167,13 @@ export class TableChrome {
         const pop = document.createElement('div');
         pop.className = 'emote-pop';
         pop.setAttribute('role', 'group');
-        pop.setAttribute('aria-label', 'Réactions');
+        pop.setAttribute('aria-label', t('Réactions'));
         for (const emote of EMOTES) {
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'emote-button';
             b.textContent = emote;
-            b.setAttribute('aria-label', `Envoyer ${emote}`);
+            b.setAttribute('aria-label', t('Envoyer {emote}', {emote}));
             b.addEventListener('click', () => {
                 unlockAudio();
                 this.o.session.chat?.emote(emote);
@@ -204,11 +205,11 @@ export class TableChrome {
         panel.className = 'panel chat-drawer';
         panel.setAttribute('role', 'dialog');
         panel.setAttribute('aria-modal', 'true');
-        panel.setAttribute('aria-label', 'Discussion');
+        panel.setAttribute('aria-label', t('Discussion'));
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'secondary chat-close';
-        close.textContent = 'Fermer';
+        close.textContent = t('Fermer');
         const shut = () => {
             drawer.remove();
             this.chatDrawer = null;
@@ -233,14 +234,14 @@ export class TableChrome {
     private updateUnread() {
         if (!this.chatButton) return;
         this.chatButton.textContent = '';
-        this.chatButton.append('Chat');
+        this.chatButton.append(t('Chat'));
         if (this.unread) {
             const badge = document.createElement('span');
             badge.className = 'unread';
             badge.textContent = String(this.unread);
             this.chatButton.append(badge);
         }
-        this.chatButton.setAttribute('aria-label', this.unread ? `Discussion, ${this.unread} message${this.unread > 1 ? 's' : ''} non lu${this.unread > 1 ? 's' : ''}` : 'Discussion');
+        this.chatButton.setAttribute('aria-label', this.unread ? t(this.unread > 1 ? 'Discussion, {n} messages non lus' : 'Discussion, {n} message non lu', {n: this.unread}) : t('Discussion'));
     }
     // endregion
 
@@ -258,22 +259,22 @@ export class TableChrome {
             opener?.focus();
         };
         const rules = s ? describeSettings(s.settings).map(line => `<li>${escape(line)}</li>`).join('') : '';
-        const backs = this.o.onBackChange ? `<div class="backs" role="radiogroup" aria-label="Dos des cartes">${(Object.keys(BACK_COLORS) as BackColor[]).map(key =>
-            `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${BACK_COLORS[key].name}</label>`).join('')}</div>` : '';
+        const backs = this.o.onBackChange ? `<div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${(Object.keys(BACK_COLORS) as BackColor[]).map(key =>
+            `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
         dialog.innerHTML = `
             <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">
-                <h2 id="menu-title">Menu</h2>
-                <button type="button" class="primary" data-act="close">Reprendre la partie</button>
-                <details><summary>Règles de la partie</summary><ul>${rules}</ul></details>
-                <fieldset><legend>Réglages de cet appareil</legend>
-                    <label class="switch"><input type="checkbox" name="sound" ${prefs.sound ? 'checked' : ''}> Sons</label>
-                    <label class="switch"><input type="checkbox" name="vibration" ${prefs.vibration ? 'checked' : ''}> Vibrations</label>
-                    <label class="switch"><input type="checkbox" name="fast" ${prefs.speed === 'fast' ? 'checked' : ''}> Animations rapides</label>
-                    ${this.o.onTableChange ? `<label class="switch"><input type="checkbox" name="table3d" ${prefs.table === '3d' ? 'checked' : ''}> Table en 3D (prototype)</label>` : ''}
+                <h2 id="menu-title">${t('Menu')}</h2>
+                <button type="button" class="primary" data-act="close">${t('Reprendre la partie')}</button>
+                <details><summary>${t('Règles de la partie')}</summary><ul>${rules}</ul></details>
+                <fieldset><legend>${t('Réglages de cet appareil')}</legend>
+                    <label class="switch"><input type="checkbox" name="sound" ${prefs.sound ? 'checked' : ''}> ${t('Sons')}</label>
+                    <label class="switch"><input type="checkbox" name="vibration" ${prefs.vibration ? 'checked' : ''}> ${t('Vibrations')}</label>
+                    <label class="switch"><input type="checkbox" name="fast" ${prefs.speed === 'fast' ? 'checked' : ''}> ${t('Animations rapides')}</label>
+                    ${this.o.onTableChange ? `<label class="switch"><input type="checkbox" name="table3d" ${prefs.table === '3d' ? 'checked' : ''}> ${t('Table en 3D (prototype)')}</label>` : ''}
                     ${backs}
-                    ${this.o.debug && this.o.session.canShowAll ? '<label class="switch"><input type="checkbox" name="showAll"> Voir toutes les cartes (debug)</label>' : ''}
+                    ${this.o.debug && this.o.session.canShowAll ? `<label class="switch"><input type="checkbox" name="showAll"> ${t('Voir toutes les cartes (debug)')}</label>` : ''}
                 </fieldset>
-                <button type="button" class="secondary danger" data-act="quit">Quitter la partie</button>
+                <button type="button" class="secondary danger" data-act="quit">${t('Quitter la partie')}</button>
             </section>`;
         dialog.addEventListener('click', e => {
             const target = e.target as HTMLElement;

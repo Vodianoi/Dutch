@@ -3,6 +3,7 @@ import {gsap} from 'gsap';
 import {Art, CH, CW, SANS} from './art.js';
 import {centered} from './CardSprite.js';
 import {handH, handW, Seat} from './layout.js';
+import {points} from '../i18n.js';
 import {sfx} from './sound.js';
 
 export const GOLD = 0xffd166;
@@ -116,7 +117,7 @@ export class SeatView extends Container {
     }
 
     public update(o: { score: number; active: boolean; badge: string | null; choosable: boolean; connected: boolean }) {
-        this.scoreText.text = `${o.score} pt${o.score > 1 ? 's' : ''}`;
+        this.scoreText.text = points(o.score);
         this.badge.visible = !!o.badge;
         if (o.badge && this.badgeText.text !== o.badge) this.badgeText.text = o.badge;
         this.cursor = o.choosable ? 'pointer' : 'default';

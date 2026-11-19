@@ -1,3 +1,5 @@
+import type {CardRef} from './i18n.js';
+
 /**
  *  Card model
  *  - Pure data, no DOM: the UI renders cards from this model (see ui/GameView.ts)
@@ -113,6 +115,16 @@ class Card {
      */
     public get name(): string {
         return `${VALUE_NAMES[this.value]} de ${SUIT_NAMES[this.suit]}`;
+    }
+
+    /** This card in a message (each device writes it in its own language) */
+    public get ref(): CardRef {
+        return {card: this.value, suit: this.suit};
+    }
+
+    /** Full name in a message: Valet de cœur / Jack of hearts */
+    public get longRef(): CardRef {
+        return {card: this.value, suit: this.suit, long: true};
     }
 
     public toString(): string {

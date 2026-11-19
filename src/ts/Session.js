@@ -1,5 +1,5 @@
 import { RuleError } from './Dutch.js';
-import { applyAction, buildView, faceUp } from './View.js';
+import { applyAction, buildView, faceUp, notice } from './View.js';
 /**
  *  Small event emitter shared by the sessions
  */
@@ -57,7 +57,7 @@ export class LocalSession {
         catch (e) {
             if (!(e instanceof RuleError))
                 throw e;
-            this.events.emit({ type: 'notice', notice: { text: e.message, kind: 'error' } });
+            this.events.emit({ type: 'notice', notice: notice('error', e.msg) });
         }
     }
     setShowAll(on) {

@@ -1,9 +1,3 @@
-/**
- *  Card model
- *  - Pure data, no DOM: the UI renders cards from this model (see ui/GameView.ts)
- *  - Value and suit names follow the deckofcardsapi.com conventions used before
- *    (ACE, 2..10, JACK, QUEEN, KING / HEARTS, DIAMONDS, CLUBS, SPADES)
- */
 export const SUITS = ['HEARTS', 'DIAMONDS', 'CLUBS', 'SPADES'];
 export const VALUES = ['ACE', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'JACK', 'QUEEN', 'KING'];
 const SUIT_SYMBOLS = {
@@ -80,6 +74,14 @@ class Card {
      */
     get name() {
         return `${VALUE_NAMES[this.value]} de ${SUIT_NAMES[this.suit]}`;
+    }
+    /** This card in a message (each device writes it in its own language) */
+    get ref() {
+        return { card: this.value, suit: this.suit };
+    }
+    /** Full name in a message: Valet de cœur / Jack of hearts */
+    get longRef() {
+        return { card: this.value, suit: this.suit, long: true };
     }
     toString() {
         return `${this.rankLabel}${this.suitSymbol}`;
