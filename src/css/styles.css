@@ -1924,6 +1924,14 @@ body.in-game .site-header {
     outline-offset: 2px;
 }
 
+/* Titles of the card back and table choices in the menu */
+.choice-title {
+    margin: 6px 0 -2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
 /* Table looks: small round tables */
 .felts {
     display: flex;

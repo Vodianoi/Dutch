@@ -238,8 +238,8 @@ export class TableChrome {
             opener?.focus();
         };
         const rules = s ? describeSettings(s.settings).map(line => `<li>${escape(line)}</li>`).join('') : '';
-        const backs = this.o.onBackChange ? `<div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${Object.keys(BACK_COLORS).map(key => `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
-        const felts = this.o.onFeltChange ? `<div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${Object.keys(TABLE_THEMES).map(key => {
+        const backs = this.o.onBackChange ? `<p class="choice-title" aria-hidden="true">${t('Dos des cartes')}</p><div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${Object.keys(BACK_COLORS).map(key => `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
+        const felts = this.o.onFeltChange ? `<p class="choice-title" aria-hidden="true">${t('Tapis')}</p><div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${Object.keys(TABLE_THEMES).map(key => {
             const c = TABLE_THEMES[key];
             const swatch = `background: radial-gradient(ellipse at 50% 40%, ${c.felt[0]}, ${c.felt[1]} 60%, ${c.felt[2]}); border-color: ${c.rail[1]}`;
             return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch${c.wood ? ' felt-wood' : ''}" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
