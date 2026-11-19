@@ -1,3 +1,4 @@
+import { findPublicGames } from '../net/PublicGames.js';
 import { IS_DEV, scoped, TABLE_3D } from '../env.js';
 import { render, t } from '../i18n.js';
 import Dutch, { RuleError } from '../Dutch.js';
@@ -10,6 +11,7 @@ import { Client } from '../net/Client.js';
 import { Host } from '../net/Host.js';
 import { PeerTransport } from '../net/PeerTransport.js';
 import { randomToken } from '../net/Protocol.js';
+import { PUBLIC_CODES } from '../net/Transport.js';
 import GameView from './GameView.js';
 import { ChatBox } from './ChatBox.js';
 import { renderLobby } from './LobbyView.js';
@@ -134,7 +136,8 @@ export class App {
                 this.home();
             },
             onLocal: options => this.playLocal(options),
-            onHost: (name, color, settings) => this.host(name, color, settings),
+            onHost: (name, color, settings, isPublic) => this.host(name, color, settings, isPublic),
+            onFindPublic: () => findPublicGames(this.transport),
             onJoin: (code, name) => this.join(code, name),
             onResume: () => {
                 const again = this.savedHost();
@@ -226,11 +229,12 @@ export class App {
     }
     // endregion
     // region Online: host
-    async host(name, color, settings) {
+    async host(name, color, settings, isPublic = false) {
         this.home({ busy: t('Création de la partie…') });
         let host;
         try {
-            const transport = await this.transport.host();
+            // Public game: the first free public code, so that the list finds it
+            const transport = isPublic ? await this.transport.hostFirstFree(PUBLIC_CODES) : await this.transport.host();
             host = new Host(transport, name, { color, settings, persist: snapshot => this.saveHost(name, snapshot) });
         }
         catch (e) {

@@ -1,3 +1,4 @@
+import {isPublicCode} from '../net/Transport.js';
 import {LobbyState} from '../net/Protocol.js';
 import {checkSettings, colorName, describeSettings, GameSettings} from '../Settings.js';
 import {ChatBox} from './ChatBox.js';
@@ -80,6 +81,10 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
         el('div', {class: 'room-code'},
             el('span', {class: 'hint'}, t('Code de la partie')),
             el('strong', {id: 'lobby-code'}, lobby.code)),
+        isPublicCode(lobby.code)
+            ? el('p', {class: 'message info public-note'}, el('strong', {}, t('Partie publique')), ' · ',
+                t('elle est dans la liste des parties publiques : n\'importe qui peut la rejoindre jusqu\'à 10 joueurs.'))
+            : null,
         el('div', {class: 'share'},
             el('input', {type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': t('Lien de la partie')}),
             copyButton),

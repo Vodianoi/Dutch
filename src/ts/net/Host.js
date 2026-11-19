@@ -3,6 +3,7 @@ import { assignColors, cleanSettings, isPlayerColor, settingsProblem } from '../
 import { Emitter, findHandCard } from '../Session.js';
 import { applyAction, buildView, faceUp, notice } from '../View.js';
 import { CHAT_HISTORY, cleanChatText, cleanName, EMOTES, MAX_PLAYERS, PROTOCOL_VERSION, randomToken, } from './Protocol.js';
+import { isPublicCode } from './Transport.js';
 /**
  *  Online game, host side.
  *  - The engine runs here; this device is seat 0
@@ -64,6 +65,17 @@ export class Host {
     }
     get started() {
         return this.game !== null;
+    }
+    /** Listed with the public games (code PUB01…) */
+    get isPublic() {
+        return isPublicCode(this.code);
+    }
+    /** What the room tells someone who knocks */
+    get info() {
+        return {
+            code: this.code, v: PROTOCOL_VERSION, host: this.seats[0].name, players: this.seats.length, max: MAX_PLAYERS,
+            started: !!this.game, settings: this.settings,
+        };
     }
     get lobby() {
         return {
@@ -229,6 +241,12 @@ export class Host {
             if (!message || typeof message !== 'object')
                 return;
             if (!seat) {
+                if (message.t === 'info') {
+                    clearTimeout(helloTimer);
+                    connection.send({ t: 'info', room: this.info });
+                    setTimeout(() => connection.close(), 300);
+                    return;
+                }
                 if (message.t !== 'hello')
                     return;
                 clearTimeout(helloTimer);

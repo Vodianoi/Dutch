@@ -4,8 +4,9 @@ import {Chat, Emitter, findHandCard, Session, SessionEvent} from '../Session.js'
 import {Action, applyAction, buildView, faceUp, GameView, notice} from '../View.js';
 import {
     CHAT_HISTORY, ChatMessage, cleanChatText, ClientMessage, cleanName, EMOTES, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken,
+    RoomInfo,
 } from './Protocol.js';
-import {Connection, HostTransport} from './Transport.js';
+import {Connection, HostTransport, isPublicCode} from './Transport.js';
 
 interface Seat {
     name: string;
@@ -111,6 +112,19 @@ export class Host implements Session {
 
     public get started(): boolean {
         return this.game !== null;
+    }
+
+    /** Listed with the public games (code PUB01…) */
+    public get isPublic(): boolean {
+        return isPublicCode(this.code);
+    }
+
+    /** What the room tells someone who knocks */
+    public get info(): RoomInfo {
+        return {
+            code: this.code, v: PROTOCOL_VERSION, host: this.seats[0].name, players: this.seats.length, max: MAX_PLAYERS,
+            started: !!this.game, settings: this.settings,
+        };
     }
 
     public get lobby(): LobbyState {
@@ -274,6 +288,12 @@ export class Host implements Session {
             const message = raw as ClientMessage;
             if (!message || typeof message !== 'object') return;
             if (!seat) {
+                if (message.t === 'info') {
+                    clearTimeout(helloTimer);
+                    connection.send({t: 'info', room: this.info} satisfies HostMessage);
+                    setTimeout(() => connection.close(), 300);
+                    return;
+                }
                 if (message.t !== 'hello') return;
                 clearTimeout(helloTimer);
                 seat = this.hello(connection, message);

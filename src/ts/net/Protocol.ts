@@ -24,6 +24,21 @@ export interface LobbyState {
 }
 
 /**
+ *  What a room tells someone who knocks without joining (list of public games).
+ *  Added without a new protocol version: older hosts don't answer, they are left out of the list.
+ */
+export interface RoomInfo {
+    code: string;
+    /** Version of the game of the host: a different one can't be joined */
+    v: number;
+    host: string;
+    players: number;
+    max: number;
+    started: boolean;
+    settings: GameSettings;
+}
+
+/**
  *  Chat line or emote of a player, as everybody receives it.
  *  Added without a new protocol version: older pages ignore these messages.
  */
@@ -61,11 +76,15 @@ export type HostMessage =
     | { t: 'ping' }
     | { t: 'chat'; message: ChatMessage }
     /** Messages so far, sent to a player who arrives or comes back */
-    | { t: 'chatLog'; messages: ChatMessage[] };
+    | { t: 'chatLog'; messages: ChatMessage[] }
+    /** Answer to someone who knocks (list of public games) */
+    | { t: 'info'; room: RoomInfo };
 
 /** Player -> host */
 export type ClientMessage =
     | { t: 'hello'; v: number; name: string; token: string; color?: string }
+    /** Knock without joining: the host answers with its RoomInfo and hangs up */
+    | { t: 'info' }
     | { t: 'action'; action: Action }
     | { t: 'pong' }
     | { t: 'chat'; text: string }

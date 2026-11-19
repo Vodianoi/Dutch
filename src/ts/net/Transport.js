@@ -4,6 +4,15 @@
  *  - BroadcastTransport: between tabs of the same browser (development and tests)
  */
 /**
+ *  Public games: rooms with known codes, so that anybody can find them by knocking on each one
+ *  (the public PeerJS server can't list who is there)
+ */
+export const PUBLIC_SLOTS = 20;
+export const PUBLIC_CODES = Array.from({ length: PUBLIC_SLOTS }, (_, i) => `PUB${String(i + 1).padStart(2, '0')}`);
+export function isPublicCode(code) {
+    return PUBLIC_CODES.includes(code);
+}
+/**
  *  Error shown to the player (bad code, network issue...)
  */
 export class TransportError extends Error {
