@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { gsap } from 'gsap';
-import { toCard } from '../View.js';
+import { joinNames, points, t } from '../i18n.js';
+import { effectCard, logText, noticeText, toCard } from '../View.js';
 import { compactFace, face, SANS, SERIF, vintageBack } from '../table/cardArt.js';
 import { escape, TableChrome } from '../table/chrome.js';
 import { buzz, loadPrefs } from '../table/prefs.js';
@@ -371,7 +372,7 @@ export class Table3DView {
         this.actionsEl = document.createElement('div');
         this.actionsEl.className = 'table3d-actions';
         this.actionsEl.setAttribute('role', 'group');
-        this.actionsEl.setAttribute('aria-label', 'Actions');
+        this.actionsEl.setAttribute('aria-label', t('Actions'));
         this.panelEl = document.createElement('div');
         this.panelEl.className = 'table3d-panel';
         this.panelEl.hidden = true;
@@ -465,7 +466,7 @@ export class Table3DView {
                 sfx.bad();
                 buzz(this.prefs, 20);
             }
-            this.bubble(this.bottomId(), event.notice.text, event.notice.kind === 'error' ? '#ff6b6b' : '#ffd166');
+            this.bubble(this.bottomId(), noticeText(event.notice), event.notice.kind === 'error' ? '#ff6b6b' : '#ffd166');
         }
         if (event.type === 'chat' && !event.history)
             this.showChat(event.message);
@@ -896,7 +897,7 @@ export class Table3DView {
         this.readLog(s);
         this.banner(s);
         this.actions(s);
-        this.info.textContent = `Manche ${s.round} · ${s.targetScore} pts`;
+        this.info.textContent = t('Manche {round} · {target} pts', { round: s.round, target: s.targetScore });
         if (roundOver && s.lastResult) {
             const key = `${s.round}-${s.phase}`;
             if (this.panelFor !== key) {
@@ -938,7 +939,7 @@ export class Table3DView {
         if (move.type === 'dutch') {
             sfx.dutch();
             buzz(this.prefs, [30, 40, 30]);
-            this.bubble(null, `${s.viewerId === move.playerId ? 'Vous annoncez' : `${s.players[move.playerId].name} annonce`} « Dutch » : dernier tour !`, '#e8c374');
+            this.bubble(null, s.viewerId === move.playerId ? t('Vous annoncez « Dutch » : dernier tour !') : t('{name} annonce « Dutch » : dernier tour !', { name: s.players[move.playerId].name }), '#e8c374');
         }
     }
     highlights(s) {
@@ -991,9 +992,9 @@ export class Table3DView {
             }
             seat.labelEl.classList.toggle('active', active);
             seat.labelEl.classList.toggle('offline', !p.connected);
-            const badge = s.dutchCallerId === p.id ? 'DUTCH' : !p.connected ? 'HORS LIGNE' : p.locked ? 'BLOQUÉ' : '';
+            const badge = s.dutchCallerId === p.id ? 'DUTCH' : !p.connected ? t('HORS LIGNE') : p.locked ? t('BLOQUÉ') : '';
             const me = p.id === s.viewerId;
-            const html = `${escape(p.name)}${me && p.name !== 'Vous' ? ' (vous)' : ''}${badge ? `<span class="badge">${badge}</span>` : ''}<small>${p.score} pt${p.score > 1 ? 's' : ''}</small>`;
+            const html = `${escape(me && p.name !== 'Vous' && p.name !== t('Vous') ? t('{name} (vous)', { name: p.name }) : p.name)}${badge ? `<span class="badge">${badge}</span>` : ''}<small>${points(p.score)}</small>`;
             if (seat.labelEl.innerHTML !== html)
                 seat.labelEl.innerHTML = html;
         }
@@ -1071,60 +1072,63 @@ export class Table3DView {
         const end = log[log.length - 1];
         this.lastLog = end ? { round: end.round, message: end.message } : null;
         for (const entry of fresh.slice(-5)) {
-            if (Table3DView.SKIP.test(entry.message) || entry.kind === 'dutch')
+            // Tested on the French template: the same whatever the language of this device
+            const source = entry.msg?.t ?? entry.message;
+            const text = logText(entry);
+            if (Table3DView.SKIP.test(source) || entry.kind === 'dutch')
                 continue;
-            if (Table3DView.QUIET.test(entry.message)) {
-                this.live.textContent = entry.message;
+            if (Table3DView.QUIET.test(source)) {
+                this.live.textContent = text;
                 continue;
             }
-            const actor = s.players.find(p => entry.message.startsWith(p.name)) ?? s.players.find(p => entry.message.includes(p.name));
+            const actor = s.players.find(p => text.startsWith(p.name)) ?? s.players.find(p => text.includes(p.name));
             if (actor && s.viewerId === actor.id && entry.kind === 'info')
                 continue;
-            this.bubble(actor ? actor.id : null, entry.message, actor?.color ?? '#e8c374');
+            this.bubble(actor ? actor.id : null, text, actor?.color ?? '#e8c374');
         }
     }
     instruction(s) {
         const effect = s.activeEffect;
         const cur = s.players[s.currentPlayerIndex];
         const myTurn = this.mine(cur.id);
-        const who = (id) => s.viewerId === null ? `${s.players[id].name} : ` : 'À vous : ';
+        const who = (id) => s.viewerId === null ? t('{name} : ', { name: s.players[id].name }) : t('À vous : ');
         const canThrow = s.viewerId !== null && s.players[s.viewerId].canThrow;
         const peeker = this.peeker(s);
         if (s.phase === 'peek' && !effect) {
             if (peeker !== null)
-                return `${who(peeker)}regardez vos 2 cartes les plus proches et retenez-les`;
-            return `Les autres regardent leurs cartes…${canThrow ? ' · une carte identique ? Glissez-la sur la défausse' : ''}`;
+                return who(peeker) + t('regardez vos 2 cartes les plus proches et retenez-les');
+            return t('Les autres regardent leurs cartes…') + (canThrow ? t(' · une carte identique ? Glissez-la sur la défausse') : '');
         }
         if (s.phase === 'roundOver' || s.phase === 'gameOver')
-            return 'Fin de la manche : on retourne les cartes';
+            return t('Fin de la manche : on retourne les cartes');
         let text;
         if (effect) {
             const owner = s.players[effect.playerId];
             if (!this.mine(owner.id))
-                text = `${owner.name} utilise ${effect.cardName}…`;
+                text = t('{name} utilise {card}…', { name: owner.name, card: effectCard(effect) });
             else if (effect.type === 'QUEEN')
-                text = `${who(owner.id)}Dame : touchez une de vos cartes pour la regarder`;
+                text = who(owner.id) + t('Dame : touchez une de vos cartes pour la regarder');
             else if (effect.type === 'JACK')
-                text = this.jackPick ? 'Valet : touchez la 2ᵉ carte à échanger' : `${who(owner.id)}Valet : touchez deux cartes à échanger`;
+                text = this.jackPick ? t('Valet : touchez la 2ᵉ carte à échanger') : who(owner.id) + t('Valet : touchez deux cartes à échanger');
             else
-                text = `${who(owner.id)}As : touchez la carte ou le jeton d'un joueur, il reçoit une carte`;
+                text = who(owner.id) + t('As : touchez la carte ou le jeton d\'un joueur, il reçoit une carte');
         }
         else if (this.throwPick) {
-            text = 'Touchez la défausse pour jeter cette carte';
+            text = t('Touchez la défausse pour jeter cette carte');
         }
         else if (myTurn && s.phase === 'draw') {
-            text = s.isStuck ? 'Plus rien à piocher : passez votre tour' : `${who(cur.id)}touchez la pioche, ou la défausse`;
+            text = s.isStuck ? t('Plus rien à piocher : passez votre tour') : who(cur.id) + t('touchez la pioche, ou la défausse');
         }
         else if (myTurn && s.phase === 'drawn') {
-            text = s.drawn?.source === 'pile' ? 'Touchez une de vos cartes pour l\'échanger, ou la défausse pour jeter celle-ci' : 'Touchez la carte de votre jeu à remplacer';
+            text = s.drawn?.source === 'pile' ? t('Touchez une de vos cartes pour l\'échanger, ou la défausse pour jeter celle-ci') : t('Touchez la carte de votre jeu à remplacer');
         }
         else if (myTurn && s.phase === 'played') {
-            text = s.dutchCallerId === null ? 'Finissez votre tour… ou annoncez Dutch !' : 'Finissez votre tour';
+            text = s.dutchCallerId === null ? t('Finissez votre tour… ou annoncez Dutch !') : t('Finissez votre tour');
         }
         else {
-            text = `Tour de ${cur.name}${canThrow ? ' · une carte identique ? Glissez-la sur la défausse' : ''}`;
+            text = t('Tour de {name}', { name: cur.name }) + (canThrow ? t(' · une carte identique ? Glissez-la sur la défausse') : '');
         }
-        return s.isFinalRound ? `Dernier tour · ${text}` : text;
+        return s.isFinalRound ? t('Dernier tour · {text}', { text }) : text;
     }
     banner(s) {
         const text = this.instruction(s);
@@ -1142,23 +1146,23 @@ export class Table3DView {
             const id = this.throwPick;
             const owner = s.players.find(p => p.hand.some(c => c?.id === id));
             if (owner) {
-                list.push(['Jeter sur la défausse', '', () => this.dispatch({ type: 'throwCard', playerId: owner.id, cardId: id })]);
-                list.push(['Annuler', 'ghost', () => {
+                list.push([t('Jeter sur la défausse'), '', () => this.dispatch({ type: 'throwCard', playerId: owner.id, cardId: id })]);
+                list.push([t('Annuler'), 'ghost', () => {
                         this.throwPick = null;
                         this.requestSync();
                     }]);
             }
         }
         else if (effect && this.mine(effect.playerId)) {
-            list.push(['Passer l\'effet', 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
+            list.push([t('Passer l\'effet'), 'ghost', () => this.dispatch({ type: 'skipEffect', playerId: effect.playerId })]);
         }
         else if (peeker !== null) {
-            list.push([s.viewerId === null ? `${s.players[peeker].name} : regarder` : 'Regarder mes cartes', '', () => this.dispatch({ type: 'peek', playerId: peeker })]);
+            list.push([s.viewerId === null ? t('{name} : regarder', { name: s.players[peeker].name }) : t('Regarder mes cartes'), '', () => this.dispatch({ type: 'peek', playerId: peeker })]);
         }
         else if (myTurn && !effect && s.phase === 'played') {
-            list.push(['Finir mon tour', '', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
+            list.push([t('Finir mon tour'), '', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
             if (s.dutchCallerId === null) {
-                list.push([this.dutchArmed ? 'Confirmer : Dutch !' : 'Dutch !', 'danger', () => {
+                list.push([this.dutchArmed ? t('Confirmer : Dutch !') : 'Dutch !', 'danger', () => {
                         if (!this.dutchArmed) {
                             this.dutchArmed = true;
                             clearTimeout(this.dutchTimer);
@@ -1174,7 +1178,7 @@ export class Table3DView {
             }
         }
         else if (myTurn && !effect && s.phase === 'draw' && s.isStuck) {
-            list.push(['Passer', '', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
+            list.push([t('Passer'), '', () => this.dispatch({ type: 'endTurn', playerId: cur, dutch: false })]);
         }
         if (!(myTurn && s.phase === 'played'))
             this.dutchArmed = false;
@@ -1202,13 +1206,13 @@ export class Table3DView {
         const rows = result.scores.slice().sort((a, b) => a.total - b.total).map(r => {
             const p = s.players[r.playerId];
             return `<li class="${result.winners.includes(r.playerId) ? 'win' : ''}"><span class="dot" style="background:${p.color}"></span>`
-                + `<span class="who">${escape(p.name)}${r.playerId === s.viewerId ? ' (vous)' : ''}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}</span>`
+                + `<span class="who">${escape(r.playerId === s.viewerId ? t('{name} (vous)', { name: p.name }) : p.name)}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}</span>`
                 + `<span class="pts">+${r.points}${r.penalty ? ` (+${r.penalty})` : ''}</span><span class="total">${r.total}</span></li>`;
         }).join('');
-        let title = `Fin de la manche ${result.round}`;
+        let title = t('Fin de la manche {round}', { round: result.round });
         if (result.gameOver) {
-            const names = result.winners.map(id => id === s.viewerId ? 'vous' : s.players[id].name);
-            title = result.winners.length === 1 && result.winners[0] === s.viewerId ? 'Vous gagnez !' : `Victoire : ${names.join(' et ')}`;
+            const names = result.winners.map(id => id === s.viewerId ? t('vous') : s.players[id].name);
+            title = result.winners.length === 1 && result.winners[0] === s.viewerId ? t('Vous gagnez !') : t('Victoire : {names}', { names: joinNames(names) });
         }
         this.panelEl.innerHTML = `<section role="dialog" aria-modal="true" aria-labelledby="table3d-panel-title"><h2 id="table3d-panel-title">${escape(title)}</h2><ol>${rows}</ol></section>`;
         const section = this.panelEl.querySelector('section');
@@ -1216,7 +1220,7 @@ export class Table3DView {
             const next = document.createElement('button');
             next.type = 'button';
             next.className = 'table3d-button';
-            next.textContent = result.gameOver ? 'Nouvelle partie' : 'Manche suivante';
+            next.textContent = result.gameOver ? t('Nouvelle partie') : t('Manche suivante');
             next.addEventListener('click', () => {
                 this.panelEl.hidden = true;
                 if (result.gameOver)
@@ -1229,7 +1233,7 @@ export class Table3DView {
             next.focus();
         }
         else {
-            section.insertAdjacentHTML('beforeend', `<p class="wait">${result.gameOver ? 'En attente d\'une nouvelle partie…' : `En attente de ${escape(s.players[0].name)} pour la suite…`}</p>`);
+            section.insertAdjacentHTML('beforeend', `<p class="wait">${escape(result.gameOver ? t('En attente d\'une nouvelle partie…') : t('En attente de {name} pour la suite…', { name: s.players[0].name }))}</p>`);
             this.panelEl.hidden = false;
         }
         this.live.textContent = `${title}. ${result.scores.map(r => `${s.players[r.playerId].name} ${r.total}`).join(', ')}`;

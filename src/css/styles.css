@@ -2580,3 +2580,33 @@ button:hover:not(:disabled) {
     right: auto;
     max-width: min(360px, calc(100vw - 20px));
 }
+
+/* Français / English, under the home screen */
+.lang-switch {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 14px auto 0;
+}
+
+.lang-switch button {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 236, 190, .25);
+    background: transparent;
+    color: var(--cream);
+    font: 600 14px var(--font-body);
+    cursor: pointer;
+}
+
+.lang-switch button.active {
+    background: rgba(255, 209, 102, .18);
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+.lang-switch button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}

@@ -6,9 +6,10 @@ import {
     ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, DEFAULTS_VERSION, describeSettings, EFFECT_LABELS, GameSettings,
     PLAYER_COLORS, upgradeDefaults,
 } from '../Settings.js';
+import {lang, LANGS, setLang, t} from '../i18n.js';
 import {clear, el} from './dom.js';
 
-const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', 'Joueur 5', 'Joueur 6', 'Joueur 7', 'Joueur 8', 'Joueur 9', 'Joueur 10'];
+const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', {n}))];
 const STORAGE_KEY = scoped('setup');
 /** Names of the computer players */
 export const BOT_NAMES = ['Léa', 'Hugo', 'Inès', 'Malo', 'Zoé', 'Nino', 'Jade', 'Sacha', 'Lina'];
@@ -107,14 +108,15 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             class: setup.mode === mode ? 'tab active' : 'tab', id: `tab-${mode}`,
             'aria-pressed': String(setup.mode === mode), onclick: () => switchMode(mode),
         }, label);
-        const tabs = el('div', {class: 'tabs', role: 'group', 'aria-label': 'Mode de jeu'},
-            tab('solo', 'Contre l\'ordinateur'),
-            tab('online', 'En ligne'),
-            HOT_SEAT ? tab('local', 'Sur cet écran') : null);
+        const tabs = el('div', {class: 'tabs', role: 'group', 'aria-label': t('Mode de jeu')},
+            tab('solo', t('Contre l\'ordinateur')),
+            tab('online', t('En ligne')),
+            HOT_SEAT ? tab('local', t('Sur cet écran')) : null);
 
         root.appendChild(el('section', {class: 'setup panel'},
             tabs,
             setup.mode === 'online' ? online() : setup.mode === 'solo' ? solo() : local()));
+        root.appendChild(languageSwitch());
     };
 
     const switchMode = (mode: SetupMode) => {
@@ -130,20 +132,20 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         const codeError = el('p', {class: 'field-error', id: 'room-code-error'});
         const nameInput = el('input', {
             type: 'text', id: 'online-name', 'aria-describedby': 'online-name-error', maxlength: String(MAX_NAME_LENGTH), value: setup.onlineName,
-            placeholder: 'Votre prénom', autocomplete: 'nickname',
+            placeholder: t('Votre prénom'), autocomplete: 'nickname',
         });
         const codeInput = el('input', {
             type: 'text', id: 'room-code', maxlength: '8', value: initial.code ?? '', placeholder: 'CODE',
-            'aria-label': 'Code de la partie', 'aria-describedby': 'room-code-error', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', class: 'code-input',
+            'aria-label': t('Code de la partie'), 'aria-describedby': 'room-code-error', autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false', class: 'code-input',
         });
-        const color = colorButton(setup.onlineColor, () => [], 'Votre couleur', value => {
+        const color = colorButton(setup.onlineColor, () => [], t('Votre couleur'), value => {
             setup.onlineColor = value;
             saveSetup(setup);
         });
         const readName = (): string | null => {
             const name = nameInput.value.trim();
             if (!name) {
-                invalid(nameInput, nameError, 'Entrez votre prénom pour que les autres vous reconnaissent.');
+                invalid(nameInput, nameError, t('Entrez votre prénom pour que les autres vous reconnaissent.'));
                 return null;
             }
             invalid(nameInput, nameError, null);
@@ -160,7 +162,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             const code = normalizeCode(codeInput.value);
             if (!name) return;
             if (code.length < 4) {
-                invalid(codeInput, codeError, 'Le code de la partie fait au moins 4 caractères.');
+                invalid(codeInput, codeError, t('Le code de la partie fait au moins 4 caractères.'));
                 return;
             }
             invalid(codeInput, codeError, null);
@@ -172,31 +174,31 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         const resume = initial.resume;
         return el('div', {class: 'setup-online'},
             resume && !busy ? el('section', {class: 'resume', 'aria-labelledby': 'resume-title'},
-                el('h3', {id: 'resume-title'}, resume.started ? 'Votre partie est en cours' : 'Votre salle d\'attente est ouverte'),
-                el('p', {class: 'hint'}, `Partie ${resume.code} avec ${resume.players.join(', ')}. `,
-                    'Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.'),
+                el('h3', {id: 'resume-title'}, resume.started ? t('Votre partie est en cours') : t('Votre salle d\'attente est ouverte')),
+                el('p', {class: 'hint'}, t('Partie {code} avec {players}. ', {code: resume.code, players: resume.players.join(', ')}),
+                    t('Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.')),
                 el('div', {class: 'resume-actions'},
-                    el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, 'Reprendre la partie'),
-                    el('button', {class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.()}, 'Abandonner'))) : null,
+                    el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, t('Reprendre la partie')),
+                    el('button', {class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.()}, t('Abandonner')))) : null,
             el('div', {class: 'stack'},
-                el('label', {for: 'online-name'}, 'Votre nom'),
+                el('label', {for: 'online-name'}, t('Votre nom')),
                 el('div', {class: 'name-row'}, color, nameInput),
                 nameError),
             el('div', {class: 'online-choices'},
                 el('div', {class: 'choice'},
-                    el('h3', {}, 'Créer une partie'),
-                    el('p', {class: 'hint'}, 'Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.'),
-                    el('button', {id: 'create-room', class: 'primary', disabled: busy, onclick: create}, 'Créer')),
+                    el('h3', {}, t('Créer une partie')),
+                    el('p', {class: 'hint'}, t('Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.')),
+                    el('button', {id: 'create-room', class: 'primary', disabled: busy, onclick: create}, t('Créer'))),
                 el('div', {class: 'choice'},
-                    el('h3', {}, 'Rejoindre'),
+                    el('h3', {}, t('Rejoindre')),
                     codeInput,
                     codeError,
-                    el('button', {id: 'join-room', class: 'primary', disabled: busy, onclick: join}, 'Rejoindre'))),
+                    el('button', {id: 'join-room', class: 'primary', disabled: busy, onclick: join}, t('Rejoindre')))),
             initial.busy ? el('p', {class: 'message info', role: 'status'}, initial.busy) : null,
             initial.error ? el('p', {class: 'message error', role: 'alert'}, initial.error) : null,
             el('p', {class: 'hint'},
-                'Chacun joue sur son appareil et ne voit que ses cartes. ',
-                'La partie tourne sur l\'appareil de celui qui la crée. S\'il quitte l\'application, elle reprend quand il revient.'));
+                t('Chacun joue sur son appareil et ne voit que ses cartes. '),
+                t('La partie tourne sur l\'appareil de celui qui la crée. S\'il quitte l\'application, elle reprend quand il revient.')));
     };
     // endregion
 
@@ -206,9 +208,9 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         const error = el('p', {class: 'message error', role: 'alert', id: 'solo-error', hidden: true});
         const nameInput = el('input', {
             type: 'text', id: 'solo-name', 'aria-describedby': 'solo-name-error', maxlength: String(MAX_NAME_LENGTH),
-            value: setup.onlineName, placeholder: 'Votre prénom', autocomplete: 'nickname',
+            value: setup.onlineName, placeholder: t('Votre prénom'), autocomplete: 'nickname',
         });
-        const color = colorButton(setup.onlineColor, () => [], 'Votre couleur', value => {
+        const color = colorButton(setup.onlineColor, () => [], t('Votre couleur'), value => {
             setup.onlineColor = value;
             saveSetup(setup);
         });
@@ -217,14 +219,14 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             saveSetup(setup);
             error.hidden = true;
         }}, ...Array.from({length: 9}, (_, i) => el('option', {value: String(i + 1), selected: i + 1 === setup.botCount},
-            `${i + 1} adversaire${i ? 's' : ''}`)));
+            t(i ? '{n} adversaires' : '{n} adversaire', {n: i + 1}))));
         const options = gameOptions(setup.settings, () => {
             setup.settings = options.read();
             saveSetup(setup);
             error.hidden = true;
         });
         const start = () => {
-            const name = nameInput.value.trim() || 'Vous';
+            const name = nameInput.value.trim() || t('Vous');
             setup.onlineName = nameInput.value.trim() || setup.onlineName;
             setup.settings = options.read();
             saveSetup(setup);
@@ -243,20 +245,20 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         const resume = initial.soloResume;
         return el('div', {class: 'setup-solo'},
             resume ? el('section', {class: 'resume', 'aria-labelledby': 'solo-resume-title'},
-                el('h3', {id: 'solo-resume-title'}, 'Votre partie est en cours'),
-                el('p', {class: 'hint'}, `Manche ${resume.round} contre ${resume.players.slice(1).join(', ')}.`),
+                el('h3', {id: 'solo-resume-title'}, t('Votre partie est en cours')),
+                el('p', {class: 'hint'}, t('Manche {round} contre {players}.', {round: resume.round, players: resume.players.slice(1).join(', ')})),
                 el('div', {class: 'resume-actions'},
-                    el('button', {class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.()}, 'Reprendre la partie'),
-                    el('button', {class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.()}, 'Abandonner'))) : null,
+                    el('button', {class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.()}, t('Reprendre la partie')),
+                    el('button', {class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.()}, t('Abandonner')))) : null,
             el('div', {class: 'stack'},
-                el('label', {for: 'solo-name'}, 'Votre nom'),
+                el('label', {for: 'solo-name'}, t('Votre nom')),
                 el('div', {class: 'name-row'}, color, nameInput),
                 nameError),
-            el('label', {class: 'inline-field'}, 'Contre ', bots),
+            el('label', {class: 'inline-field'}, t('Contre '), bots),
             folded(options),
-            el('p', {class: 'hint'}, 'Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.'),
+            el('p', {class: 'hint'}, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')),
             error,
-            el('button', {id: 'start-solo', class: 'primary', onclick: start}, resume ? 'Nouvelle partie' : 'Jouer'));
+            el('button', {id: 'start-solo', class: 'primary', onclick: start}, resume ? t('Nouvelle partie') : t('Jouer')));
     };
     // endregion
 
@@ -280,12 +282,12 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             const input = el('input', {type: 'text', id: `player-name-${i}`, maxlength: String(MAX_NAME_LENGTH), value: setup.names[i]});
             nameInputs.push(input);
             const others = () => setup.colors.filter((_, j) => j !== i && j < setup.count);
-            const color = colorButton(setup.colors[i], others, `Couleur du joueur ${i + 1}`, value => {
+            const color = colorButton(setup.colors[i], others, t('Couleur du joueur {n}', {n: i + 1}), value => {
                 setup.colors[i] = value;
                 saveSetup(setup);
             });
             names.appendChild(el('div', {class: 'name-field'},
-                el('label', {for: `player-name-${i}`}, `Joueur ${i + 1}`),
+                el('label', {for: `player-name-${i}`}, t('Joueur {n}', {n: i + 1})),
                 el('div', {class: 'name-row'}, color, input)));
         }
 
@@ -317,14 +319,14 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
         };
 
         return el('div', {class: 'setup-local'},
-            el('label', {class: 'inline-field'}, 'Nombre de joueurs ', countSelect),
+            el('label', {class: 'inline-field'}, t('Nombre de joueurs '), countSelect),
             names,
             folded(options),
             el('p', {class: 'hint'},
-                'Tout le monde joue sur le même écran. ',
-                'Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.'),
+                t('Tout le monde joue sur le même écran. '),
+                t('Le but est d\'avoir le moins de points ; la partie s\'arrête quand un joueur atteint le score de fin.')),
             error,
-            el('button', {id: 'start', class: 'primary', onclick: start}, 'Distribuer les cartes'));
+            el('button', {id: 'start', class: 'primary', onclick: start}, t('Distribuer les cartes')));
     };
     // endregion
 
@@ -349,8 +351,8 @@ function colorButton(initial: string, taken: () => string[], label: string, onPi
     const button = el('button', {type: 'button', class: 'color-button'});
     const show = () => {
         button.style.background = current;
-        button.setAttribute('aria-label', `${label} : ${colorName(current)}. Changer de couleur`);
-        button.title = `${colorName(current)} : cliquer pour changer`;
+        button.setAttribute('aria-label', t('{label} : {color}. Changer de couleur', {label, color: colorName(current)}));
+        button.title = t('{color} : cliquer pour changer', {color: colorName(current)});
     };
     button.addEventListener('click', () => {
         const used = taken();
@@ -370,6 +372,21 @@ function colorButton(initial: string, taken: () => string[], label: string, onPi
 }
 
 /**
+ *  Français / English: the page is loaded again in the other language (nothing is lost: everything is saved)
+ */
+function languageSwitch(): HTMLElement {
+    return el('nav', {class: 'lang-switch', 'aria-label': 'Langue / Language'},
+        ...LANGS.map(l => el('button', {
+            type: 'button', lang: l.value, class: l.value === lang() ? 'active' : '', 'aria-pressed': String(l.value === lang()),
+            onclick: () => {
+                if (l.value === lang()) return;
+                setLang(l.value);
+                location.reload();
+            },
+        }, l.name)));
+}
+
+/**
  *  Rules folded under a one-line summary (progressive disclosure): the main action stays in view
  */
 function folded(options: ReturnType<typeof gameOptions>): HTMLElement {
@@ -378,7 +395,7 @@ function folded(options: ReturnType<typeof gameOptions>): HTMLElement {
     options.element.addEventListener('change', update);
     update();
     return el('details', {class: 'rules-details'},
-        el('summary', {}, el('strong', {}, 'Règles'), summary),
+        el('summary', {}, el('strong', {}, t('Règles')), summary),
         options.element);
 }
 
@@ -390,13 +407,13 @@ export function gameOptions(initial: GameSettings, onChange?: () => void) {
         el('select', {id, onchange: onChange}, ...values.map(n => el('option', {value: String(n), selected: n === selected}, label(n))));
 
     const deckSelect = select('deck-count', CHOICES.deckCount, initial.deckCount,
-        n => n === 1 ? '1 paquet (52 cartes)' : '2 paquets (104 cartes)');
+        n => n === 1 ? t('1 paquet (52 cartes)') : t('2 paquets (104 cartes)'));
     const cardsSelect = select('cards-per-player', CHOICES.cardsPerPlayer, initial.cardsPerPlayer,
-        n => `${n} cartes${n === 4 ? ' (classique)' : ''}`);
+        n => t(n === 4 ? '{n} cartes (classique)' : '{n} cartes', {n}));
     const targetSelect = select('target-score', CHOICES.targetScore, initial.targetScore,
-        n => `${n} points${n === 100 ? ' (classique)' : ''}`);
+        n => t(n === 100 ? '{n} points (classique)' : '{n} points', {n}));
     const penaltySelect = select('dutch-penalty', CHOICES.dutchPenalty, initial.dutchPenalty,
-        n => n === 0 ? 'Aucune' : `+${n} points${n === 10 ? ' (classique)' : ''}`);
+        n => n === 0 ? t('Aucune') : t(n === 10 ? '+{n} points (classique)' : '+{n} points', {n}));
     const effectInputs = new Map<EffectType, HTMLInputElement>(ALL_EFFECTS.map(effect =>
         [effect, el('input', {type: 'checkbox', id: `effect-${effect.toLowerCase()}`, checked: initial.effects.includes(effect), onchange: onChange})]));
     const peek = el('input', {type: 'checkbox', id: 'peek-variant', checked: initial.peekVariant, onchange: onChange});
@@ -405,17 +422,17 @@ export function gameOptions(initial: GameSettings, onChange?: () => void) {
 
     return {
         element: el('fieldset', {class: 'game-options'},
-            el('legend', {}, 'Règles de la partie'),
+            el('legend', {}, t('Règles de la partie')),
             el('div', {class: 'option-grid'},
-                field('Cartes par joueur', cardsSelect),
-                field('Paquets', deckSelect),
-                field('Fin de partie à', targetSelect),
-                field('Pénalité si « Dutch » raté', penaltySelect)),
+                field(t('Cartes par joueur'), cardsSelect),
+                field(t('Paquets'), deckSelect),
+                field(t('Fin de partie à'), targetSelect),
+                field(t('Pénalité si « Dutch » raté'), penaltySelect)),
             el('fieldset', {class: 'effects'},
-                el('legend', {}, 'Cartes spéciales'),
+                el('legend', {}, t('Cartes spéciales')),
                 ...ALL_EFFECTS.map(effect => el('label', {class: 'checkbox'}, effectInputs.get(effect)!,
-                    el('span', {}, el('strong', {}, EFFECT_LABELS[effect].name), ` : ${EFFECT_LABELS[effect].effect}`)))),
-            el('label', {class: 'checkbox'}, peek, ' Variante : chacun regarde ses 2 dernières cartes au début de la ronde')),
+                    el('span', {}, el('strong', {}, t(EFFECT_LABELS[effect].name)), t(' : {effect}', {effect: t(EFFECT_LABELS[effect].effect)}))))),
+            el('label', {class: 'checkbox'}, peek, t(' Variante : chacun regarde ses 2 dernières cartes au début de la ronde'))),
         read: (): GameSettings => cleanSettings({
             deckCount: parseInt(deckSelect.value, 10),
             cardsPerPlayer: parseInt(cardsSelect.value, 10),

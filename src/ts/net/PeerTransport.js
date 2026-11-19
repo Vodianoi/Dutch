@@ -1,3 +1,4 @@
+import { t } from '../i18n.js';
 import { IS_DEV } from '../env.js';
 import { ConnectionBase, randomCode, TransportError } from './Transport.js';
 /**
@@ -33,11 +34,11 @@ function loadPeerJs() {
                 if (ctor)
                     resolve(ctor);
                 else
-                    reject(new TransportError('Bibliothèque PeerJS invalide.'));
+                    reject(new TransportError(t('Bibliothèque PeerJS invalide.')));
             };
             script.onerror = () => {
                 peerLibrary = null;
-                reject(new TransportError('Impossible de charger PeerJS : vérifiez votre connexion internet.'));
+                reject(new TransportError(t('Impossible de charger PeerJS : vérifiez votre connexion internet.')));
             };
             document.head.appendChild(script);
         });
@@ -46,14 +47,14 @@ function loadPeerJs() {
 }
 function describe(error, code) {
     switch (error.type) {
-        case 'peer-unavailable': return new TransportError(`Partie ${code} introuvable. Vérifiez le code.`);
-        case 'unavailable-id': return new TransportError('Ce code de partie est déjà utilisé.');
-        case 'browser-incompatible': return new TransportError('Ce navigateur ne permet pas de jouer en ligne (WebRTC).');
+        case 'peer-unavailable': return new TransportError(t('Partie {code} introuvable. Vérifiez le code.', { code }));
+        case 'unavailable-id': return new TransportError(t('Ce code de partie est déjà utilisé.'));
+        case 'browser-incompatible': return new TransportError(t('Ce navigateur ne permet pas de jouer en ligne (WebRTC).'));
         case 'network':
         case 'server-error':
         case 'socket-error':
-        case 'socket-closed': return new TransportError('Connexion au serveur de mise en relation impossible.');
-        default: return new TransportError(`Erreur réseau (${error.type}).`);
+        case 'socket-closed': return new TransportError(t('Connexion au serveur de mise en relation impossible.'));
+        default: return new TransportError(t('Erreur réseau ({type}).', { type: error.type }));
     }
 }
 class PeerConnection extends ConnectionBase {
@@ -88,7 +89,7 @@ function openPeer(Peer, id, code) {
         let open = false;
         const timer = setTimeout(() => {
             peer.destroy();
-            reject(new TransportError('Le serveur de mise en relation ne répond pas.'));
+            reject(new TransportError(t('Le serveur de mise en relation ne répond pas.')));
         }, CONNECT_TIMEOUT_MS);
         peer.on('open', () => {
             open = true;
@@ -235,7 +236,7 @@ export class PeerTransport {
                     throw e;
             }
         }
-        throw new TransportError('Impossible de créer la partie.');
+        throw new TransportError(t('Impossible de créer la partie.'));
     }
     async join(code) {
         const Peer = await loadPeerJs();
@@ -247,7 +248,7 @@ export class PeerTransport {
                 peer.destroy();
                 reject(error);
             };
-            const timer = setTimeout(() => fail(new TransportError('La connexion à la partie a échoué (délai dépassé).')), CONNECT_TIMEOUT_MS);
+            const timer = setTimeout(() => fail(new TransportError(t('La connexion à la partie a échoué (délai dépassé).'))), CONNECT_TIMEOUT_MS);
             peer.on('error', error => {
                 // Once connected, the game goes directly between the devices: a problem with the
                 // public server doesn't matter. A dead connection is seen by the heartbeat.

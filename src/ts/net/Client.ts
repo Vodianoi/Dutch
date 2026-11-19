@@ -1,5 +1,6 @@
+import {t} from '../i18n.js';
 import {Chat, ConnectionStatus, Emitter, Session, SessionEvent} from '../Session.js';
-import {Action, GameView} from '../View.js';
+import {Action, GameView, notice} from '../View.js';
 import {CHAT_HISTORY, ChatMessage, ClientMessage, HostMessage, LobbyState, PROTOCOL_VERSION} from './Protocol.js';
 import {Connection, TransportError, TransportFactory} from './Transport.js';
 
@@ -113,11 +114,11 @@ export class Client implements Session {
 
     public dispatch(action: Action) {
         if (this.closed) {
-            this.events.emit({type: 'notice', notice: {text: 'Connexion perdue.', kind: 'error'}});
+            this.events.emit({type: 'notice', notice: notice('error', 'Connexion perdue.')});
             return;
         }
         if (this.status !== 'online') {
-            this.events.emit({type: 'notice', notice: {text: 'Reconnexion en cours… réessayez dans un instant.', kind: 'error'}});
+            this.events.emit({type: 'notice', notice: notice('error', 'Reconnexion en cours… réessayez dans un instant.')});
             return;
         }
         this.send({t: 'action', action});
@@ -178,7 +179,7 @@ export class Client implements Session {
         const connection = await this.transport.join(this.code);
         if (this.closed || this.suspended) {
             connection.close();
-            throw new TransportError('Connexion annulée.');
+            throw new TransportError(t('Connexion annulée.'));
         }
         const previous = this.connection;
         this.connection = connection;
@@ -189,12 +190,12 @@ export class Client implements Session {
         connection.onClose(() => {
             if (connection !== this.connection) return;
             // Closed while saying hello: let connect() fail and retry; afterwards: connection lost
-            if (this.welcomeListeners.length) this.welcomeListeners.slice().forEach(l => l(new TransportError('La connexion avec l\'hôte a été perdue.')));
+            if (this.welcomeListeners.length) this.welcomeListeners.slice().forEach(l => l(new TransportError(t('La connexion avec l\'hôte a été perdue.'))));
             else this.lost();
         });
 
         await new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(() => done(new TransportError('L\'hôte ne répond pas.')), this.welcomeTimeoutMs);
+            const timer = setTimeout(() => done(new TransportError(t('L\'hôte ne répond pas.'))), this.welcomeTimeoutMs);
             const done = (error?: Error) => {
                 clearTimeout(timer);
                 this.welcomeListeners = this.welcomeListeners.filter(l => l !== done);
@@ -230,7 +231,7 @@ export class Client implements Session {
         clearTimeout(this.retryTimer);
         if (this.closed || this.suspended) return;
         if (Date.now() - this.lostAt > this.giveUpMs) {
-            this.end('Impossible de retrouver la partie : l\'hôte ne revient pas.');
+            this.end(t('Impossible de retrouver la partie : l\'hôte ne revient pas.'));
             return;
         }
         const wait = delay ?? this.retryDelaysMs[Math.min(this.attempts, this.retryDelaysMs.length - 1)];
@@ -295,11 +296,11 @@ export class Client implements Session {
                 this.events.emit({type: 'notice', notice: message.notice});
                 break;
             case 'refused':
-                if (this.welcomeListeners.length) this.welcomeListeners.slice().forEach(l => l(new Refused(message.reason)));
-                else this.end(message.reason);
+                if (this.welcomeListeners.length) this.welcomeListeners.slice().forEach(l => l(new Refused(t(message.reason))));
+                else this.end(t(message.reason));
                 break;
             case 'ended':
-                this.end(message.reason);
+                this.end(t(message.reason));
                 break;
             case 'ping':
                 this.send({t: 'pong'});
