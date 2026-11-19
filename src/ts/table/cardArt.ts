@@ -325,14 +325,73 @@ export function halo(color: string, blur: number, pad: number, alpha: number, gr
     return c;
 }
 
+/**
+ *  Light around a card that can be played: a wide soft aura and a thin bright rim that hugs the card,
+ *  both with corners rounder than the card's so that the light looks round, not boxy
+ */
+export function glowArt(color: string, pad = 70): HTMLCanvasElement {
+    const [c, ctx] = canvas(CW + 2 * pad, CH + 2 * pad);
+    const pass = (blur: number, grow: number, alpha: number) => {
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
+        ctx.globalAlpha = alpha;
+        // Shape drawn outside of the canvas, only its shadow lands inside
+        ctx.shadowOffsetX = 10000;
+        roundRect(ctx, pad - grow - 10000, pad - grow, CW + 2 * grow, CH + 2 * grow, RADIUS + grow + 10);
+        ctx.fillStyle = '#000';
+        ctx.fill();
+        ctx.restore();
+    };
+    pass(46, 2, .75);
+    pass(22, 3, .8);
+    // Goes past the card edge, so that the light still shows on small cards
+    pass(10, 7, .9);
+    return c;
+}
+
+/** A round speck of light: bright core, long soft fall-off */
 export function spark(): HTMLCanvasElement {
-    const [c, ctx] = canvas(32, 32);
-    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(.3, 'rgba(255,220,130,.9)');
-    g.addColorStop(1, 'rgba(255,190,60,0)');
+    const [c, ctx] = canvas(64, 64);
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,250,1)');
+    g.addColorStop(.18, 'rgba(255,240,190,.95)');
+    g.addColorStop(.45, 'rgba(255,214,120,.45)');
+    g.addColorStop(.75, 'rgba(255,190,70,.12)');
+    g.addColorStop(1, 'rgba(255,180,60,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 32, 32);
+    ctx.beginPath();
+    ctx.arc(32, 32, 32, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+}
+
+/** A soft round ring of light (shock wave when a card lands well) */
+export function ring(): HTMLCanvasElement {
+    const [c, ctx] = canvas(256, 256);
+    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, 'rgba(255,224,150,0)');
+    g.addColorStop(.62, 'rgba(255,224,150,0)');
+    g.addColorStop(.8, 'rgba(255,236,190,.85)');
+    g.addColorStop(.88, 'rgba(255,214,120,.35)');
+    g.addColorStop(1, 'rgba(255,200,90,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(128, 128, 128, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+}
+
+/** A round pool of light (under the hand of the player whose turn it is), stretched into an ellipse */
+export function spot(color = '255, 209, 102'): HTMLCanvasElement {
+    const [c, ctx] = canvas(256, 256);
+    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, `rgba(${color}, .9)`);
+    g.addColorStop(.45, `rgba(${color}, .45)`);
+    g.addColorStop(.8, `rgba(${color}, .1)`);
+    g.addColorStop(1, `rgba(${color}, 0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
     return c;
 }
 

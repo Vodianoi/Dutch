@@ -81,6 +81,7 @@ export class TableView {
     private readonly deckView = new Container();
     private readonly deckStack: Sprite[] = [];
     private deckGlow!: Sprite;
+    private deckLit = false;
     private readonly deckCount = label('', 12, CREAM, '600');
     private readonly seatsLayer = new Container();
     private readonly cardsLayer = new Container();
@@ -554,7 +555,15 @@ export class TableView {
         const stack = Math.min(this.deckStack.length, Math.ceil(s.deckRemaining / 8));
         this.deckStack.forEach((sprite, i) => sprite.visible = i < stack);
         this.deckCount.text = s.deckRemaining ? `${s.deckRemaining}` : t('vide');
-        this.deckGlow.alpha = canDraw ? .85 : 0;
+        if (canDraw !== this.deckLit) {
+            this.deckLit = canDraw;
+            gsap.killTweensOf(this.deckGlow);
+            // The draw pile breathes softly while it can be taken
+            if (canDraw) gsap.timeline().to(this.deckGlow, {alpha: .85, duration: .35, ease: 'sine.out'})
+                .to(this.deckGlow, {alpha: .45, duration: .9, ease: 'sine.inOut', yoyo: true, repeat: 3})
+                .to(this.deckGlow, {alpha: .75, duration: .5, ease: 'sine.inOut'});
+            else gsap.to(this.deckGlow, {alpha: 0, duration: .3, ease: 'sine.out'});
+        }
 
         // Places of the hands: an empty place stays visible
         this.slots.clear();
@@ -878,16 +887,52 @@ export class TableView {
         }
     }
 
+    /**
+     *  A card lands well: a soft flash, a round wave of light, and specks that spiral out and fade
+     */
     private sparks(at: Point) {
-        for (let i = 0; i < 22; i++) {
+        const size = this.layout.pileW / CW;
+        const flash = centered(new Sprite(this.art.spark));
+        flash.position.set(at.x, at.y);
+        flash.blendMode = 'add';
+        flash.scale.set(size * 1.2);
+        this.fxLayer.addChild(flash);
+        gsap.timeline({onComplete: () => dispose(flash)})
+            .to(flash.scale, {x: size * 5, y: size * 5, duration: .5, ease: 'sine.out'}, 0)
+            .fromTo(flash, {alpha: .95}, {alpha: 0, duration: .55, ease: 'sine.in'}, 0);
+
+        const wave = centered(new Sprite(this.art.ring));
+        wave.position.set(at.x, at.y);
+        wave.blendMode = 'add';
+        wave.scale.set(size * .35);
+        this.fxLayer.addChild(wave);
+        gsap.timeline({onComplete: () => dispose(wave)})
+            .to(wave.scale, {x: size * 1.7, y: size * 1.7, duration: .75, ease: 'power2.out'}, 0)
+            .fromTo(wave, {alpha: .9}, {alpha: 0, duration: .75, ease: 'sine.in'}, 0);
+
+        const count = 16;
+        const turn = Math.random() < .5 ? 1 : -1;
+        for (let i = 0; i < count; i++) {
             const s = centered(new Sprite(this.art.spark));
-            s.position.set(at.x, at.y);
             s.blendMode = 'add';
-            const a = Math.random() * Math.PI * 2;
-            const d = 40 + Math.random() * 70;
-            s.scale.set(.6 + Math.random() * .8);
+            s.position.set(at.x, at.y);
             this.fxLayer.addChild(s);
-            gsap.to(s, {x: at.x + Math.cos(a) * d, y: at.y + Math.sin(a) * d, alpha: 0, duration: .7 + Math.random() * .3, ease: 'power2.out', onComplete: () => dispose(s)});
+            const start = (i / count) * Math.PI * 2 + Math.random() * .3;
+            const reach = (55 + Math.random() * 45) * Math.max(.7, size * 1.4);
+            const grow = .35 + Math.random() * .35;
+            // Each speck follows a curve: it leaves straight, then bends the same way as the others
+            const path = {p: 0};
+            gsap.to(path, {
+                p: 1, duration: .8 + Math.random() * .35, delay: Math.random() * .06, ease: 'power3.out',
+                onUpdate: () => {
+                    const a = start + turn * path.p * .9;
+                    const d = reach * path.p;
+                    s.position.set(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d);
+                    s.scale.set(grow * (1 - path.p * .8));
+                    s.alpha = 1 - path.p * path.p;
+                },
+                onComplete: () => dispose(s),
+            });
         }
     }
 

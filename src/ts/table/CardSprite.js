@@ -97,17 +97,20 @@ export class CardSprite extends Container {
             return;
         this.faceUp = up;
         this.flipTimeline?.kill();
+        this.body.scale.y = 1;
         if (instant) {
             this.body.scale.x = 1;
             this.showFace();
             return;
         }
+        // Turned over in the air: the card rises a little, narrows, shows its other side and lands softly
         this.flipTimeline = gsap.timeline({ delay })
-            .to(this.body.scale, { x: 0, duration: .13, ease: 'power2.in', onComplete: () => {
+            .to(this.body.scale, { x: 0, duration: .16, ease: 'sine.in', onComplete: () => {
                 this.showFace();
                 sfx.flip();
             } })
-            .to(this.body.scale, { x: 1, duration: .17, ease: 'power2.out' });
+            .to(this.body.scale, { x: 1, duration: .22, ease: 'sine.out' })
+            .to(this.body.scale, { y: 1.04, duration: .19, ease: 'sine.out', yoyo: true, repeat: 1 }, 0);
     }
     showFace() {
         this.front.visible = this.faceUp;
@@ -119,16 +122,23 @@ export class CardSprite extends Container {
             return;
         this.glowLevel = level;
         this.glowTween?.kill();
+        gsap.killTweensOf(this.glow.scale);
         if (level === 0) {
-            this.glowTween = gsap.to(this.glow, { alpha: 0, duration: .2 });
+            this.glowTween = gsap.to(this.glow, { alpha: 0, duration: .3, ease: 'sine.out' });
+            gsap.to(this.glow.scale, { x: 1, y: 1, duration: .3, ease: 'sine.out' });
         }
         else if (level === 1) {
-            // Two pulses to catch the eye, then a steady glow (endless motion distracts)
-            this.glow.alpha = .2;
-            this.glowTween = gsap.to(this.glow, { alpha: .75, duration: .55, yoyo: true, repeat: 4, ease: 'sine.inOut' });
+            // Fades in, breathes slowly a few times to catch the eye, then stays (endless motion distracts)
+            this.glowTween = gsap.timeline()
+                .to(this.glow, { alpha: .9, duration: .35, ease: 'sine.out' })
+                .to(this.glow, { alpha: .5, duration: .8, ease: 'sine.inOut', yoyo: true, repeat: 3 })
+                .to(this.glow, { alpha: .8, duration: .5, ease: 'sine.inOut' });
+            gsap.fromTo(this.glow.scale, { x: .97, y: .97 }, { x: 1.03, y: 1.03, duration: .8, ease: 'sine.inOut', yoyo: true, repeat: 4 });
         }
         else {
-            this.glowTween = gsap.to(this.glow, { alpha: 1, duration: .15 });
+            // Chosen: full light, held a little closer
+            this.glowTween = gsap.to(this.glow, { alpha: 1, duration: .25, ease: 'sine.out' });
+            gsap.to(this.glow.scale, { x: 1.06, y: 1.06, duration: .3, ease: 'back.out(2)' });
         }
     }
     moveTo(target, delay = 0, instant = false) {
@@ -156,13 +166,13 @@ export class CardSprite extends Container {
             return;
         }
         const distance = Math.hypot(this.x - target.x, this.y - target.y);
-        const duration = Math.max(.26, Math.min(.55, .24 + distance / 1600));
+        const duration = Math.max(.3, Math.min(.6, .28 + distance / 1500));
         gsap.killTweensOf(this);
         gsap.killTweensOf(this.scale);
         this.zIndex = 1000 + target.z;
         this.moveTween = gsap.to(this, {
-            // Fast start, soft landing
-            x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power3.out',
+            // Quick but rounded start, long soft landing
+            x: target.x, y: target.y, rotation: target.rotation, duration, delay, ease: 'power2.out',
             onStart: () => {
                 if (distance > 6)
                     sfx.slide();
@@ -171,11 +181,14 @@ export class CardSprite extends Container {
                 this.zIndex = target.z;
             },
         });
-        gsap.to(this.scale, { x: target.scale, y: target.scale, duration, delay, ease: 'power3.out' });
+        gsap.to(this.scale, { x: target.scale, y: target.scale, duration, delay, ease: 'power2.out' });
         this.fitHitArea(target.scale);
         this.fitFace(target.scale);
         if (distance > 40) {
-            gsap.to(this, { lift: 1, duration: duration / 2, delay, yoyo: true, repeat: 1, ease: 'sine.inOut' });
+            // A round arc: up quickly, down slowly onto its place
+            gsap.timeline({ delay })
+                .to(this, { lift: 1, duration: duration * .4, ease: 'sine.out' })
+                .to(this, { lift: 0, duration: duration * .7, ease: 'sine.inOut' });
         }
         else {
             this.lift = 0;
@@ -192,7 +205,7 @@ export class CardSprite extends Container {
         if (on === this.hovered)
             return;
         this.hovered = on;
-        gsap.to(this, { lift: on ? .35 : 0, duration: on ? .16 : .12, ease: on ? 'power2.out' : 'power2.in' });
+        gsap.to(this, { lift: on ? .35 : 0, duration: on ? .22 : .18, ease: 'sine.out' });
     }
     /** Picked up by a finger: stops where it is */
     pickUp() {
@@ -219,11 +232,18 @@ export class CardSprite extends Container {
                 this.backSide.tint = 0xffffff;
             });
         }
-        gsap.fromTo(this.lifter, { x: -10 }, { x: 0, duration: .5, ease: 'elastic.out(1.2, .3)' });
+        // A smooth « no »: a few gentle sways that die out
+        gsap.killTweensOf(this.lifter);
+        gsap.to(this.lifter, {
+            keyframes: { x: [0, -8, 7, -5, 3, -1, 0], rotation: [0, -.05, .045, -.03, .015, 0, 0], easeEach: 'sine.inOut' },
+            duration: .6,
+        });
     }
     /** Small lift: its owner looks at it */
     peekGesture() {
-        gsap.to(this, { lift: .7, duration: .3, yoyo: true, repeat: 1, delay: .2, ease: 'sine.inOut' });
+        gsap.timeline({ delay: .2 })
+            .to(this, { lift: .7, duration: .35, ease: 'sine.out' })
+            .to(this, { lift: 0, duration: .45, ease: 'sine.inOut' }, '+=.15');
     }
 }
 /** Below this width (in pixels on screen) the card shows its compact face */

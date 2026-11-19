@@ -1,5 +1,5 @@
 import { CanvasSource, Texture } from 'pixi.js';
-import { back, compactFace, face, halo, spark } from './cardArt.js';
+import { back, compactFace, face, glowArt, halo, ring, spark, spot } from './cardArt.js';
 export { BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF } from './cardArt.js';
 /**
  *  Texture with mipmaps: cards drawn much smaller than their 240px source (opponents' hands) stay smooth
@@ -31,8 +31,9 @@ export function makeArt(backColor = 'red') {
         },
         back: smooth(back(backColor)),
         shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, .6)),
-        // The solid part of the glow goes past the card edge so that it shows at small sizes
-        glow: smooth(halo('#ffd166', 30, 70, 1, 14)),
-        spark: Texture.from(spark()),
+        glow: smooth(glowArt('#ffd166')),
+        spark: smooth(spark()),
+        ring: smooth(ring()),
+        spot: smooth(spot()),
     };
 }

@@ -1,6 +1,6 @@
 import {CanvasSource, Texture} from 'pixi.js';
 import Card from '../Card.js';
-import {back, BackColor, compactFace, face, halo, spark} from './cardArt.js';
+import {back, BackColor, compactFace, face, glowArt, halo, ring, spark, spot} from './cardArt.js';
 
 export {BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF} from './cardArt.js';
 export type {BackColor, TableShape} from './cardArt.js';
@@ -20,6 +20,10 @@ export interface Art {
     shadow: Texture;
     glow: Texture;
     spark: Texture;
+    /** Soft round ring of light */
+    ring: Texture;
+    /** Round pool of light */
+    spot: Texture;
 }
 
 export function makeArt(backColor: BackColor = 'red'): Art {
@@ -46,9 +50,10 @@ export function makeArt(backColor: BackColor = 'red'): Art {
         },
         back: smooth(back(backColor)),
         shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, .6)),
-        // The solid part of the glow goes past the card edge so that it shows at small sizes
-        glow: smooth(halo('#ffd166', 30, 70, 1, 14)),
-        spark: Texture.from(spark()),
+        glow: smooth(glowArt('#ffd166')),
+        spark: smooth(spark()),
+        ring: smooth(ring()),
+        spot: smooth(spot()),
     };
 }
 

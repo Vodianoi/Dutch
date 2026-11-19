@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle, Sprite, Text } from 'pixi.js';
 import { gsap } from 'gsap';
-import { CH, CW, SANS } from './art.js';
+import { SANS } from './art.js';
 import { centered } from './CardSprite.js';
 import { handH, handW } from './layout.js';
 import { points } from '../i18n.js';
@@ -65,7 +65,7 @@ export class SeatView extends Container {
         this.badge.addChild(new Graphics(), this.badgeText);
         this.badge.visible = false;
         this.addChild(this.ring, this.disc, this.initial, this.nameText, this.scoreText, this.badge);
-        this.spot = centered(new Sprite(art.glow));
+        this.spot = centered(new Sprite(art.spot));
         this.spot.alpha = 0;
         this.eventMode = 'static';
     }
@@ -98,7 +98,9 @@ export class SeatView extends Container {
         this.placeBadge(r, seat.label);
         this.hitArea = new Rectangle(-r - 6, -r - 6, r * 2 + 12 + (seat.label === 'right' ? 90 : 0), r * 2 + 12 + (seat.label === 'below' ? 34 : 0));
         this.spot.position.set(seat.x, seat.y);
-        this.spot.scale.set(handW(seat.cw, cols) * 1.5 / CW, handH(seat.cw) * 1.2 / CH);
+        // A round pool of light, a little wider than the hand
+        const size = this.spot.texture.width;
+        this.spot.scale.set(handW(seat.cw, cols) * 1.7 / size, handH(seat.cw) * 1.5 / size);
     }
     placeBadge(r, side) {
         const w = this.badgeText.width + 14;
@@ -123,13 +125,13 @@ export class SeatView extends Container {
         if (lit) {
             this.ring.alpha = 1;
             // A few pulses when the turn comes, then a steady ring
-            this.pulse = gsap.fromTo(this.ring.scale, { x: 1, y: 1 }, { x: 1.14, y: 1.14, duration: .45, yoyo: true, repeat: 3, ease: 'sine.inOut' });
-            gsap.to(this.spot, { alpha: .22, duration: .4 });
+            this.pulse = gsap.fromTo(this.ring.scale, { x: 1, y: 1 }, { x: 1.12, y: 1.12, duration: .6, yoyo: true, repeat: 3, ease: 'sine.inOut' });
+            gsap.to(this.spot, { alpha: .2, duration: .6, ease: 'sine.out' });
         }
         else {
             this.ring.alpha = 0;
             this.ring.scale.set(1);
-            gsap.to(this.spot, { alpha: 0, duration: .4 });
+            gsap.to(this.spot, { alpha: 0, duration: .6, ease: 'sine.out' });
         }
     }
 }
