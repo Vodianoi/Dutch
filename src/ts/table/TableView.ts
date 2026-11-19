@@ -1141,7 +1141,7 @@ export class TableView {
             if (effect.type === 'JACK' && place.zone === 'hand') {
                 if (!this.jackPick || this.jackPick === id) {
                     this.jackPick = this.jackPick === id ? null : id;
-                    sfx.tap();
+                    sfx.pick();
                     return this.requestSync();
                 }
                 const first = this.jackPick;
@@ -1162,7 +1162,7 @@ export class TableView {
         // Own card while throwing is allowed: choose it, a button confirms
         if (place.zone === 'hand' && this.mine(place.player) && s.players[place.player].canThrow) {
             this.throwPick = this.throwPick === id ? null : id;
-            sfx.tap();
+            sfx.pick();
             return this.requestSync();
         }
         this.nope(sprite);

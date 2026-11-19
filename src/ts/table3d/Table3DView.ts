@@ -1375,7 +1375,7 @@ export class Table3DView {
             if (effect.type === 'JACK' && place.zone === 'hand') {
                 if (!this.jackPick || this.jackPick === sprite.view.id) {
                     this.jackPick = this.jackPick === sprite.view.id ? null : sprite.view.id;
-                    sfx.tap();
+                    sfx.pick();
                     return this.requestSync();
                 }
                 const first = this.jackPick;
@@ -1390,7 +1390,7 @@ export class Table3DView {
         if (myTurn && s.phase === 'drawn' && place.zone === 'hand' && place.player === cur) return this.dispatch({type: 'swapDrawn', playerId: cur, cardId: sprite.view.id});
         if (place.zone === 'hand' && this.mine(place.player) && s.players[place.player].canThrow) {
             this.throwPick = this.throwPick === sprite.view.id ? null : sprite.view.id;
-            sfx.tap();
+            sfx.pick();
             return this.requestSync();
         }
         sprite.shake();
