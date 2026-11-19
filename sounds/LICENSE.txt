@@ -1,0 +1,11 @@
+Card sounds (card-slide-*.mp3, card-flip-*.mp3)
+
+From « Casino Audio » by Kenney (www.kenney.nl), trimmed, made mono and
+normalised for this game:
+  card-slide-1..4  ← cardSlide2, cardSlide4, cardSlide5, cardSlide6
+  card-flip-1      ← cardPlace1
+  card-flip-2      ← cardSlide1
+
+License: Creative Commons Zero, CC0 (public domain)
+http://creativecommons.org/publicdomain/zero/1.0/
+https://kenney.nl/assets/casino-audio

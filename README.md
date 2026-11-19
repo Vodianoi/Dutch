@@ -20,6 +20,10 @@ Table en 3D (prototype, style vieux casino) : seulement sur la version de test e
 * **En ligne** : chacun joue sur son appareil (téléphone, ordinateur…) et ne voit que ce que son joueur a le droit de voir. Un joueur crée la partie et partage le code (ou le lien) ; les autres le rejoignent, puis le créateur distribue les cartes.
 * **Sur cet écran** : tout le monde joue sur le même appareil (« hot-seat »). Réservé aux tests : proposé sur la version de test et en développement (localhost), pas sur le vrai site.
 
+### Sons
+
+Les sons des cartes (`sounds/`) viennent du pack « Casino Audio » de Kenney (www.kenney.nl), sous licence CC0 (domaine public) : voir `sounds/LICENSE.txt`. Les autres sons (réussite, erreur, « Dutch », boutons) sont synthétisés dans le navigateur (`src/ts/table/sound.ts`).
+
 ### Langues / Languages
 
 Le jeu est en français et en anglais : la langue du navigateur est choisie au premier lancement (français si le navigateur est en français, anglais sinon), et l'accueil propose « Français / English ». En ligne, chaque appareil affiche la partie dans sa langue (le journal de la partie et les erreurs voyagent sous forme de modèles traduits sur chaque appareil).

@@ -1,8 +1,48 @@
 /**
- *  Small synthesised sounds (no audio file): card slide, flip, success, mistake, "Dutch"
+ *  Sounds of the game: recorded card sounds (sounds/*.mp3, a few variants each), and small synthesised
+ *  sounds for the rest (success, mistake, "Dutch", buttons). Until the card sounds are loaded, synthesised
+ *  ones play instead.
  */
 let ctx = null;
 let muted = false;
+/** Variants of each card sound: sounds/card-<name>-<n>.mp3 */
+export const CARD_SOUNDS = { slide: 4, flip: 2 };
+const buffers = new Map();
+let loading = false;
+/** The card sounds are fetched once, after the first touch (sound is allowed from then on) */
+function loadCardSounds() {
+    if (loading || !ctx)
+        return;
+    loading = true;
+    const audio = ctx;
+    for (const [name, count] of Object.entries(CARD_SOUNDS)) {
+        void Promise.all(Array.from({ length: count }, (_, i) => fetch(new URL(`../../../sounds/card-${name}-${i + 1}.mp3`, import.meta.url))
+            .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.statusText)))
+            .then(data => audio.decodeAudioData(data))
+            .catch(() => null)))
+            .then(list => {
+            const ok = list.filter((b) => !!b);
+            if (ok.length)
+                buffers.set(name, ok);
+        });
+    }
+}
+/** A recorded card sound, a little higher or lower each time; false if it isn't loaded */
+function play(name, volume) {
+    const list = buffers.get(name);
+    if (!ctx || !list?.length)
+        return false;
+    if (muted)
+        return true;
+    const source = ctx.createBufferSource();
+    source.buffer = list[Math.floor(Math.random() * list.length)];
+    source.playbackRate.value = .94 + Math.random() * .12;
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(ctx.destination);
+    source.start();
+    return true;
+}
 export function setMuted(on) {
     muted = on;
 }
@@ -15,6 +55,7 @@ export function unlockAudio() {
         ctx = new AudioContext();
     if (ctx.state === 'suspended')
         void ctx.resume();
+    loadCardSounds();
 }
 function noise(duration, frequency, volume) {
     if (!ctx || muted)
@@ -57,10 +98,12 @@ export const sfx = {
         if (now - lastSlide < 45)
             return;
         lastSlide = now;
-        noise(.09, 2200 + Math.random() * 800, .35);
+        if (!play('slide', .55))
+            noise(.09, 2200 + Math.random() * 800, .35);
     },
     flip() {
-        noise(.05, 4200, .25);
+        if (!play('flip', .5))
+            noise(.05, 4200, .25);
     },
     tap() {
         noise(.03, 6000, .15);
