@@ -1,40 +1,50 @@
 /**
  *  Sounds of the game: recorded card sounds (sounds/*.mp3, a few variants each), and small synthesised
- *  sounds for the rest (success, mistake, "Dutch", buttons). Until the card sounds are loaded, synthesised
- *  ones play instead.
+ *  sounds for the rest (success, mistake, "Dutch", buttons). The card files are fetched as soon as the page
+ *  opens; the synthesised card sounds only play if a file can't be read.
  */
 let ctx: AudioContext | null = null;
 let muted = false;
 
 /** Variants of each card sound: sounds/card-<name>-<n>.mp3 */
-export const CARD_SOUNDS = {slide: 4, flip: 2} as const;
+export const CARD_SOUNDS = {slide: 4, flip: 2, tap: 2} as const;
 type CardSound = keyof typeof CARD_SOUNDS;
 const buffers = new Map<CardSound, AudioBuffer[]>();
-let loading = false;
+/** Card sounds that could not be read: the synthesised ones play instead */
+const missing = new Set<CardSound>();
 
-/** The card sounds are fetched once, after the first touch (sound is allowed from then on) */
-function loadCardSounds() {
-    if (loading || !ctx) return;
-    loading = true;
+/** The files, fetched when the page opens (no sound is needed for that) */
+const files = typeof fetch === 'undefined' ? null : new Map((Object.entries(CARD_SOUNDS) as [CardSound, number][]).map(([name, count]) =>
+    [name, Promise.all(Array.from({length: count}, (_, i) =>
+        fetch(new URL(`../../../sounds/card-${name}-${i + 1}.mp3`, import.meta.url))
+            .then(r => r.ok ? r.arrayBuffer() : null)
+            .catch(() => null)))] as const));
+let decoding = false;
+
+/** Decoded once sound is allowed (after the first touch) */
+function decodeCardSounds() {
+    if (decoding || !ctx || !files) return;
+    decoding = true;
     const audio = ctx;
-    for (const [name, count] of Object.entries(CARD_SOUNDS) as [CardSound, number][]) {
-        void Promise.all(Array.from({length: count}, (_, i) =>
-            fetch(new URL(`../../../sounds/card-${name}-${i + 1}.mp3`, import.meta.url))
-                .then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.statusText)))
-                .then(data => audio.decodeAudioData(data))
-                .catch(() => null)))
-            .then(list => {
-                const ok = list.filter((b): b is AudioBuffer => !!b);
+    for (const [name, list] of files) {
+        void list
+            .then(data => Promise.all(data.map(d => d ? audio.decodeAudioData(d).catch(() => null) : null)))
+            .then(decoded => {
+                const ok = decoded.filter((b): b is AudioBuffer => !!b);
                 if (ok.length) buffers.set(name, ok);
+                else missing.add(name);
             });
     }
 }
 
-/** A recorded card sound, a little higher or lower each time; false if it isn't loaded */
+/**
+ *  A recorded card sound, a little higher or lower each time.
+ *  False only if its files can't be read (then the synthesised sound plays); while they load: silence.
+ */
 function play(name: CardSound, volume: number): boolean {
+    if (missing.has(name) || !files) return false;
     const list = buffers.get(name);
-    if (!ctx || !list?.length) return false;
-    if (muted) return true;
+    if (!ctx || !list?.length || muted) return true;
     const source = ctx.createBufferSource();
     source.buffer = list[Math.floor(Math.random() * list.length)];
     source.playbackRate.value = .94 + Math.random() * .12;
@@ -57,7 +67,7 @@ export function isMuted() {
 export function unlockAudio() {
     if (!ctx) ctx = new AudioContext();
     if (ctx.state === 'suspended') void ctx.resume();
-    loadCardSounds();
+    decodeCardSounds();
 }
 
 function noise(duration: number, frequency: number, volume: number) {
@@ -93,6 +103,23 @@ function tone(frequency: number, start: number, duration: number, volume: number
     osc.stop(t + duration + .02);
 }
 
+/** Soft click of the buttons: a short sine whose pitch falls a little, with a light overtone */
+function click() {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.setValueAtTime(1150, t);
+    osc.frequency.exponentialRampToValueAtTime(700, t + .06);
+    gain.gain.setValueAtTime(.0001, t);
+    gain.gain.exponentialRampToValueAtTime(.09, t + .003);
+    gain.gain.exponentialRampToValueAtTime(.0001, t + .06);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + .07);
+    tone(1720, 0, .03, .02);
+}
+
 let lastSlide = 0;
 
 export const sfx = {
@@ -105,8 +132,13 @@ export const sfx = {
     flip() {
         if (!play('flip', .5)) noise(.05, 4200, .25);
     },
+    /** A card touched (chosen, not moved): a short recorded tap */
+    pick() {
+        if (!play('tap', .45)) noise(.03, 6000, .15);
+    },
+    /** A button or a reaction: a soft « tock », nothing like a card */
     tap() {
-        noise(.03, 6000, .15);
+        click();
     },
     good() {
         tone(660, 0, .18, .12);
