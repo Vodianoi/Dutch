@@ -79,7 +79,8 @@ export class Host {
      */
     kick(index) {
         const seat = this.seats[index];
-        if (this.game || index <= 0 || !seat)
+        // Before the cards are dealt, or someone still waiting for the next round
+        if ((this.game && !this.isWaiting(index)) || index <= 0 || !seat)
             return;
         this.removed.add(seat.token);
         const connection = seat.connection;
@@ -90,7 +91,40 @@ export class Host {
         }
         this.seats.splice(index, 1);
         this.chatTimes.delete(seat);
-        this.broadcastLobby();
+        if (this.game)
+            this.broadcastState();
+        else
+            this.broadcastLobby();
+    }
+    /** Arrived during the game: seated at the next round (the seats after the players of the game) */
+    isWaiting(index) {
+        return !!this.game && index >= this.game.players.length;
+    }
+    /**
+     *  Before a new round: those who arrived during the game sit down, with the average score.
+     *  Gone in the meantime: their seat is freed. No room left in the deck: they go on waiting.
+     */
+    seatNewcomers() {
+        const game = this.game;
+        if (!game || game.phase !== 'roundOver')
+            return;
+        for (let i = game.players.length; i < this.seats.length;) {
+            const seat = this.seats[i];
+            if (!seat.connection) {
+                this.seats.splice(i, 1);
+                continue;
+            }
+            try {
+                game.addPlayer(seat.name, seat.color);
+            }
+            catch (e) {
+                if (e instanceof RuleError)
+                    break;
+                throw e;
+            }
+            seat.color = game.players[i].color;
+            i++;
+        }
     }
     /** Listed with the public games (code PUB01…) */
     get isPublic() {
@@ -100,7 +134,7 @@ export class Host {
     get info() {
         return {
             code: this.code, v: PROTOCOL_VERSION, host: this.seats[0].name, players: this.seats.length, max: MAX_PLAYERS,
-            started: !!this.game, settings: this.settings,
+            started: !!this.game, settings: this.settings, late: true,
         };
     }
     get lobby() {
@@ -108,7 +142,7 @@ export class Host {
             code: this.code,
             started: this.started,
             settings: this.settings,
-            players: this.seats.map((seat, i) => ({ name: seat.name, color: seat.color, connected: this.isConnected(i) })),
+            players: this.seats.map((seat, i) => ({ name: seat.name, color: seat.color, connected: this.isConnected(i), waiting: this.isWaiting(i) })),
         };
     }
     on(listener) {
@@ -317,6 +351,7 @@ export class Host {
         if (this.removed.has(hello.token))
             return refuse('L\'hôte vous a retiré de la partie.');
         let seat = this.seats.find((s, i) => i > 0 && s.token === hello.token);
+        const arrived = !seat;
         if (seat) {
             // Same player coming back (page reloaded, phone woke up...)
             const previous = seat.connection;
@@ -325,10 +360,12 @@ export class Host {
                 previous.close();
         }
         else {
-            if (this.game)
-                return refuse('La partie a déjà commencé.');
             if (this.seats.length >= MAX_PLAYERS)
                 return refuse('La partie est complète (10 joueurs).');
+            // During the game: a seat for the next round, if the deck has cards enough for one more
+            if (this.game && settingsProblem(this.seats.length + 1, this.settings)) {
+                return refuse('Plus assez de cartes pour un joueur de plus dans cette partie.');
+            }
             const wanted = isPlayerColor(hello.color) && !this.seats.some(s => s.color === hello.color) ? hello.color : null;
             const color = wanted ?? assignColors([...this.seats.map(s => s.color), null])[this.seats.length];
             seat = { name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), color, token: hello.token, connection, lastSeen: 0 };
@@ -338,10 +375,14 @@ export class Host {
         this.send(seat, { t: 'welcome', seat: this.seats.indexOf(seat), room: this.roomId });
         if (this.chatLog.length)
             this.send(seat, { t: 'chatLog', messages: this.chatLog });
-        if (this.game)
+        if (this.game) {
+            if (arrived && this.isWaiting(this.seats.indexOf(seat)))
+                this.announce(notice('info', '{name} jouera à partir de la prochaine manche.', { name: seat.name }), seat);
             this.broadcastState();
-        else
+        }
+        else {
             this.broadcastLobby();
+        }
         return seat;
     }
     uniqueName(name) {
@@ -352,7 +393,13 @@ export class Host {
     }
     disconnected(seat) {
         seat.connection = null;
-        if (!this.game) {
+        const index = this.seats.indexOf(seat);
+        if (this.game && this.isWaiting(index)) {
+            // Waiting for the next round and gone: nothing to keep
+            this.seats.splice(index, 1);
+            this.broadcastState();
+        }
+        else if (!this.game) {
             // Before the game, a player who leaves frees his seat
             this.seats.splice(this.seats.indexOf(seat), 1);
             this.broadcastLobby();
@@ -422,6 +469,8 @@ export class Host {
         if (action.type === 'nextRound' && !fromHost)
             return notice('error', 'Seul l\'hôte lance la ronde suivante.');
         try {
+            if (action.type === 'nextRound')
+                this.seatNewcomers();
             return applyAction(this.game, action);
         }
         catch (e) {
@@ -455,13 +504,25 @@ export class Host {
         if (!game)
             return;
         const connected = (i) => this.isConnected(i);
+        const lobby = this.lobby;
         this.seats.forEach((seat, i) => {
             if (i === 0)
                 this.state = buildView(game, 0, { connected });
+            // Waiting for the next round: the waiting room, with who plays
+            else if (this.isWaiting(i))
+                this.send(seat, { t: 'lobby', lobby, you: i });
             else
                 this.send(seat, { t: 'state', state: buildView(game, i, { connected }) });
         });
         this.persist();
         this.events.emit({ type: 'state' });
+    }
+    /** A message for everybody at the table (not for `except`) */
+    announce(message, except) {
+        this.events.emit({ type: 'notice', notice: message });
+        for (const seat of this.seats.slice(1)) {
+            if (seat !== except)
+                this.send(seat, { t: 'notice', notice: message });
+        }
     }
 }

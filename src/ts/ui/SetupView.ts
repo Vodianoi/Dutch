@@ -413,12 +413,13 @@ function publicGames(find: () => Promise<PublicGame[]>, onJoin: (game: PublicGam
         }
         status.textContent = games.length ? '' : t('Aucune partie publique pour l\'instant : créez-en une !');
         for (const game of games) {
-            const why = game.started ? t('En cours') : game.players >= game.max ? t('Complète') : !game.open ? t('Autre version') : null;
+            const why = game.players >= game.max ? t('Complète') : !game.open ? (game.started ? t('En cours') : t('Autre version')) : null;
             const rules = describeSettings(game.settings).slice(0, 2).join(' · ');
             list.appendChild(el('li', {class: `public-game${game.open ? '' : ' closed'}`},
                 el('div', {class: 'public-info'},
                     el('strong', {}, t('Partie de {name}', {name: game.host})),
-                    el('span', {class: 'public-players'}, t('{n}/{max} joueurs', {n: game.players, max: game.max})),
+                    el('span', {class: 'public-players'}, t('{n}/{max} joueurs', {n: game.players, max: game.max}),
+                        game.started && game.open ? el('span', {class: 'public-late'}, ' · ', t('en cours : vous jouerez à la prochaine manche')) : null),
                     el('span', {class: 'hint'}, rules)),
                 el('button', {
                     type: 'button', class: game.open ? 'primary small' : 'secondary small', disabled: !game.open,

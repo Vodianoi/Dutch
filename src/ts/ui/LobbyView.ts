@@ -61,6 +61,7 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             p.name,
             i === 0 ? el('span', {class: 'badge turn'}, t('Hôte')) : null,
             i === props.you ? el('span', {class: 'badge you'}, t('Vous')) : null,
+            p.waiting ? el('span', {class: 'badge next-round'}, t('Prochaine manche')) : null,
             isHost && i > 0 && props.onKick ? el('button', {
                 type: 'button', class: 'kick', 'aria-label': t('Retirer {name} de la partie', {name: p.name}), onclick: () => props.onKick?.(i),
             }, t('Retirer')) : null)));
@@ -81,8 +82,13 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             el('h3', {id: 'rules-title'}, t('Règles de la partie')),
             el('ul', {}, ...describeSettings(lobby.settings).map(line => el('li', {}, line))));
 
+    // Arrived during the game: this screen until the next round
+    const waiting = lobby.started && !!lobby.players[props.you]?.waiting;
     root.appendChild(el('section', {class: 'lobby panel'},
         el('h2', {}, t('Salle d\'attente')),
+        waiting ? el('p', {class: 'message info next-round-note', role: 'status'},
+            el('strong', {}, t('La partie est en cours.')), ' ',
+            t('Vous jouerez à partir de la prochaine manche, avec la moyenne des points des autres joueurs.')) : null,
         el('div', {class: 'room-code'},
             el('span', {class: 'hint'}, t('Code de la partie')),
             el('strong', {id: 'lobby-code'}, lobby.code)),
@@ -100,7 +106,9 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
         props.error ? el('p', {class: 'message error', role: 'alert'}, props.error) : null,
         isHost
             ? startButton
-            : el('p', {class: 'hint waiting'}, t('En attente de {name} pour commencer…', {name: lobby.players[0]?.name ?? t('l\'hôte')})),
+            : el('p', {class: 'hint waiting'}, waiting
+                ? t('En attente de la fin de la manche…')
+                : t('En attente de {name} pour commencer…', {name: lobby.players[0]?.name ?? t('l\'hôte')})),
         el('button', {class: 'secondary', id: 'leave', onclick: props.onLeave}, t('Quitter'))));
 
     props.chat?.scrollToEnd();

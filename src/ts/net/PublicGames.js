@@ -17,13 +17,15 @@ export async function findPublicGames(transport, timeoutMs = SCAN_TIMEOUT_MS) {
         const players = Math.max(0, Math.min(MAX_PLAYERS, Math.floor(Number(room.players) || 0)));
         const max = Math.max(1, Math.min(MAX_PLAYERS, Math.floor(Number(room.max) || MAX_PLAYERS)));
         const started = room.started === true;
+        const late = room.late === true;
         const v = Number(room.v);
         games.push({
             // The code knocked on, not what the room says
-            code, v, players, max, started,
+            code, v, players, max, started, late,
             host: cleanName(room.host, '?'),
             settings: cleanSettings(room.settings),
-            open: !started && players < max && v === PROTOCOL_VERSION,
+            // A game in progress that takes newcomers: they play from the next round
+            open: (!started || late) && players < max && v === PROTOCOL_VERSION,
         });
     }
     return games.sort((a, b) => Number(b.open) - Number(a.open) || b.players - a.players || a.code.localeCompare(b.code));

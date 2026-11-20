@@ -133,7 +133,13 @@ test('a player who reconnects with his token gets his seat back', async () => {
         await until(() => a.state);
         a.leave();
         await until(() => host.state.players[1].connected === false);
-        await assert.rejects(Client.join(transport, host.code, 'Intrus', 'token-other-123'), /déjà commencé/);
+        // A newcomer during the game waits for the next round: he doesn't take the empty seat
+        const newcomer = await Client.join(transport, host.code, 'Intrus', 'token-other-123');
+        await until(() => newcomer.lobby?.players.length === 3);
+        assert.equal(newcomer.state, null);
+        assert.equal(newcomer.lobby.players[2].waiting, true);
+        newcomer.leave();
+        await until(() => host.lobby.players.length === 2);
         const back = await Client.join(transport, host.code, 'Hugo', 'token-hugo-123');
         await until(() => back.state);
         assert.equal(back.state.viewerId, 1);

@@ -538,6 +538,26 @@ class Dutch {
         if (this.phase !== 'roundOver') throw new RuleError('La ronde n\'est pas terminée.');
         this.startRound();
     }
+
+    /**
+     *  A player who arrived during the game sits down between two rounds (last in the turn order).
+     *  He starts with the average score of the others: no advantage for coming late (the lowest
+     *  score wins), and still a chance to win.
+     *  @return his id
+     */
+    public addPlayer(name: string, color?: string): number {
+        if (this.phase !== 'roundOver') throw new RuleError('Un joueur ne peut arriver qu\'entre deux manches.');
+        if (this.players.length >= 10) throw new RuleError('La partie est complète (10 joueurs).');
+        const problem = settingsProblem(this.players.length + 1, {deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer});
+        if (problem) throw new RuleError(problem);
+        const colors = assignColors([...this.players.map(p => p.color), color]);
+        const player = new Player(this.players.length, name, colors[this.players.length]);
+        player.score = Math.round(this.players.reduce((sum, p) => sum + p.score, 0) / this.players.length);
+        this.players.push(player);
+        this.addLog('{name} arrive dans la partie, avec {score} points (la moyenne des autres).', {name, score: player.score}, 'info');
+        this.changed();
+        return player.id;
+    }
     // endregion
 
     // region Turn actions

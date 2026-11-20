@@ -2881,3 +2881,15 @@ button.small {
     margin-top: -4px;
     padding-left: 30px;
 }
+
+/* Arrived during the game: plays from the next round */
+.badge.next-round {
+    background: rgba(140, 180, 255, .18);
+    color: #c9dbff;
+    border: 1px solid rgba(140, 180, 255, .4);
+}
+
+.public-late {
+    color: var(--ink-muted);
+    font-weight: 500;
+}
