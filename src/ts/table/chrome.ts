@@ -1,6 +1,7 @@
 import {gsap} from 'gsap';
 import {ChatMessage, EMOTES} from '../net/Protocol.js';
 import {Session} from '../Session.js';
+import {howToPlay} from '../howToPlay.js';
 import {t} from '../i18n.js';
 import {describeSettings} from '../Settings.js';
 import {ChatBox} from '../ui/ChatBox.js';
@@ -261,6 +262,9 @@ export class TableChrome {
             opener?.focus();
         };
         const rules = s ? describeSettings(s.settings).map(line => `<li>${escape(line)}</li>`).join('') : '';
+        // How to play, for the rules of this game
+        const howTo = s ? howToPlay(s.settings).map(section =>
+            `<h3>${escape(section.title)}</h3><ul>${section.lines.map(line => `<li>${escape(line)}</li>`).join('')}</ul>`).join('') : '';
         const backs = this.o.onBackChange ? `<p class="choice-title" aria-hidden="true">${t('Dos des cartes')}</p><div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${(Object.keys(BACK_COLORS) as BackColor[]).map(key =>
             `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
         const felts = this.o.onFeltChange ? `<p class="choice-title" aria-hidden="true">${t('Tapis')}</p><div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${(Object.keys(TABLE_THEMES) as TableTheme[]).map(key => {
@@ -272,6 +276,7 @@ export class TableChrome {
             <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">
                 <h2 id="menu-title">${t('Menu')}</h2>
                 <button type="button" class="primary" data-act="close">${t('Reprendre la partie')}</button>
+                <details class="how-to"><summary>${t('Comment jouer')}</summary><div class="how-to-body">${howTo}</div></details>
                 <details><summary>${t('Règles de la partie')}</summary><ul>${rules}</ul></details>
                 <fieldset><legend>${t('Réglages de cet appareil')}</legend>
                     <label class="switch"><input type="checkbox" name="sound" ${prefs.sound ? 'checked' : ''}> ${t('Sons')}</label>
