@@ -20,6 +20,8 @@ import {button, ButtonKind, CREAM, GOLD, label, SeatView} from './widgets.js';
  */
 
 const REVEAL_MS = 3000;
+/** End of a round: the cards are turned over, the scores come after this time (s) */
+const PANEL_DELAY_S = 3.2;
 
 export interface TableOptions {
     /** End of the game: start another one (host) */
@@ -123,6 +125,9 @@ export class TableView {
     private dutchTimer = 0;
     private panel: Container | null = null;
     private panelFor = '';
+    /** The players put the scores aside to look at the cards of the round */
+    private lookingAtTable = false;
+    private scoresButton: Container | null = null;
     private buttonsKey = '';
     private readonly chips = new Map<number, Container>();
     /** Where each message would like to be (it moves away from buttons and piles) */
@@ -523,11 +528,17 @@ export class TableView {
             const key = `${s.round}-${s.phase}`;
             if (this.panelFor !== key) {
                 this.panelFor = key;
-                gsap.delayedCall(newRound || instant ? 0 : 1.8, () => this.showPanel());
+                this.lookingAtTable = false;
+                // Time to see the cards turned over before the scores cover the table
+                gsap.delayedCall(newRound || instant ? 0 : PANEL_DELAY_S, () => {
+                    if (this.panelFor === key && !this.lookingAtTable) this.showPanel();
+                });
+            } else if (instant && this.lookingAtTable) {
+                this.showScoresButton();
             } else if (instant && this.panel) {
                 this.showPanel(true);
             }
-        } else if (this.panel) {
+        } else if (this.panel || this.scoresButton) {
             this.hidePanel();
         }
     }
@@ -1033,10 +1044,41 @@ export class TableView {
     }
 
     private hidePanel() {
+        this.lookingAtTable = false;
+        this.removeScoresButton();
         if (!this.panel) return;
         const p = this.panel;
         this.panel = null;
         gsap.to(p, {alpha: 0, duration: .2, onComplete: () => dispose(p)});
+    }
+
+    /** Tap beside the scores: they go away so that everybody can look at the cards */
+    private lookAtTable() {
+        if (!this.panel) return;
+        const p = this.panel;
+        this.panel = null;
+        gsap.to(p, {alpha: 0, duration: .2, onComplete: () => dispose(p)});
+        this.lookingAtTable = true;
+        this.showScoresButton();
+    }
+
+    private showScoresButton() {
+        this.removeScoresButton();
+        if (!this.app || this.destroyed) return;
+        const L = this.layout;
+        const b = button(t('Voir les scores'), 'primary', L.ui, () => {
+            this.lookingAtTable = false;
+            this.removeScoresButton();
+            this.showPanel();
+        });
+        b.position.set(L.w / 2, L.h - 40 * L.ui);
+        this.fxLayer.addChild(b);
+        this.scoresButton = b;
+    }
+
+    private removeScoresButton() {
+        if (this.scoresButton) dispose(this.scoresButton);
+        this.scoresButton = null;
     }
 
     private showPanel(instant = false) {
@@ -1053,9 +1095,18 @@ export class TableView {
         const h = 130 * ui + rowH * rows;
         const dim = new Graphics().rect(0, 0, L.w, L.h).fill({color: 0x000000, alpha: .45});
         dim.eventMode = 'static';
+        dim.cursor = 'pointer';
+        dim.on('pointertap', () => this.lookAtTable());
         const box = new Container();
         box.position.set(L.w / 2, L.h / 2);
-        box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, 18).fill({color: 0x12100d, alpha: .96}).stroke({width: 2, color: GOLD, alpha: .5}));
+        const back = new Graphics().roundRect(-w / 2, -h / 2, w, h, 18).fill({color: 0x12100d, alpha: .96}).stroke({width: 2, color: GOLD, alpha: .5});
+        back.eventMode = 'static'; // A tap on the scores themselves doesn't close them
+        box.addChild(back);
+        const aside = label(t('Touchez la table pour voir les cartes'), 13 * ui, 0xf3e6c4, '600');
+        aside.anchor.set(.5, 0);
+        aside.y = h / 2 + 12 * ui;
+        aside.alpha = .8;
+        box.addChild(aside);
         let title = t('Fin de la manche {round}', {round: result.round});
         if (result.gameOver) {
             const names = result.winners.map(id => id === s.viewerId ? t('vous') : s.players[id].name);

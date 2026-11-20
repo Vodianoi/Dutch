@@ -17,6 +17,13 @@ export interface BotOptions {
 /** A bot looks at his cards between these times after the deal (ms) */
 export const PEEK_MIN_MS = 1100;
 export const PEEK_SPREAD_MS = 1100;
+/** A move (draw, choose a card, use an effect) */
+export const MOVE_MS = 1100;
+export const MOVE_SPREAD_MS = 700;
+/** After playing, before ending the turn: time to throw a card on the discard */
+export const END_TURN_MS = 2200;
+/** The last turn of the round: once it ends, nobody can throw any more */
+export const END_ROUND_MS = 3600;
 
 export class Bots {
     /** Cards each bot has seen (by card id) */
@@ -61,7 +68,7 @@ export class Bots {
         this.turnTimer = null;
         const who = this.whoActs();
         if (who !== null) {
-            const wait = 850 + Math.random() * 650;
+            const wait = this.waitBefore(who);
             this.turnTimer = this.setTimer(() => {
                 this.turnTimer = null;
                 this.act(who);
@@ -69,6 +76,20 @@ export class Bots {
         }
         this.planPeeks();
         this.planThrows();
+    }
+
+    /**
+     *  Time before the next move of a bot (ms). After a card goes on the discard, the players
+     *  need time to see it and throw a matching card: the bot waits longer before ending his turn,
+     *  and even longer when it ends the round (nobody can throw any more after that).
+     */
+    private waitBefore(id: number): number {
+        const g = this.game;
+        if (!g.activeEffect && g.phase === 'played') {
+            const endsRound = g.dutchCallerId !== null && g.finalTurnsLeft <= 1 && g.currentPlayerIndex === id;
+            return endsRound ? END_ROUND_MS + Math.random() * 600 : END_TURN_MS + Math.random() * 700;
+        }
+        return MOVE_MS + Math.random() * MOVE_SPREAD_MS;
     }
 
     /**
@@ -188,7 +209,7 @@ export class Bots {
                         if (!(e instanceof RuleError)) throw e;
                     }
                 }
-            }, (700 + Math.random() * 1100) * this.speed));
+            }, (900 + Math.random() * 1300) * this.speed));
         }
     }
 }
