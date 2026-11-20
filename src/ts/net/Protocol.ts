@@ -13,6 +13,8 @@ export interface LobbyPlayer {
     name: string;
     color: string;
     connected: boolean;
+    /** Arrived during the game: plays from the next round */
+    waiting?: boolean;
 }
 
 export interface LobbyState {
@@ -36,6 +38,8 @@ export interface RoomInfo {
     max: number;
     started: boolean;
     settings: GameSettings;
+    /** A game in progress takes newcomers: they play from the next round */
+    late?: boolean;
 }
 
 /**
