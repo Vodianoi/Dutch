@@ -15,6 +15,8 @@ import { button, CREAM, GOLD, label, SeatView } from './widgets.js';
  *  solo against bots, online (host or player) and one shared screen.
  */
 const REVEAL_MS = 3000;
+/** End of a round: the cards are turned over, the scores come after this time (s) */
+const PANEL_DELAY_S = 3.2;
 /** Card pictures, shared by the tables of one game; each new table draws them again (see init()) */
 const arts = new Map();
 /** After a long time in the background, the page comes back with a new table */
@@ -86,6 +88,9 @@ export class TableView {
         this.dutchTimer = 0;
         this.panel = null;
         this.panelFor = '';
+        /** The players put the scores aside to look at the cards of the round */
+        this.lookingAtTable = false;
+        this.scoresButton = null;
         this.buttonsKey = '';
         this.chips = new Map();
         /** Where each message would like to be (it moves away from buttons and piles) */
@@ -480,13 +485,21 @@ export class TableView {
             const key = `${s.round}-${s.phase}`;
             if (this.panelFor !== key) {
                 this.panelFor = key;
-                gsap.delayedCall(newRound || instant ? 0 : 1.8, () => this.showPanel());
+                this.lookingAtTable = false;
+                // Time to see the cards turned over before the scores cover the table
+                gsap.delayedCall(newRound || instant ? 0 : PANEL_DELAY_S, () => {
+                    if (this.panelFor === key && !this.lookingAtTable)
+                        this.showPanel();
+                });
+            }
+            else if (instant && this.lookingAtTable) {
+                this.showScoresButton();
             }
             else if (instant && this.panel) {
                 this.showPanel(true);
             }
         }
-        else if (this.panel) {
+        else if (this.panel || this.scoresButton) {
             this.hidePanel();
         }
     }
@@ -1021,11 +1034,42 @@ export class TableView {
         }
     }
     hidePanel() {
+        this.lookingAtTable = false;
+        this.removeScoresButton();
         if (!this.panel)
             return;
         const p = this.panel;
         this.panel = null;
         gsap.to(p, { alpha: 0, duration: .2, onComplete: () => dispose(p) });
+    }
+    /** Tap beside the scores: they go away so that everybody can look at the cards */
+    lookAtTable() {
+        if (!this.panel)
+            return;
+        const p = this.panel;
+        this.panel = null;
+        gsap.to(p, { alpha: 0, duration: .2, onComplete: () => dispose(p) });
+        this.lookingAtTable = true;
+        this.showScoresButton();
+    }
+    showScoresButton() {
+        this.removeScoresButton();
+        if (!this.app || this.destroyed)
+            return;
+        const L = this.layout;
+        const b = button(t('Voir les scores'), 'primary', L.ui, () => {
+            this.lookingAtTable = false;
+            this.removeScoresButton();
+            this.showPanel();
+        });
+        b.position.set(L.w / 2, L.h - 40 * L.ui);
+        this.fxLayer.addChild(b);
+        this.scoresButton = b;
+    }
+    removeScoresButton() {
+        if (this.scoresButton)
+            dispose(this.scoresButton);
+        this.scoresButton = null;
     }
     showPanel(instant = false) {
         const s = this.state;
@@ -1043,9 +1087,18 @@ export class TableView {
         const h = 130 * ui + rowH * rows;
         const dim = new Graphics().rect(0, 0, L.w, L.h).fill({ color: 0x000000, alpha: .45 });
         dim.eventMode = 'static';
+        dim.cursor = 'pointer';
+        dim.on('pointertap', () => this.lookAtTable());
         const box = new Container();
         box.position.set(L.w / 2, L.h / 2);
-        box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, 18).fill({ color: 0x12100d, alpha: .96 }).stroke({ width: 2, color: GOLD, alpha: .5 }));
+        const back = new Graphics().roundRect(-w / 2, -h / 2, w, h, 18).fill({ color: 0x12100d, alpha: .96 }).stroke({ width: 2, color: GOLD, alpha: .5 });
+        back.eventMode = 'static'; // A tap on the scores themselves doesn't close them
+        box.addChild(back);
+        const aside = label(t('Touchez la table pour voir les cartes'), 13 * ui, 0xf3e6c4, '600');
+        aside.anchor.set(.5, 0);
+        aside.y = h / 2 + 12 * ui;
+        aside.alpha = .8;
+        box.addChild(aside);
         let title = t('Fin de la manche {round}', { round: result.round });
         if (result.gameOver) {
             const names = result.winners.map(id => id === s.viewerId ? t('vous') : s.players[id].name);

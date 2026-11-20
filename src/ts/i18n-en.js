@@ -310,6 +310,8 @@ export const EN = {
     'Vous gagnez !': 'You win!',
     'Victoire : {names}': 'Winner: {names}',
     'Manche suivante': 'Next round',
+    'Voir les scores': 'See the scores',
+    'Touchez la table pour voir les cartes': 'Tap the table to see the cards',
     'En attente d\'une nouvelle partie…': 'Waiting for a new game…',
     'En attente de {name} pour la suite…': 'Waiting for {name} to continue…',
     '{name} : {text}': '{name}: {text}',
