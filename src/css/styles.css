@@ -1841,6 +1841,11 @@ body.in-game .site-header {
     gap: 14px;
 }
 
+/* Long content (how to play) scrolls inside the panel: its parts must not be squeezed to fit, or their text spills out */
+.menu-panel > * {
+    flex-shrink: 0;
+}
+
 .menu-panel h2 {
     margin: 0;
     text-align: center;
