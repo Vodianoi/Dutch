@@ -2858,14 +2858,12 @@ button.small {
     flex-wrap: nowrap;
 }
 
-.setup .resume-actions button {
-    flex: 1 1 0;
-    min-width: 0;
-    padding-inline: 10px;
+.setup .resume-actions .primary {
+    flex: 1 1 auto;
 }
 
 .setup .resume-actions .secondary {
-    flex-grow: .7;
+    flex: 0 0 auto;
 }
 
 /* The language choice, a little apart from the panel */
