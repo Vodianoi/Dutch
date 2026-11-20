@@ -1,7 +1,7 @@
 import Dutch, {DutchSnapshot, RuleError} from '../Dutch.js';
 import {assignColors, cleanSettings, GameSettings, isPlayerColor, settingsProblem} from '../Settings.js';
 import {Chat, Emitter, findHandCard, Session, SessionEvent} from '../Session.js';
-import {Action, applyAction, buildView, faceUp, GameView, notice} from '../View.js';
+import {Action, applyAction, buildView, faceUp, GameView, notice, Notice} from '../View.js';
 import {
     CHAT_HISTORY, ChatMessage, cleanChatText, ClientMessage, cleanName, EMOTES, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken,
     RoomInfo,
@@ -131,7 +131,8 @@ export class Host implements Session {
      */
     public kick(index: number) {
         const seat = this.seats[index];
-        if (this.game || index <= 0 || !seat) return;
+        // Before the cards are dealt, or someone still waiting for the next round
+        if ((this.game && !this.isWaiting(index)) || index <= 0 || !seat) return;
         this.removed.add(seat.token);
         const connection = seat.connection;
         seat.connection = null;
@@ -141,7 +142,37 @@ export class Host implements Session {
         }
         this.seats.splice(index, 1);
         this.chatTimes.delete(seat);
-        this.broadcastLobby();
+        if (this.game) this.broadcastState();
+        else this.broadcastLobby();
+    }
+
+    /** Arrived during the game: seated at the next round (the seats after the players of the game) */
+    private isWaiting(index: number): boolean {
+        return !!this.game && index >= this.game.players.length;
+    }
+
+    /**
+     *  Before a new round: those who arrived during the game sit down, with the average score.
+     *  Gone in the meantime: their seat is freed. No room left in the deck: they go on waiting.
+     */
+    private seatNewcomers() {
+        const game = this.game;
+        if (!game || game.phase !== 'roundOver') return;
+        for (let i = game.players.length; i < this.seats.length;) {
+            const seat = this.seats[i];
+            if (!seat.connection) {
+                this.seats.splice(i, 1);
+                continue;
+            }
+            try {
+                game.addPlayer(seat.name, seat.color);
+            } catch (e) {
+                if (e instanceof RuleError) break;
+                throw e;
+            }
+            seat.color = game.players[i].color;
+            i++;
+        }
     }
 
     /** Listed with the public games (code PUB01…) */
@@ -153,7 +184,7 @@ export class Host implements Session {
     public get info(): RoomInfo {
         return {
             code: this.code, v: PROTOCOL_VERSION, host: this.seats[0].name, players: this.seats.length, max: MAX_PLAYERS,
-            started: !!this.game, settings: this.settings,
+            started: !!this.game, settings: this.settings, late: true,
         };
     }
 
@@ -162,7 +193,7 @@ export class Host implements Session {
             code: this.code,
             started: this.started,
             settings: this.settings,
-            players: this.seats.map((seat, i) => ({name: seat.name, color: seat.color, connected: this.isConnected(i)})),
+            players: this.seats.map((seat, i) => ({name: seat.name, color: seat.color, connected: this.isConnected(i), waiting: this.isWaiting(i)})),
         };
     }
 
@@ -361,14 +392,18 @@ export class Host implements Session {
         if (this.removed.has(hello.token)) return refuse('L\'hôte vous a retiré de la partie.');
 
         let seat = this.seats.find((s, i) => i > 0 && s.token === hello.token);
+        const arrived = !seat;
         if (seat) {
             // Same player coming back (page reloaded, phone woke up...)
             const previous = seat.connection;
             seat.connection = connection;
             if (previous && previous !== connection) previous.close();
         } else {
-            if (this.game) return refuse('La partie a déjà commencé.');
             if (this.seats.length >= MAX_PLAYERS) return refuse('La partie est complète (10 joueurs).');
+            // During the game: a seat for the next round, if the deck has cards enough for one more
+            if (this.game && settingsProblem(this.seats.length + 1, this.settings)) {
+                return refuse('Plus assez de cartes pour un joueur de plus dans cette partie.');
+            }
             const wanted = isPlayerColor(hello.color) && !this.seats.some(s => s.color === hello.color) ? hello.color : null;
             const color = wanted ?? assignColors([...this.seats.map(s => s.color), null])[this.seats.length];
             seat = {name: this.uniqueName(cleanName(hello.name, `Joueur ${this.seats.length + 1}`)), color, token: hello.token, connection, lastSeen: 0};
@@ -377,8 +412,12 @@ export class Host implements Session {
         seat.lastSeen = Date.now();
         this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat), room: this.roomId});
         if (this.chatLog.length) this.send(seat, {t: 'chatLog', messages: this.chatLog});
-        if (this.game) this.broadcastState();
-        else this.broadcastLobby();
+        if (this.game) {
+            if (arrived && this.isWaiting(this.seats.indexOf(seat))) this.announce(notice('info', '{name} jouera à partir de la prochaine manche.', {name: seat.name}), seat);
+            this.broadcastState();
+        } else {
+            this.broadcastLobby();
+        }
         return seat;
     }
 
@@ -390,7 +429,12 @@ export class Host implements Session {
 
     private disconnected(seat: Seat) {
         seat.connection = null;
-        if (!this.game) {
+        const index = this.seats.indexOf(seat);
+        if (this.game && this.isWaiting(index)) {
+            // Waiting for the next round and gone: nothing to keep
+            this.seats.splice(index, 1);
+            this.broadcastState();
+        } else if (!this.game) {
             // Before the game, a player who leaves frees his seat
             this.seats.splice(this.seats.indexOf(seat), 1);
             this.broadcastLobby();
@@ -454,6 +498,7 @@ export class Host implements Session {
         if (!this.game) return notice('error', 'La partie n\'a pas commencé.');
         if (action.type === 'nextRound' && !fromHost) return notice('error', 'Seul l\'hôte lance la ronde suivante.');
         try {
+            if (action.type === 'nextRound') this.seatNewcomers();
             return applyAction(this.game, action);
         } catch (e) {
             if (e instanceof RuleError) return notice('error', e.msg);
@@ -486,12 +531,23 @@ export class Host implements Session {
         const game = this.game;
         if (!game) return;
         const connected = (i: number) => this.isConnected(i);
+        const lobby = this.lobby;
         this.seats.forEach((seat, i) => {
             if (i === 0) this.state = buildView(game, 0, {connected});
+            // Waiting for the next round: the waiting room, with who plays
+            else if (this.isWaiting(i)) this.send(seat, {t: 'lobby', lobby, you: i});
             else this.send(seat, {t: 'state', state: buildView(game, i, {connected})});
         });
         this.persist();
         this.events.emit({type: 'state'});
+    }
+
+    /** A message for everybody at the table (not for `except`) */
+    private announce(message: Notice, except?: Seat) {
+        this.events.emit({type: 'notice', notice: message});
+        for (const seat of this.seats.slice(1)) {
+            if (seat !== except) this.send(seat, {t: 'notice', notice: message});
+        }
     }
     // endregion
 }

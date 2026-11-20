@@ -53,7 +53,7 @@ test('public hosts take the first free slots, the list finds them with their hos
     }
 });
 
-test('anybody joins a public game from the list until it starts', async () => {
+test('anybody joins a public game from the list, before or during the game', async () => {
     const host = await publicHost('Eddy');
     const clients = [];
     try {
@@ -73,8 +73,12 @@ test('anybody joins a public game from the list until it starts', async () => {
         host.start({deckCount: 1});
         await until(async () => (await find())[0]?.started === true);
         const [started] = await find();
-        assert.equal(started.open, false, 'a game in progress can be seen, not joined');
-        await assert.rejects(Client.join(transport, started.code, 'Late', `token-late-${Math.random()}`), /déjà commencé/);
+        assert.equal(started.open, true, 'a game in progress takes newcomers for the next round');
+        assert.equal(started.late, true);
+        const late = await Client.join(transport, started.code, 'Late', `token-late-${Math.random()}`);
+        clients.push(late);
+        await until(() => late.lobby?.players.at(-1)?.waiting === true);
+        assert.equal(late.state, null);
     } finally {
         clients.forEach(c => c.leave());
         host.close();
@@ -238,5 +242,77 @@ test('a player cleans the rules a host sends (a stranger could send anything)', 
     } finally {
         client.leave();
         room.close();
+    }
+});
+
+test('a newcomer during the game is seated at the next round, with the average score', async () => {
+    const host = await publicHost('Eddy', {deckCount: 1});
+    const hugo = await Client.join(transport, host.code, 'Hugo', `token-hugo-${Math.random()}`);
+    const notices = [];
+    hugo.on(e => {
+        if (e.type === 'notice') notices.push(e.notice.text);
+    });
+    try {
+        await until(() => host.lobby.players.length === 2);
+        host.start();
+        await until(() => hugo.state);
+        const zoe = await Client.join(transport, host.code, 'Zoé', `token-zoe-${Math.random()}`);
+        try {
+            await until(() => zoe.lobby?.players.length === 3);
+            assert.equal(zoe.state, null, 'no cards during this round');
+            assert.equal(host.state.players.length, 2, 'the round goes on with the same players');
+            await until(() => notices.some(n => /Zoé jouera à partir de la prochaine manche/.test(n)));
+            // End of the round (scores 10 and 21), the host starts the next one
+            const game = host.game;
+            game.players[0].score = 10;
+            game.players[1].score = 21;
+            game.phase = 'roundOver';
+            host.dispatch({type: 'nextRound'});
+            await until(() => zoe.state);
+            assert.equal(zoe.state.viewerId, 2);
+            assert.equal(zoe.state.players.length, 3);
+            assert.equal(zoe.state.players[2].score, 16, 'rounded average of 10 and 21');
+            await until(() => hugo.state.players.length === 3);
+            assert.equal(host.lobby.players.some(p => p.waiting), false);
+        } finally {
+            zoe.leave();
+        }
+    } finally {
+        hugo.leave();
+        host.close();
+    }
+});
+
+test('waiting for the next round: leaving frees the seat, the host can remove, the deck must have room', async () => {
+    const host = await publicHost('Eddy', {deckCount: 1, cardsPerPlayer: 6});
+    const clients = [];
+    try {
+        for (const name of ['B', 'C', 'D', 'E', 'F']) {
+            clients.push(await Client.join(transport, host.code, name, `token-${name}-${Math.random()}`));
+        }
+        await until(() => host.lobby.players.length === 6);
+        host.start();
+        // 6 players × 6 cards + 7 = 43 ≤ 52: one more fits (7 × 6 + 8 = 50), two more don't
+        const g = await Client.join(transport, host.code, 'G', `token-g-${Math.random()}`);
+        await until(() => host.lobby.players.length === 7);
+        await assert.rejects(Client.join(transport, host.code, 'H', `token-h-${Math.random()}`), /Plus assez de cartes/);
+        // The host removes the one waiting (the players of the game can't be removed now)
+        let reason = null;
+        g.on(e => {
+            if (e.type === 'closed') reason = e.reason;
+        });
+        host.kick(1);
+        assert.equal(host.lobby.players.length, 7, 'a player of the game stays');
+        host.kick(6);
+        await until(() => reason !== null);
+        assert.equal(host.lobby.players.length, 6);
+        // Someone waiting who leaves frees his seat
+        const h = await Client.join(transport, host.code, 'H', `token-h2-${Math.random()}`);
+        await until(() => host.lobby.players.length === 7);
+        h.leave();
+        await until(() => host.lobby.players.length === 6);
+    } finally {
+        clients.forEach(c => c.leave());
+        host.close();
     }
 });

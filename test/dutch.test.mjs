@@ -400,3 +400,34 @@ test('peek variant: a card can be thrown while the players are still looking at 
     game.peek(2);
     assert.equal(game.phase, 'draw');
 });
+
+test('a player arriving during the game sits down between two rounds, with the average score', () => {
+    const game = new Dutch({players: ['Léa', 'Hugo', 'Inès'], peekVariant: false, deckCount: 1});
+    game.startRound();
+    assert.throws(() => game.addPlayer('Zoé'), /entre deux manches/, 'not during a round');
+    game.players[0].score = 10;
+    game.players[1].score = 21;
+    game.players[2].score = 4;
+    game.phase = 'roundOver';
+    const id = game.addPlayer('Zoé', '#2f6db5');
+    assert.equal(id, 3);
+    assert.equal(game.players[3].name, 'Zoé');
+    assert.equal(game.players[3].score, 12, 'rounded average of 10, 21 and 4');
+    assert.notEqual(game.players[3].color, game.players[0].color);
+    assert.match(game.log.at(-1).message, /Zoé arrive dans la partie, avec 12 points/);
+    game.nextRound();
+    assert.equal(game.players[3].hand.length, 4, 'dealt in like the others');
+    // Saved and restored with the others
+    const copy = Dutch.restore(JSON.parse(JSON.stringify(game.snapshot())));
+    assert.equal(copy.players.length, 4);
+    assert.equal(copy.players[3].score, 12);
+});
+
+test('nobody arrives if the deck would be too small or the table full', () => {
+    const game = new Dutch({players: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], peekVariant: false, deckCount: 1, cardsPerPlayer: 5});
+    game.phase = 'roundOver';
+    assert.throws(() => game.addPlayer('I'), /Pas assez de cartes/);
+    const full = new Dutch({players: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'], peekVariant: false, deckCount: 2});
+    full.phase = 'roundOver';
+    assert.throws(() => full.addPlayer('K'), /complète/);
+});
