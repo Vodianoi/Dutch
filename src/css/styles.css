@@ -2816,3 +2816,68 @@ button.small {
     font-size: 14px;
     line-height: 1.4;
 }
+
+/* region Home screen: room to breathe */
+/* The same rhythm on the three tabs; a little less on short screens, a little more on tall ones */
+.setup {
+    --setup-gap: clamp(12px, 2dvh, 22px);
+    gap: var(--setup-gap);
+    padding: 20px 18px 22px;
+}
+
+.setup-solo, .setup-online, .setup-local {
+    display: flex;
+    flex-direction: column;
+    gap: var(--setup-gap);
+}
+
+/* A label stays close to its field */
+.setup .stack {
+    gap: 8px;
+}
+
+.setup .rules-details {
+    margin: 0;
+}
+
+.setup .hint {
+    line-height: 1.45;
+}
+
+/* Game in progress: its two buttons side by side, sharing the width */
+.setup .resume {
+    gap: 10px;
+    padding: 14px 16px 16px;
+}
+
+.setup .resume h3 {
+    line-height: 1.2;
+}
+
+.setup .resume-actions {
+    flex-wrap: nowrap;
+}
+
+.setup .resume-actions .primary {
+    flex: 1 1 auto;
+}
+
+.setup .resume-actions .secondary {
+    flex: 0 0 auto;
+}
+
+/* The language choice, a little apart from the panel */
+.lang-switch {
+    margin-top: var(--setup-gap, 18px);
+}
+/* endregion Home screen */
+
+/* The IP note right under the public switch it is about */
+.choice .public-switch {
+    margin: 2px 0 0;
+}
+
+.choice .public-switch + .public-warning {
+    margin-top: -4px;
+    padding-left: 30px;
+}

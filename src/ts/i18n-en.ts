@@ -121,6 +121,7 @@ export const EN: Record<string, string> = {
     'Partie {code} avec {players}. ': 'Game {code} with {players}. ',
     'Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.': 'The other players reconnect on their own as soon as you resume it.',
     'Reprendre la partie': 'Resume the game',
+    'Reprendre': 'Resume',
     'Abandonner': 'Give up',
     'Votre nom': 'Your name',
     'Créer une partie': 'Create a game',
