@@ -2871,3 +2871,13 @@ button.small {
     margin-top: var(--setup-gap, 18px);
 }
 /* endregion Home screen */
+
+/* The IP note right under the public switch it is about */
+.choice .public-switch {
+    margin: 2px 0 0;
+}
+
+.choice .public-switch + .public-warning {
+    margin-top: -4px;
+    padding-left: 30px;
+}
