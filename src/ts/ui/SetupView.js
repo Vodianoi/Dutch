@@ -256,10 +256,10 @@ function colorButton(initial, taken, label, onPick) {
     return button;
 }
 /**
- *  The devices talk directly to each other: the others see the address (IP) of your connection,
- *  which tells roughly where you are. Said where strangers come in.
+ *  The devices talk directly to each other: the others see the address (IP) of your connection.
+ *  Said where strangers come in.
  */
-const PRIVACY_NOTE = () => t('Les appareils se connectent directement entre eux : les autres joueurs, et l\'hôte de chaque partie de la liste, voient l\'adresse IP de votre connexion (elle indique à peu près votre ville). L\'hôte voit toutes les cartes et pourrait tricher : jouez avec des inconnus pour le plaisir.');
+const PRIVACY_NOTE = () => t('Les autres joueurs voient votre adresse IP.');
 /** The public games are looked for again this often while the list is on screen */
 const PUBLIC_REFRESH_MS = 10000;
 /** Last list found: shown at once when the home screen is drawn again */
@@ -271,7 +271,7 @@ function publicGames(find, onJoin) {
     const list = el('ul', { class: 'public-list' });
     const status = el('p', { class: 'hint public-status', role: 'status' });
     const refresh = el('button', { type: 'button', class: 'secondary small', id: 'refresh-public' }, t('Actualiser'));
-    const section = el('section', { class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false' }, el('div', { class: 'public-head' }, el('h3', { id: 'public-title' }, t('Parties publiques')), refresh), status, list, el('p', { class: 'hint public-warning' }, PRIVACY_NOTE()));
+    const section = el('section', { class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false' }, el('div', { class: 'public-head' }, el('h3', { id: 'public-title' }, t('Parties publiques')), refresh), status, list, el('p', { class: 'hint public-warning' }, t('Les hôtes de la liste voient votre adresse IP.')));
     const show = (games) => {
         clear(list);
         if (!games) {
