@@ -2816,3 +2816,50 @@ button.small {
     font-size: 14px;
     line-height: 1.4;
 }
+
+/* region Home screen: room to breathe */
+/* The same rhythm on the three tabs; a little less on short screens, a little more on tall ones */
+.setup {
+    --setup-gap: clamp(14px, 2.6dvh, 24px);
+    gap: var(--setup-gap);
+    padding: 20px 18px 22px;
+}
+
+.setup-solo, .setup-online, .setup-local {
+    display: flex;
+    flex-direction: column;
+    gap: var(--setup-gap);
+}
+
+/* A label stays close to its field */
+.setup .stack {
+    gap: 8px;
+}
+
+.setup .rules-details {
+    margin: 0;
+}
+
+.setup .hint {
+    line-height: 1.45;
+}
+
+/* Résumé of a game in progress: its two buttons side by side when they fit */
+.setup .resume {
+    gap: 12px;
+    padding: 16px;
+}
+
+.setup .resume h3 {
+    line-height: 1.2;
+}
+
+.setup .resume-actions button {
+    flex: 1 1 auto;
+}
+
+/* The language choice, a little apart from the panel */
+.lang-switch {
+    margin-top: var(--setup-gap, 18px);
+}
+/* endregion Home screen */
