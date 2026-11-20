@@ -2789,3 +2789,25 @@ button.small {
     margin-top: 8px;
     opacity: .85;
 }
+
+/* Menu: how to play */
+.how-to-body h3 {
+    margin: 14px 0 4px;
+    font-size: 15px;
+    color: var(--gold);
+}
+
+.how-to-body h3:first-child {
+    margin-top: 8px;
+}
+
+.how-to-body ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.how-to-body li {
+    margin: 3px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
