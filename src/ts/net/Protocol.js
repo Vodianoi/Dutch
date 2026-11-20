@@ -18,6 +18,12 @@ export function cleanName(name, fallback) {
     const text = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) : '';
     return text || fallback;
 }
+/**
+ *  Secret that gives a player his seat back: 128 random bits from the browser's secure generator
+ *  (Math.random can be guessed)
+ */
 export function randomToken() {
-    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }

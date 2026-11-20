@@ -1,3 +1,4 @@
+import { isPublicCode } from '../net/Transport.js';
 import { checkSettings, colorName, describeSettings } from '../Settings.js';
 import { gameOptions, loadSetup, saveSetup } from './SetupView.js';
 import { t } from '../i18n.js';
@@ -34,7 +35,9 @@ export function renderLobby(root, props) {
             input?.select();
         }
     };
-    const players = el('ol', { class: 'lobby-players' }, ...lobby.players.map((p, i) => el('li', { class: p.connected ? '' : 'offline' }, el('span', { class: 'color-dot', style: { background: p.color }, role: 'img', 'aria-label': colorName(p.color) }), p.name, i === 0 ? el('span', { class: 'badge turn' }, t('Hôte')) : null, i === props.you ? el('span', { class: 'badge you' }, t('Vous')) : null)));
+    const players = el('ol', { class: 'lobby-players' }, ...lobby.players.map((p, i) => el('li', { class: p.connected ? '' : 'offline' }, el('span', { class: 'color-dot', style: { background: p.color }, role: 'img', 'aria-label': colorName(p.color) }), p.name, i === 0 ? el('span', { class: 'badge turn' }, t('Hôte')) : null, i === props.you ? el('span', { class: 'badge you' }, t('Vous')) : null, isHost && i > 0 && props.onKick ? el('button', {
+        type: 'button', class: 'kick', 'aria-label': t('Retirer {name} de la partie', { name: p.name }), onclick: () => props.onKick?.(i),
+    }, t('Retirer')) : null)));
     const enough = lobby.players.length >= 2;
     const problem = checkSettings(lobby.players.length, lobby.settings);
     const startButton = el('button', {
@@ -46,7 +49,9 @@ export function renderLobby(root, props) {
     const rules = isHost
         ? options.element
         : el('section', { class: 'rules', 'aria-labelledby': 'rules-title' }, el('h3', { id: 'rules-title' }, t('Règles de la partie')), el('ul', {}, ...describeSettings(lobby.settings).map(line => el('li', {}, line))));
-    root.appendChild(el('section', { class: 'lobby panel' }, el('h2', {}, t('Salle d\'attente')), el('div', { class: 'room-code' }, el('span', { class: 'hint' }, t('Code de la partie')), el('strong', { id: 'lobby-code' }, lobby.code)), el('div', { class: 'share' }, el('input', { type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': t('Lien de la partie') }), copyButton), el('h3', {}, t('Joueurs ({n}/10)', { n: lobby.players.length })), players, props.chat?.element ?? null, rules, isHost && problem ? el('p', { class: 'message error', role: 'alert' }, problem) : null, props.error ? el('p', { class: 'message error', role: 'alert' }, props.error) : null, isHost
+    root.appendChild(el('section', { class: 'lobby panel' }, el('h2', {}, t('Salle d\'attente')), el('div', { class: 'room-code' }, el('span', { class: 'hint' }, t('Code de la partie')), el('strong', { id: 'lobby-code' }, lobby.code)), isPublicCode(lobby.code)
+        ? el('p', { class: 'message info public-note' }, el('strong', {}, t('Partie publique')), ' · ', t('Les autres joueurs voient votre adresse IP.'))
+        : null, el('div', { class: 'share' }, el('input', { type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': t('Lien de la partie') }), copyButton), el('h3', {}, t('Joueurs ({n}/10)', { n: lobby.players.length })), players, props.chat?.element ?? null, rules, isHost && problem ? el('p', { class: 'message error', role: 'alert' }, problem) : null, props.error ? el('p', { class: 'message error', role: 'alert' }, props.error) : null, isHost
         ? startButton
         : el('p', { class: 'hint waiting' }, t('En attente de {name} pour commencer…', { name: lobby.players[0]?.name ?? t('l\'hôte') })), el('button', { class: 'secondary', id: 'leave', onclick: props.onLeave }, t('Quitter'))));
     props.chat?.scrollToEnd();

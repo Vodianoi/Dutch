@@ -8,6 +8,7 @@ import {
 } from '../Settings.js';
 import {lang, LANGS, setLang, t} from '../i18n.js';
 import {clear, el} from './dom.js';
+import type {PublicGame} from '../net/PublicGames.js';
 
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', {n}))];
 const STORAGE_KEY = scoped('setup');
@@ -72,8 +73,10 @@ export interface SetupHandlers {
     onForgetSolo?(): void;
     /** Everybody on this screen */
     onLocal(options: DutchOptions): void;
-    /** Create an online game */
-    onHost(name: string, color: string, settings: GameSettings): void;
+    /** Create an online game; a public one is listed for everybody and open to anybody until full */
+    onHost(name: string, color: string, settings: GameSettings, isPublic: boolean): void;
+    /** Public games right now (knocks on every public room) */
+    onFindPublic?(): Promise<PublicGame[]>;
     /** Join an online game */
     onJoin(code: string, name: string, color: string): void;
     /** Reopen the room this device was hosting */
@@ -153,9 +156,10 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             saveSetup(setup);
             return name;
         };
+        const publicBox = el('input', {type: 'checkbox', id: 'public-room'}) as HTMLInputElement;
         const create = () => {
             const name = readName();
-            if (name) handlers.onHost(name, setup.onlineColor, setup.settings);
+            if (name) handlers.onHost(name, setup.onlineColor, setup.settings, publicBox.checked);
         };
         const join = () => {
             const name = readName();
@@ -178,7 +182,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('p', {class: 'hint'}, t('Partie {code} avec {players}. ', {code: resume.code, players: resume.players.join(', ')}),
                     t('Les autres joueurs se reconnectent tout seuls dès que vous la reprenez.')),
                 el('div', {class: 'resume-actions'},
-                    el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, t('Reprendre la partie')),
+                    el('button', {class: 'primary', id: 'resume-room', onclick: () => handlers.onResume?.()}, t('Reprendre')),
                     el('button', {class: 'secondary', id: 'forget-room', onclick: () => handlers.onForget?.()}, t('Abandonner')))) : null,
             el('div', {class: 'stack'},
                 el('label', {for: 'online-name'}, t('Votre nom')),
@@ -188,6 +192,9 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('div', {class: 'choice'},
                     el('h3', {}, t('Créer une partie')),
                     el('p', {class: 'hint'}, t('Vous recevez un code à partager, et vous choisissez les règles dans la salle d\'attente.')),
+                    el('label', {class: 'switch public-switch', for: 'public-room'}, publicBox,
+                        el('span', {}, el('strong', {}, t('Partie publique')), ' ', t('· visible dans la liste, ouverte à tous jusqu\'à 10 joueurs'))),
+                    el('p', {class: 'hint public-warning', id: 'public-warning'}, PRIVACY_NOTE()),
                     el('button', {id: 'create-room', class: 'primary', disabled: busy, onclick: create}, t('Créer'))),
                 el('div', {class: 'choice'},
                     el('h3', {}, t('Rejoindre')),
@@ -196,6 +203,10 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                     el('button', {id: 'join-room', class: 'primary', disabled: busy, onclick: join}, t('Rejoindre')))),
             initial.busy ? el('p', {class: 'message info', role: 'status'}, initial.busy) : null,
             initial.error ? el('p', {class: 'message error', role: 'alert'}, initial.error) : null,
+            handlers.onFindPublic && !busy ? publicGames(handlers.onFindPublic, game => {
+                const name = readName();
+                if (name) handlers.onJoin(game.code, name, setup.onlineColor);
+            }) : null,
             el('p', {class: 'hint'},
                 t('Chacun joue sur son appareil et ne voit que ses cartes. '),
                 t('La partie tourne sur l\'appareil de celui qui la crée. S\'il quitte l\'application, elle reprend quand il revient.')));
@@ -248,7 +259,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('h3', {id: 'solo-resume-title'}, t('Votre partie est en cours')),
                 el('p', {class: 'hint'}, t('Manche {round} contre {players}.', {round: resume.round, players: resume.players.slice(1).join(', ')})),
                 el('div', {class: 'resume-actions'},
-                    el('button', {class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.()}, t('Reprendre la partie')),
+                    el('button', {class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.()}, t('Reprendre')),
                     el('button', {class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.()}, t('Abandonner')))) : null,
             el('div', {class: 'stack'},
                 el('label', {for: 'solo-name'}, t('Votre nom')),
@@ -369,6 +380,80 @@ function colorButton(initial: string, taken: () => string[], label: string, onPi
     });
     show();
     return button;
+}
+
+/**
+ *  The devices talk directly to each other: the others see the address (IP) of your connection.
+ *  Said where strangers come in.
+ */
+const PRIVACY_NOTE = () => t('Les autres joueurs voient votre adresse IP.');
+
+/** The public games are looked for again this often while the list is on screen */
+const PUBLIC_REFRESH_MS = 10_000;
+/** Last list found: shown at once when the home screen is drawn again */
+let lastPublic: PublicGame[] | null = null;
+
+/**
+ *  « Parties publiques »: the games anybody can join, found by knocking on every public room
+ */
+function publicGames(find: () => Promise<PublicGame[]>, onJoin: (game: PublicGame) => void): HTMLElement {
+    const list = el('ul', {class: 'public-list'});
+    const status = el('p', {class: 'hint public-status', role: 'status'});
+    const refresh = el('button', {type: 'button', class: 'secondary small', id: 'refresh-public'}, t('Actualiser'));
+    const section = el('section', {class: 'public-games', 'aria-labelledby': 'public-title', 'aria-busy': 'false'},
+        el('div', {class: 'public-head'}, el('h3', {id: 'public-title'}, t('Parties publiques')), refresh),
+        status, list,
+        el('p', {class: 'hint public-warning'}, t('Les hôtes de la liste voient votre adresse IP.')));
+
+    const show = (games: PublicGame[] | null) => {
+        clear(list);
+        if (!games) {
+            status.textContent = t('Recherche des parties publiques…');
+            return;
+        }
+        status.textContent = games.length ? '' : t('Aucune partie publique pour l\'instant : créez-en une !');
+        for (const game of games) {
+            const why = game.started ? t('En cours') : game.players >= game.max ? t('Complète') : !game.open ? t('Autre version') : null;
+            const rules = describeSettings(game.settings).slice(0, 2).join(' · ');
+            list.appendChild(el('li', {class: `public-game${game.open ? '' : ' closed'}`},
+                el('div', {class: 'public-info'},
+                    el('strong', {}, t('Partie de {name}', {name: game.host})),
+                    el('span', {class: 'public-players'}, t('{n}/{max} joueurs', {n: game.players, max: game.max})),
+                    el('span', {class: 'hint'}, rules)),
+                el('button', {
+                    type: 'button', class: game.open ? 'primary small' : 'secondary small', disabled: !game.open,
+                    'aria-label': game.open ? t('Rejoindre la partie de {name}', {name: game.host}) : `${t('Partie de {name}', {name: game.host})} : ${why}`,
+                    onclick: () => onJoin(game),
+                }, why ?? t('Rejoindre'))));
+        }
+    };
+
+    let scanning = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scan = async () => {
+        clearTimeout(timer);
+        // Home screen left or drawn again: this list is no longer shown
+        if (scanning || !section.isConnected) return;
+        scanning = true;
+        section.setAttribute('aria-busy', 'true');
+        refresh.disabled = true;
+        try {
+            lastPublic = await find();
+            show(lastPublic);
+        } catch {
+            status.textContent = t('Impossible de chercher les parties publiques : vérifiez votre connexion.');
+        } finally {
+            scanning = false;
+            section.setAttribute('aria-busy', 'false');
+            refresh.disabled = false;
+            if (section.isConnected) timer = setTimeout(scan, PUBLIC_REFRESH_MS);
+        }
+    };
+    refresh.addEventListener('click', () => void scan());
+    show(lastPublic);
+    // Started once the section is on the page
+    queueMicrotask(() => void scan());
+    return section;
 }
 
 /**

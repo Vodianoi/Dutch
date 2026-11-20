@@ -1,3 +1,4 @@
+import {findPublicGames} from '../net/PublicGames.js';
 import {IS_DEV, scoped, TABLE_3D} from '../env.js';
 import {render, t} from '../i18n.js';
 import Dutch, {DutchOptions, DutchSnapshot, RuleError} from '../Dutch.js';
@@ -10,7 +11,7 @@ import {Client} from '../net/Client.js';
 import {Host, HostSnapshot} from '../net/Host.js';
 import {PeerTransport} from '../net/PeerTransport.js';
 import {randomToken} from '../net/Protocol.js';
-import {TransportFactory} from '../net/Transport.js';
+import {PUBLIC_CODES, TransportFactory} from '../net/Transport.js';
 import GameView from './GameView.js';
 import {ChatBox} from './ChatBox.js';
 import {renderLobby} from './LobbyView.js';
@@ -152,7 +153,8 @@ export class App {
                 this.home();
             },
             onLocal: options => this.playLocal(options),
-            onHost: (name, color, settings) => this.host(name, color, settings),
+            onHost: (name, color, settings, isPublic) => this.host(name, color, settings, isPublic),
+            onFindPublic: () => findPublicGames(this.transport),
             onJoin: (code, name) => this.join(code, name),
             onResume: () => {
                 const again = this.savedHost();
@@ -246,11 +248,13 @@ export class App {
     // endregion
 
     // region Online: host
-    private async host(name: string, color: string, settings: GameSettings) {
+    private async host(name: string, color: string, settings: GameSettings, isPublic = false) {
         this.home({busy: t('Création de la partie…')});
         let host: Host;
         try {
-            const transport = await this.transport.host();
+            // Public game: the first free public code, so that the list finds it
+            // In random order: a code freed for a moment by a host whose phone sleeps is less likely to be taken
+            const transport = isPublic ? await this.transport.hostFirstFree(shuffled(PUBLIC_CODES)) : await this.transport.host();
             host = new Host(transport, name, {color, settings, persist: snapshot => this.saveHost(name, snapshot)});
         } catch (e) {
             this.home({error: errorText(e)});
@@ -297,6 +301,7 @@ export class App {
                     }
                 },
                 onSettings: settings => host.setSettings(settings),
+                onKick: index => host.kick(index),
                 onLeave: () => this.home(),
             });
         };
@@ -323,13 +328,14 @@ export class App {
         let client: Client;
         try {
             // The colour chosen on the home screen (the host gives another one if it is taken)
-            client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor});
+            client = await Client.join(this.transport, code, name, token, {color: loadSetup().onlineColor, room: this.storedRoom(code) ?? undefined});
         } catch (e) {
-            this.forgetToken(code);
+            // Removed by the host: keep the token, the room goes on refusing it
+            if (!isRemoved(errorText(e))) this.forgetToken(code);
             this.home({code, error: errorText(e)});
             return;
         }
-        this.storeToken(code, token);
+        this.storeToken(code, token, client.room);
         this.reset();
         this.session = client;
         this.chatBox = new ChatBox(client.chat, client);
@@ -386,19 +392,21 @@ export class App {
     private connectionLost(code: string, name: string, reason: string) {
         this.showBanner(false);
         this.dialog?.remove();
+        // Removed by the host: no « try again », and his token is kept so that this room keeps refusing him
+        const removed = isRemoved(reason);
         this.dialog = el('div', {class: 'overlay lost'},
             el('section', {class: 'result panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'lost-title'},
                 el('h2', {id: 'lost-title'}, t('Partie interrompue')),
                 el('p', {}, t(reason)),
-                el('button', {class: 'primary', id: 'reconnect', onclick: () => this.join(code, name)}, t('Réessayer')),
-                el('button', {class: 'secondary', onclick: () => {
-                    this.forgetToken(code);
+                removed ? null : el('button', {class: 'primary', id: 'reconnect', onclick: () => this.join(code, name)}, t('Réessayer')),
+                el('button', {class: 'secondary', id: 'lost-home', onclick: () => {
+                    if (!removed) this.forgetToken(code);
                     this.home();
                 }}, t('Retour à l\'accueil'))));
         document.body.appendChild(this.dialog);
         // The game behind the dialog can not be used anymore
         this.root.setAttribute('inert', '');
-        this.dialog.querySelector<HTMLElement>('#reconnect')?.focus();
+        this.dialog.querySelector<HTMLElement>('#reconnect, #lost-home')?.focus();
     }
     // endregion
 
@@ -551,10 +559,24 @@ export class App {
         }
     }
 
-    private storeToken(code: string, token: string) {
+    /** Id of the room joined with this code (public codes are used by one game after another) */
+    private storedRoom(code: string): string | null {
+        try {
+            return sessionStorage.getItem(scoped(`room-${code}`))
+                ?? (this.localTransport ? null : localStorage.getItem(scoped(`room-${code}`)));
+        } catch {
+            return null;
+        }
+    }
+
+    private storeToken(code: string, token: string, room: string | null = null) {
         try {
             sessionStorage.setItem(scoped(`token-${code}`), token);
             if (!this.localTransport) localStorage.setItem(scoped(`token-${code}`), token);
+            if (room) {
+                sessionStorage.setItem(scoped(`room-${code}`), room);
+                if (!this.localTransport) localStorage.setItem(scoped(`room-${code}`), room);
+            }
         } catch {
             // ignore: reconnecting will just need a new seat
         }
@@ -562,8 +584,10 @@ export class App {
 
     private forgetToken(code: string) {
         try {
-            sessionStorage.removeItem(scoped(`token-${code}`));
-            localStorage.removeItem(scoped(`token-${code}`));
+            for (const key of [`token-${code}`, `room-${code}`]) {
+                sessionStorage.removeItem(scoped(key));
+                localStorage.removeItem(scoped(key));
+            }
         } catch {
             // ignore
         }
@@ -575,4 +599,18 @@ export class App {
 function errorText(e: unknown): string {
     if (e instanceof RuleError) return render(e.msg);
     return t((e as Error)?.message ?? String(e));
+}
+
+function shuffled<T>(list: T[]): T[] {
+    const copy = list.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+/** The host removed this player from the room */
+function isRemoved(reason: string): boolean {
+    return reason === t('L\'hôte vous a retiré de la partie.') || reason === 'L\'hôte vous a retiré de la partie.';
 }

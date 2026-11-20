@@ -1,8 +1,9 @@
 import { t } from '../i18n.js';
+import { cleanSettings } from '../Settings.js';
 import { Emitter } from '../Session.js';
 import { notice } from '../View.js';
 import { CHAT_HISTORY, PROTOCOL_VERSION } from './Protocol.js';
-import { TransportError } from './Transport.js';
+import { isPublicCode, TransportError } from './Transport.js';
 /** Final answer of the host: no point in trying again */
 class Refused extends TransportError {
 }
@@ -21,15 +22,21 @@ export class Client {
         this.state = null;
         this.lobby = null;
         this.seat = -1;
+        /** Id of the room, given by the host */
+        this.room = null;
         this.status = 'online';
         this.chatLog = [];
         this.chat = (() => {
             const log = this.chatLog;
+            const publicGame = () => isPublicCode(this.code);
             return {
                 get messages() {
                     return log;
                 },
-                text: true,
+                // Public games (strangers): reactions only
+                get text() {
+                    return !publicGame();
+                },
                 send: (text) => this.send({ t: 'chat', text }),
                 emote: (emote) => this.send({ t: 'emote', emote }),
             };
@@ -49,6 +56,7 @@ export class Client {
         this.code = code;
         this.name = name;
         this.token = token;
+        this.room = options.room ?? null;
         this.timeoutMs = options.timeoutMs ?? 15000;
         this.welcomeTimeoutMs = options.welcomeTimeoutMs ?? 10000;
         this.retryDelaysMs = options.retryDelaysMs ?? [0, 1000, 2000, 4000, 8000];
@@ -178,7 +186,7 @@ export class Client {
             };
             this.welcomeListeners.push(done);
             this.lastSeen = Date.now();
-            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color });
+            this.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.name, token: this.token, color: this.color, room: this.room ?? undefined });
         });
         this.attempts = 0;
         this.lostAt = 0;
@@ -254,17 +262,24 @@ export class Client {
         switch (message.t) {
             case 'welcome':
                 this.seat = message.seat;
+                if (typeof message.room === 'string')
+                    this.room = message.room;
                 this.welcomeListeners.slice().forEach(l => l());
                 break;
             case 'lobby':
-                this.lobby = message.lobby;
+                if (!message.lobby || typeof message.lobby !== 'object')
+                    break;
+                // The host may be a stranger: rules out of range would break this screen
+                this.lobby = { ...message.lobby, settings: cleanSettings(message.lobby.settings) };
                 this.seat = message.you;
                 if (!message.lobby.started)
                     this.state = null;
                 this.events.emit({ type: 'lobby' });
                 break;
             case 'state':
-                this.state = message.state;
+                if (!message.state || typeof message.state !== 'object')
+                    break;
+                this.state = { ...message.state, settings: cleanSettings(message.state.settings) };
                 this.events.emit({ type: 'state' });
                 break;
             case 'reveal':
@@ -288,6 +303,8 @@ export class Client {
             case 'chat':
                 if (!message.message || this.chatLog.some(m => m.id === message.message.id))
                     break;
+                if (isPublicCode(this.code) && message.message.text)
+                    break;
                 this.chatLog.push(message.message);
                 if (this.chatLog.length > CHAT_HISTORY)
                     this.chatLog.shift();
@@ -296,7 +313,7 @@ export class Client {
             case 'chatLog':
                 if (!Array.isArray(message.messages))
                     break;
-                this.chatLog.splice(0, this.chatLog.length, ...message.messages.slice(-CHAT_HISTORY));
+                this.chatLog.splice(0, this.chatLog.length, ...message.messages.slice(-CHAT_HISTORY).filter(m => !(isPublicCode(this.code) && m?.text)));
                 if (this.chatLog.length)
                     this.events.emit({ type: 'chat', message: this.chatLog[this.chatLog.length - 1], history: true });
                 break;

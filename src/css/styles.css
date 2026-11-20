@@ -1841,6 +1841,11 @@ body.in-game .site-header {
     gap: 14px;
 }
 
+/* Long content (how to play) scrolls inside the panel: its parts must not be squeezed to fit, or their text spills out */
+.menu-panel > * {
+    flex-shrink: 0;
+}
+
 .menu-panel h2 {
     margin: 0;
     text-align: center;
@@ -2662,4 +2667,217 @@ button:hover:not(:disabled) {
 .lang-switch button:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 2px;
+}
+
+/* Public games: switch when creating, list on the online tab */
+.public-switch {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 4px 0 10px;
+    font-size: 14px;
+    line-height: 1.35;
+    cursor: pointer;
+}
+
+.public-switch input {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    accent-color: var(--gold);
+}
+
+.public-games {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, .18);
+    border: 1px solid rgba(255, 236, 190, .12);
+}
+
+.public-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.public-head h3 {
+    margin: 0;
+}
+
+.public-games[aria-busy="true"] .public-head h3::after {
+    content: ' …';
+    opacity: .7;
+}
+
+.public-status:empty {
+    display: none;
+}
+
+.public-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.public-game {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .05);
+}
+
+.public-game.closed {
+    opacity: .6;
+}
+
+.public-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.public-info strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.public-players {
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.public-info .hint {
+    font-size: 12.5px;
+    margin: 0;
+}
+
+button.small {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+    flex: none;
+}
+
+/* Waiting room: the host can remove a player */
+.lobby-players .kick {
+    margin-left: auto;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 107, 107, .5);
+    background: transparent;
+    color: #ff9b9b;
+    font: 600 13px var(--font-body);
+    cursor: pointer;
+}
+
+.lobby-players .kick:hover,
+.lobby-players .kick:focus-visible {
+    background: rgba(255, 107, 107, .15);
+    outline: none;
+}
+
+.public-warning {
+    font-size: 12.5px;
+    margin-top: 8px;
+    opacity: .85;
+}
+
+/* Menu: how to play */
+.how-to-body h3 {
+    margin: 14px 0 4px;
+    font-size: 15px;
+    color: var(--gold);
+}
+
+.how-to-body h3:first-child {
+    margin-top: 8px;
+}
+
+.how-to-body ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.how-to-body li {
+    margin: 3px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* region Home screen: room to breathe */
+/* The same rhythm on the three tabs; a little less on short screens, a little more on tall ones */
+.setup {
+    --setup-gap: clamp(12px, 2dvh, 22px);
+    gap: var(--setup-gap);
+    padding: 20px 18px 22px;
+}
+
+.setup-solo, .setup-online, .setup-local {
+    display: flex;
+    flex-direction: column;
+    gap: var(--setup-gap);
+}
+
+/* A label stays close to its field */
+.setup .stack {
+    gap: 8px;
+}
+
+.setup .rules-details {
+    margin: 0;
+}
+
+.setup .hint {
+    line-height: 1.45;
+}
+
+/* Game in progress: its two buttons side by side, sharing the width */
+.setup .resume {
+    gap: 10px;
+    padding: 14px 16px 16px;
+}
+
+.setup .resume h3 {
+    line-height: 1.2;
+}
+
+.setup .resume-actions {
+    flex-wrap: nowrap;
+}
+
+.setup .resume-actions .primary {
+    flex: 1 1 auto;
+}
+
+.setup .resume-actions .secondary {
+    flex: 0 0 auto;
+}
+
+/* The language choice, a little apart from the panel */
+.lang-switch {
+    margin-top: var(--setup-gap, 18px);
+}
+/* endregion Home screen */
+
+/* The IP note right under the public switch it is about */
+.choice .public-switch {
+    margin: 2px 0 0;
+}
+
+.choice .public-switch + .public-warning {
+    margin-top: -4px;
+    padding-left: 30px;
 }

@@ -4,8 +4,9 @@ import {Chat, Emitter, findHandCard, Session, SessionEvent} from '../Session.js'
 import {Action, applyAction, buildView, faceUp, GameView, notice} from '../View.js';
 import {
     CHAT_HISTORY, ChatMessage, cleanChatText, ClientMessage, cleanName, EMOTES, HostMessage, LobbyState, MAX_PLAYERS, PROTOCOL_VERSION, randomToken,
+    RoomInfo,
 } from './Protocol.js';
-import {Connection, HostTransport} from './Transport.js';
+import {Connection, HostTransport, isPublicCode} from './Transport.js';
 
 interface Seat {
     name: string;
@@ -22,6 +23,8 @@ interface Seat {
 export interface HostSnapshot {
     v: 1;
     code: string;
+    /** Id of the room (kept when the page reopens it) */
+    room?: string;
     seats: { name: string; token: string; color?: string }[];
     settings?: GameSettings;
     game: DutchSnapshot | null;
@@ -68,6 +71,10 @@ export class Host implements Session {
     private unsubscribeGame: (() => void) | null = null;
     private closed = false;
     private readonly chatLog: ChatMessage[] = [];
+    /** Players the host removed from the waiting room: they can't come back to this room */
+    private readonly removed = new Set<string>();
+    /** Id of this room: its players send it back when they reconnect */
+    private readonly roomId: string;
     private chatId = 0;
     /** Recent messages of each player (flood limit) */
     private readonly chatTimes = new Map<Seat, number[]>();
@@ -75,11 +82,15 @@ export class Host implements Session {
 
     constructor(transport: HostTransport, hostName: string, options: HostOptions = {}) {
         const log = this.chatLog;
+        const host = this;
         this.chat = {
             get messages() {
                 return log;
             },
-            text: true,
+            // Public games (strangers): reactions only
+            get text() {
+                return !host.isPublic;
+            },
             send: text => this.post(this.seats[0], {text}),
             emote: emote => this.post(this.seats[0], {emote}),
         };
@@ -88,6 +99,7 @@ export class Host implements Session {
         this.timeoutMs = options.timeoutMs ?? 15000;
         this.persistTo = options.persist;
         const saved = options.restore;
+        this.roomId = saved?.room ?? randomToken();
         if (saved) {
             const colors = assignColors(saved.seats.map(s => s.color));
             this.seats = saved.seats.map((s, i) => ({name: s.name, color: colors[i], token: s.token, connection: null, lastSeen: 0}));
@@ -111,6 +123,38 @@ export class Host implements Session {
 
     public get started(): boolean {
         return this.game !== null;
+    }
+
+    /**
+     *  Remove a player from the waiting room (a stranger in a public game…): he is told so,
+     *  and this room refuses him from then on. Not once the cards are dealt (the game needs every hand).
+     */
+    public kick(index: number) {
+        const seat = this.seats[index];
+        if (this.game || index <= 0 || !seat) return;
+        this.removed.add(seat.token);
+        const connection = seat.connection;
+        seat.connection = null;
+        if (connection) {
+            connection.send({t: 'ended', reason: 'L\'hôte vous a retiré de la partie.'} satisfies HostMessage);
+            setTimeout(() => connection.close(), 200);
+        }
+        this.seats.splice(index, 1);
+        this.chatTimes.delete(seat);
+        this.broadcastLobby();
+    }
+
+    /** Listed with the public games (code PUB01…) */
+    public get isPublic(): boolean {
+        return isPublicCode(this.code);
+    }
+
+    /** What the room tells someone who knocks */
+    public get info(): RoomInfo {
+        return {
+            code: this.code, v: PROTOCOL_VERSION, host: this.seats[0].name, players: this.seats.length, max: MAX_PLAYERS,
+            started: !!this.game, settings: this.settings,
+        };
     }
 
     public get lobby(): LobbyState {
@@ -185,6 +229,7 @@ export class Host implements Session {
         return {
             v: 1,
             code: this.code,
+            room: this.roomId,
             seats: this.seats.map(s => ({name: s.name, token: s.token, color: s.color})),
             settings: this.settings,
             game: this.game ? this.game.snapshot() : null,
@@ -240,7 +285,8 @@ export class Host implements Session {
         const index = seat ? this.seats.indexOf(seat) : -1;
         if (!seat || index < 0 || this.closed) return;
         const emote = typeof content.emote === 'string' && EMOTES.includes(content.emote) ? content.emote : null;
-        const text = cleanChatText(content.text);
+        // Public games: no free text between strangers, only reactions
+        const text = this.isPublic ? '' : cleanChatText(content.text);
         if (content.emote !== undefined ? !emote : !text) return;
         // At most 8 messages in 10 seconds per player
         const now = Date.now();
@@ -274,6 +320,12 @@ export class Host implements Session {
             const message = raw as ClientMessage;
             if (!message || typeof message !== 'object') return;
             if (!seat) {
+                if (message.t === 'info') {
+                    clearTimeout(helloTimer);
+                    connection.send({t: 'info', room: this.info} satisfies HostMessage);
+                    setTimeout(() => connection.close(), 300);
+                    return;
+                }
                 if (message.t !== 'hello') return;
                 clearTimeout(helloTimer);
                 seat = this.hello(connection, message);
@@ -303,7 +355,10 @@ export class Host implements Session {
             return null;
         };
         if (hello.v !== PROTOCOL_VERSION) return refuse('Version du jeu différente : rechargez la page.');
+        // Player of another game that had this code before (public code taken again)
+        if (typeof hello.room === 'string' && hello.room !== this.roomId) return refuse('Cette partie est terminée.');
         if (typeof hello.token !== 'string' || hello.token.length < 8) return refuse('Connexion invalide.');
+        if (this.removed.has(hello.token)) return refuse('L\'hôte vous a retiré de la partie.');
 
         let seat = this.seats.find((s, i) => i > 0 && s.token === hello.token);
         if (seat) {
@@ -320,7 +375,7 @@ export class Host implements Session {
             this.seats.push(seat);
         }
         seat.lastSeen = Date.now();
-        this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat)});
+        this.send(seat, {t: 'welcome', seat: this.seats.indexOf(seat), room: this.roomId});
         if (this.chatLog.length) this.send(seat, {t: 'chatLog', messages: this.chatLog});
         if (this.game) this.broadcastState();
         else this.broadcastLobby();

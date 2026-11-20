@@ -26,8 +26,26 @@ export interface HostTransport {
 export interface TransportFactory {
     /** Open a room; a new code is drawn if none is given */
     host(code?: string): Promise<HostTransport>;
+    /** Open the first of these rooms that nobody holds (public games) */
+    hostFirstFree(codes: string[]): Promise<HostTransport>;
     /** Join the room `code` */
     join(code: string): Promise<Connection>;
+    /**
+     *  Knock on several rooms at once without joining them: each room that is there gets `question`,
+     *  its first answer is kept. Rooms that don't exist or don't answer in time are left out.
+     */
+    ask(codes: string[], question: unknown, timeoutMs: number): Promise<Map<string, unknown>>;
+}
+
+/**
+ *  Public games: rooms with known codes, so that anybody can find them by knocking on each one
+ *  (the public PeerJS server can't list who is there)
+ */
+export const PUBLIC_SLOTS = 20;
+export const PUBLIC_CODES = Array.from({length: PUBLIC_SLOTS}, (_, i) => `PUB${String(i + 1).padStart(2, '0')}`);
+
+export function isPublicCode(code: string): boolean {
+    return PUBLIC_CODES.includes(code);
 }
 
 /**

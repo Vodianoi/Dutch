@@ -24,6 +24,21 @@ export interface LobbyState {
 }
 
 /**
+ *  What a room tells someone who knocks without joining (list of public games).
+ *  Added without a new protocol version: older hosts don't answer, they are left out of the list.
+ */
+export interface RoomInfo {
+    code: string;
+    /** Version of the game of the host: a different one can't be joined */
+    v: number;
+    host: string;
+    players: number;
+    max: number;
+    started: boolean;
+    settings: GameSettings;
+}
+
+/**
  *  Chat line or emote of a player, as everybody receives it.
  *  Added without a new protocol version: older pages ignore these messages.
  */
@@ -50,7 +65,8 @@ export function cleanChatText(text: unknown): string {
 
 /** Host -> player */
 export type HostMessage =
-    | { t: 'welcome'; seat: number }
+    /** `room`: id of this room, sent back by the player when he reconnects */
+    | { t: 'welcome'; seat: number; room?: string }
     | { t: 'lobby'; lobby: LobbyState; you: number }
     | { t: 'state'; state: GameView }
     | { t: 'reveal'; card: CardView }
@@ -61,11 +77,19 @@ export type HostMessage =
     | { t: 'ping' }
     | { t: 'chat'; message: ChatMessage }
     /** Messages so far, sent to a player who arrives or comes back */
-    | { t: 'chatLog'; messages: ChatMessage[] };
+    | { t: 'chatLog'; messages: ChatMessage[] }
+    /** Answer to someone who knocks (list of public games) */
+    | { t: 'info'; room: RoomInfo };
 
 /** Player -> host */
 export type ClientMessage =
-    | { t: 'hello'; v: number; name: string; token: string; color?: string }
+    /**
+     *  `room`: the room the player was in. A public code can be taken by another game while its host is
+     *  away: that other room refuses him instead of seating him as a stranger
+     */
+    | { t: 'hello'; v: number; name: string; token: string; color?: string; room?: string }
+    /** Knock without joining: the host answers with its RoomInfo and hangs up */
+    | { t: 'info' }
     | { t: 'action'; action: Action }
     | { t: 'pong' }
     | { t: 'chat'; text: string }
@@ -79,6 +103,12 @@ export function cleanName(name: unknown, fallback: string): string {
     return text || fallback;
 }
 
+/**
+ *  Secret that gives a player his seat back: 128 random bits from the browser's secure generator
+ *  (Math.random can be guessed)
+ */
 export function randomToken(): string {
-    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }

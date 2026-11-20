@@ -1,3 +1,4 @@
+import {isPublicCode} from '../net/Transport.js';
 import {LobbyState} from '../net/Protocol.js';
 import {checkSettings, colorName, describeSettings, GameSettings} from '../Settings.js';
 import {ChatBox} from './ChatBox.js';
@@ -16,6 +17,8 @@ export interface LobbyProps {
     /** Host: the rules changed (shown to everybody right away) */
     onSettings?(settings: GameSettings): void;
     onStart?(settings: GameSettings): void;
+    /** Host: remove this player from the waiting room */
+    onKick?(index: number): void;
     onLeave(): void;
 }
 
@@ -57,7 +60,10 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
             el('span', {class: 'color-dot', style: {background: p.color}, role: 'img', 'aria-label': colorName(p.color)}),
             p.name,
             i === 0 ? el('span', {class: 'badge turn'}, t('Hôte')) : null,
-            i === props.you ? el('span', {class: 'badge you'}, t('Vous')) : null)));
+            i === props.you ? el('span', {class: 'badge you'}, t('Vous')) : null,
+            isHost && i > 0 && props.onKick ? el('button', {
+                type: 'button', class: 'kick', 'aria-label': t('Retirer {name} de la partie', {name: p.name}), onclick: () => props.onKick?.(i),
+            }, t('Retirer')) : null)));
 
     const enough = lobby.players.length >= 2;
     const problem = checkSettings(lobby.players.length, lobby.settings);
@@ -80,6 +86,9 @@ export function renderLobby(root: HTMLElement, props: LobbyProps) {
         el('div', {class: 'room-code'},
             el('span', {class: 'hint'}, t('Code de la partie')),
             el('strong', {id: 'lobby-code'}, lobby.code)),
+        isPublicCode(lobby.code)
+            ? el('p', {class: 'message info public-note'}, el('strong', {}, t('Partie publique')), ' · ', t('Les autres joueurs voient votre adresse IP.'))
+            : null,
         el('div', {class: 'share'},
             el('input', {type: 'text', id: 'room-link', readonly: true, value: props.link, 'aria-label': t('Lien de la partie')}),
             copyButton),
