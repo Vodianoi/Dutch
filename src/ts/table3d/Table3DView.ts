@@ -1,184 +1,67 @@
 import * as THREE from 'three';
 import {CSS2DObject, CSS2DRenderer} from 'three/addons/renderers/CSS2DRenderer.js';
-import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {gsap} from 'gsap';
-import Card from '../Card.js';
 import {ChatMessage} from '../net/Protocol.js';
 import {Session, SessionEvent} from '../Session.js';
 import {joinNames, points, t} from '../i18n.js';
-import {Action, CardView, effectCard, GameView, logText, noticeText, toCard} from '../View.js';
-import {compactFace, face, SANS, SERIF, vintageBack} from '../table/cardArt.js';
+import {Action, CardView, effectCard, GameView, logText, noticeText} from '../View.js';
+import {SANS, SERIF} from '../table/cardArt.js';
 import {escape, TableChrome} from '../table/chrome.js';
 import {buzz, loadPrefs, Prefs} from '../table/prefs.js';
 import {sfx, unlockAudio} from '../table/sound.js';
 import type {TableOptions} from '../table/TableView.js';
+import {Card3D, CARD_H, CARD_W, CHIP_T, chipStack, Deck3D, LIE, Place, SHARED, STACK, Target} from './pieces.js';
+import type {Finish} from './post.js';
+import {buildChairs, buildTable, dust, empty, lights, RAIL, reflections, TableMaterials, tableMaterials} from './scenery.js';
+import {setSharpness} from './surfaces.js';
 
 /**
- *  The game table in 3D (Three.js), in the style of an old casino: padded leather rail on mahogany,
- *  green baize printed in gold, ivory cards, clay chips for the players, a lamp above the table.
+ *  The game table in 3D (Three.js), as real as a browser can draw it: an old casino table with a padded leather rail
+ *  and brass nails on varnished mahogany, worn green baize printed in gold, linen cards with a thickness,
+ *  clay chips for the players, club chairs, a rug on an old floor, one lamp above the table.
  *  Driven by a Session like the flat table: solo, online (host or player), one shared screen; 2 to 10 players.
+ *  - `surfaces.ts`: what things are made of (drawn here, no picture files)
+ *  - `scenery.ts`: the room, the table, the chairs, the light
+ *  - `pieces.ts`: cards, draw pile, chips
+ *  - `post.ts`: the finish of a photograph, on the devices that can afford it
  */
 
-// region Sizes (1 unit = 10 cm) and shared textures
-const CARD_W = .63;
-const CARD_H = .88;
+// region Sizes (1 unit = 10 cm)
 const GAP = .08;
-const RAIL = .46;
 const PILES_Z = -.15;
 const DECK_X = -.5;
 const DISCARD_X = .5;
 const REVEAL_MS = 3000;
 /** Below this size on the screen (pixels), a card shows its compact face (big rank and suit) */
 const COMPACT_PX = 58;
+// endregion
 
-const cardGeometry = new THREE.PlaneGeometry(CARD_W, CARD_H);
-const GLOW = new THREE.Color('#ffe2a0');
-const textures = new Map<string, THREE.CanvasTexture>();
-let anisotropy = 4;
+// region Quality of the picture
+/**
+ *  - high: the finish of a photograph (light bleeding from the brightest glints, 4 samples per pixel), sharp shadows
+ *  - medium: the same scene drawn directly, a little less sharp
+ *  - low: one sample per screen point, no dust in the light
+ *  A device that draws too slowly goes down by itself; `?gfx=high|medium|low` keeps one (to compare).
+ */
+type Quality = 'high' | 'medium' | 'low';
+const LOWER: Record<Quality, Quality | null> = {high: 'medium', medium: 'low', low: null};
+/** What this device could do, kept when the table is drawn again */
+let remembered: Quality | null = null;
 
-function texture(key: string, draw: () => HTMLCanvasElement, repeat?: number): THREE.CanvasTexture {
-    let t = textures.get(key);
-    if (!t) {
-        t = new THREE.CanvasTexture(draw());
-        t.colorSpace = THREE.SRGBColorSpace;
-        // Sharp cards even seen at a grazing angle
-        t.anisotropy = anisotropy;
-        if (repeat) {
-            t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.repeat.set(repeat, repeat);
-        }
-        textures.set(key, t);
-    }
-    return t;
+function askedQuality(): Quality | null {
+    const asked = new URLSearchParams(location.search).get('gfx');
+    return asked === 'high' || asked === 'medium' || asked === 'low' ? asked : null;
 }
 
-const faceTexture = (card: Card, compact: boolean) => texture(`${compact ? 'compact' : 'face'}-${card.value}-${card.suit}`,
-    () => compact ? compactFace(card, true) : face(card, true));
-const backTexture = () => texture('back', vintageBack);
-
-function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    return [c, c.getContext('2d')!];
-}
-
-/** Green baize of an old casino table, the layout printed in gold */
-function baize(): HTMLCanvasElement {
-    const [c, ctx] = canvas(2048, 2048);
-    const g = ctx.createRadialGradient(1024, 900, 0, 1024, 1024, 1300);
-    g.addColorStop(0, '#1f6a47');
-    g.addColorStop(.6, '#134a31');
-    g.addColorStop(1, '#0a2c1d');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 2048, 2048);
-    const img = ctx.getImageData(0, 0, 2048, 2048);
-    for (let i = 0; i < img.data.length; i += 4) {
-        const n = (Math.random() - .5) * 12;
-        img.data[i] += n;
-        img.data[i + 1] += n;
-        img.data[i + 2] += n;
-    }
-    ctx.putImageData(img, 0, 0);
-    const gold = 'rgba(222, 186, 108, .5)';
-    ctx.strokeStyle = gold;
-    for (const [rx, ry, w] of [[780, 780, 5], [760, 760, 2]] as const) {
-        ctx.lineWidth = w;
-        ctx.beginPath();
-        ctx.ellipse(1024, 1024, rx, ry, 0, 0, Math.PI * 2);
-        ctx.stroke();
-    }
-    ctx.fillStyle = gold;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `italic 900 150px ${SERIF}`;
-    ctx.fillText('Dutch', 1024, 560);
-    ctx.font = `600 38px ${SERIF}`;
-    ctx.fillText('LE PLUS PETIT TOTAL GAGNE', 1024, 680);
-    ctx.font = `90px ${SERIF}`;
-    ctx.fillText('♠   ♥   ♣   ♦', 1024, 1500);
-    ctx.font = `600 34px ${SERIF}`;
-    ctx.fillText('ROI ROUGE · ZÉRO POINT', 1024, 1600);
-    return c;
-}
-
-function leather(): HTMLCanvasElement {
-    const [c, ctx] = canvas(512, 512);
-    ctx.fillStyle = '#3d1210';
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 6000; i++) {
-        ctx.fillStyle = `rgba(${Math.random() < .5 ? '0,0,0' : '120,50,40'}, ${Math.random() * .12})`;
-        ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
-    }
-    return c;
-}
-
-function mahogany(): HTMLCanvasElement {
-    const [c, ctx] = canvas(512, 512);
-    ctx.fillStyle = '#4a1f10';
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 110; i++) {
-        const y = Math.random() * 512;
-        ctx.strokeStyle = Math.random() < .5 ? 'rgba(20, 6, 2, .4)' : 'rgba(150, 70, 35, .25)';
-        ctx.lineWidth = .6 + Math.random() * 2.4;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        for (let x = 0; x <= 512; x += 32) ctx.lineTo(x, y + Math.sin(x / 70 + i) * 4);
-        ctx.stroke();
-    }
-    return c;
-}
-
-/** Top of a clay casino chip in the player's colour, with white inserts */
-function chipTop(color: string): HTMLCanvasElement {
-    const [c, ctx] = canvas(256, 256);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(128, 128, 128, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f3ead6';
-    for (let i = 0; i < 6; i++) {
-        ctx.save();
-        ctx.translate(128, 128);
-        ctx.rotate(i * Math.PI / 3);
-        ctx.fillRect(-14, -128, 28, 30);
-        ctx.restore();
-    }
-    ctx.strokeStyle = 'rgba(243, 234, 214, .85)';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([10, 8]);
-    ctx.beginPath();
-    ctx.arc(128, 128, 76, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    const g = ctx.createRadialGradient(110, 100, 10, 128, 128, 70);
-    g.addColorStop(0, 'rgba(255,255,255,.18)');
-    g.addColorStop(1, 'rgba(0,0,0,.12)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(128, 128, 66, 0, Math.PI * 2);
-    ctx.fill();
-    return c;
-}
-
-function chipSide(color: string): HTMLCanvasElement {
-    const [c, ctx] = canvas(256, 32);
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, 256, 32);
-    ctx.fillStyle = '#f3ead6';
-    for (let i = 0; i < 6; i++) ctx.fillRect(i * 256 / 6 + 8, 0, 14, 32);
-    return c;
+function firstQuality(): Quality {
+    if (remembered) return remembered;
+    const phone = matchMedia('(pointer: coarse)').matches;
+    const memory = (navigator as { deviceMemory?: number }).deviceMemory ?? 8;
+    return phone && (memory <= 4 || (navigator.hardwareConcurrency ?? 8) <= 4) ? 'medium' : 'high';
 }
 // endregion
 
 // region Helpers
-function nearestAngle(from: number, to: number): number {
-    let d = (to - from) % (Math.PI * 2);
-    if (d > Math.PI) d -= Math.PI * 2;
-    if (d < -Math.PI) d += Math.PI * 2;
-    return from + d;
-}
-
 function jitter(id: string, salt = 0): number {
     let h = 2166136261 ^ salt;
     for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
@@ -186,153 +69,6 @@ function jitter(id: string, salt = 0): number {
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-
-function ellipse(rx: number, rz: number): THREE.Shape {
-    const s = new THREE.Shape();
-    s.absellipse(0, 0, rx, rz, 0, Math.PI * 2, false, 0);
-    return s;
-}
-// endregion
-
-// region Card
-interface Target {
-    pos: THREE.Vector3;
-    yaw: number;
-    up: boolean;
-    scale: number;
-    compact: boolean;
-}
-
-type Place = { zone: 'hand'; player: number; index: number } | { zone: 'discard'; top: boolean } | { zone: 'held' };
-
-/** A card: two faces back to back lying on the table, turned over by a real 3D rotation */
-class Card3D {
-    readonly group = new THREE.Group();
-    readonly frontMat: THREE.MeshStandardMaterial;
-    readonly backMat: THREE.MeshStandardMaterial;
-    view: CardView;
-    place: Place | null = null;
-    target: Target | null = null;
-    private compact = false;
-    private glowTween: gsap.core.Tween | null = null;
-    private glowLevel = 0;
-    private moveTween: gsap.core.Tween | null = null;
-
-    constructor(view: CardView) {
-        this.view = view;
-        // Matte card stock: no glare under the lamp
-        this.frontMat = new THREE.MeshStandardMaterial({map: backTexture(), roughness: .78, metalness: 0, alphaTest: .5, emissive: GLOW, emissiveIntensity: 0});
-        this.backMat = new THREE.MeshStandardMaterial({map: backTexture(), roughness: .72, metalness: 0, alphaTest: .5, emissive: GLOW, emissiveIntensity: 0});
-        const front = new THREE.Mesh(cardGeometry, this.frontMat);
-        front.rotation.x = -Math.PI / 2;
-        front.position.y = .0015;
-        const back = new THREE.Mesh(cardGeometry, this.backMat);
-        back.rotation.x = Math.PI / 2;
-        back.position.y = -.0015;
-        for (const m of [front, back]) {
-            m.castShadow = true;
-            m.receiveShadow = true;
-            m.userData.card = this;
-        }
-        this.group.add(front, back);
-        // Turn on the table first (yaw), then the flip of the card itself
-        this.group.rotation.order = 'YZX';
-        this.group.rotation.z = Math.PI;
-        this.learn(view);
-    }
-
-    learn(view: CardView) {
-        if (!view.value) return;
-        this.view = view;
-        this.drawFace();
-    }
-
-    private drawFace() {
-        const card = toCard(this.view);
-        if (!card) return;
-        const map = faceTexture(card, this.compact);
-        if (this.frontMat.map !== map) {
-            this.frontMat.map = map;
-            this.frontMat.needsUpdate = true;
-        }
-    }
-
-    moveTo(t: Target, delay = 0, instant = false) {
-        if (t.compact !== this.compact) {
-            this.compact = t.compact;
-            this.drawFace();
-        }
-        const previous = this.target;
-        this.target = t;
-        const flip = t.up && this.view.value ? 0 : Math.PI;
-        const yaw = nearestAngle(this.group.rotation.y, t.yaw);
-        if (instant) {
-            this.moveTween?.kill();
-            gsap.killTweensOf(this.group.rotation);
-            this.group.position.copy(t.pos);
-            this.group.rotation.set(0, yaw, flip);
-            this.group.scale.setScalar(t.scale);
-            return;
-        }
-        const travelling = !!this.moveTween && this.moveTween.progress() < 1;
-        if (previous && previous.pos.distanceTo(t.pos) < .001 && previous.yaw === t.yaw && previous.up === t.up && previous.scale === t.scale
-            && (travelling || this.group.position.distanceTo(t.pos) < .001)) return;
-        const from = this.group.position.clone();
-        const distance = from.distanceTo(t.pos);
-        const flips = Math.abs(this.group.rotation.z - flip) > .1;
-        const duration = Math.min(.75, .32 + distance * .06 + (flips ? .1 : 0));
-        // Arc above the table: higher for long moves and for a flip (the card must not go through the baize)
-        const height = Math.min(1.1, distance * .15) + (flips ? .4 * t.scale : 0);
-        const k = {v: 0};
-        this.moveTween?.kill();
-        gsap.killTweensOf(this.group.rotation);
-        gsap.killTweensOf(this.group.scale);
-        this.moveTween = gsap.to(k, {
-            v: 1, duration, delay, ease: 'power2.inOut',
-            onStart: () => {
-                if (distance > .05) sfx.slide();
-            },
-            onUpdate: () => {
-                this.group.position.lerpVectors(from, t.pos, k.v);
-                this.group.position.y += Math.sin(k.v * Math.PI) * height;
-            },
-        });
-        gsap.to(this.group.rotation, {x: 0, y: yaw, z: flip, duration, delay, ease: 'power2.inOut', onComplete: () => flips && sfx.flip()});
-        gsap.to(this.group.scale, {x: t.scale, y: t.scale, z: t.scale, duration, delay, ease: 'power2.inOut'});
-    }
-
-    /** Back to its place (a drag that went nowhere) */
-    settle() {
-        const t = this.target;
-        this.target = null;
-        if (t) this.moveTo(t);
-    }
-
-    /** 0 nothing, 1 can be chosen (a few pulses, then steady), 2 chosen */
-    glow(level: number) {
-        if (level === this.glowLevel) return;
-        this.glowLevel = level;
-        this.glowTween?.kill();
-        const mats = [this.frontMat, this.backMat];
-        if (level === 0) this.glowTween = gsap.to(mats, {emissiveIntensity: 0, duration: .2});
-        else if (level === 1) this.glowTween = gsap.fromTo(mats, {emissiveIntensity: .02}, {emissiveIntensity: .14, duration: .5, yoyo: true, repeat: 4});
-        else this.glowTween = gsap.to(mats, {emissiveIntensity: .26, duration: .15});
-    }
-
-    shake() {
-        const x = this.group.position.x;
-        gsap.fromTo(this.group.position, {x: x - .06}, {x, duration: .5, ease: 'elastic.out(1.2, .3)'});
-    }
-
-    dispose(scene: THREE.Scene) {
-        this.moveTween?.kill();
-        this.glowTween?.kill();
-        gsap.killTweensOf([this.group.rotation, this.group.scale, this.group.position, this.frontMat, this.backMat]);
-        scene.remove(this.group);
-        this.frontMat.dispose();
-        this.backMat.dispose();
-    }
-}
 // endregion
 
 interface Seat {
@@ -366,9 +102,28 @@ export class Table3DView {
     private readonly scene = new THREE.Scene();
     private readonly camera = new THREE.PerspectiveCamera(36, 1, .1, 80);
     private readonly tableGroup = new THREE.Group();
-    private readonly deck = new THREE.Group();
-    private readonly deckLayers: THREE.Mesh[] = [];
+    private readonly chairs = new THREE.Group();
+    private readonly deck = new Deck3D();
     private readonly deckCount: CSS2DObject;
+    private materials!: TableMaterials;
+    private lamp!: THREE.SpotLight;
+    private dust!: THREE.Points;
+    /** Everything is drawn once the fonts are there (the cards and the baize are printed with them) */
+    private ready = false;
+    private quality: Quality = firstQuality();
+    /** Asked in the address of the page: never changed */
+    private readonly pinned = askedQuality();
+    private finish: Finish | null = null;
+    /** Time of the last frames, to notice a device that draws too slowly */
+    private pace = {last: 0, frames: 0, total: 0};
+    /** Where the camera stands (set for the size of the screen), and what moves it a little around that place */
+    private readonly stand = {look: new THREE.Vector3(), dir: new THREE.Vector3(0, 1, 1).normalize(), distance: 12};
+    private readonly intro = {k: 0};
+    private readonly sway = new THREE.Vector2();
+    private readonly swayTo = new THREE.Vector2();
+    private readonly still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /** Cards that leave the table: their shadows follow them until they are gone */
+    private readonly leaving = new Set<Card3D>();
     private readonly discardZone: THREE.Mesh;
     private readonly resizeObserver: ResizeObserver;
     private readonly unsubscribe: () => void;
@@ -406,17 +161,22 @@ export class Table3DView {
         this.screen = document.createElement('div');
         this.screen.className = 'table-screen table3d';
         // WebGL: throws if the device can't (the app then shows the flat table)
-        this.renderer = new THREE.WebGLRenderer({antialias: true});
-        anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        this.renderer = new THREE.WebGLRenderer({antialias: true, powerPreference: 'high-performance'});
+        if (this.pinned) this.quality = this.pinned;
+        setSharpness(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
         this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFShadowMap;
+        // Like a film: bright things roll off softly instead of burning out
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         // A dim room: the light falls on the table only
-        this.renderer.toneMappingExposure = .82;
+        this.renderer.toneMappingExposure = .86;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.domElement.className = 'table3d-canvas';
         this.renderer.domElement.setAttribute('aria-hidden', 'true');
+        // The corners of the picture fall off into the dark, like through a lens
+        const vignette = document.createElement('div');
+        vignette.className = 'table3d-vignette';
         const labelsEl = document.createElement('div');
         labelsEl.className = 'table3d-labels';
         this.labels = new CSS2DRenderer({element: labelsEl});
@@ -441,26 +201,26 @@ export class Table3DView {
         this.live = document.createElement('div');
         this.live.className = 'sr-only';
         this.live.setAttribute('aria-live', 'polite');
-        this.screen.append(this.renderer.domElement, labelsEl, bar, this.bannerEl, this.actionsEl, this.panelEl, this.live);
+        this.screen.append(this.renderer.domElement, vignette, labelsEl, bar, this.bannerEl, this.actionsEl, this.panelEl, this.live);
         root.replaceChildren(this.screen);
         this.chrome = new TableChrome({
             session, screen: this.screen, bar: left, prefs: this.prefs, chatBox: options.chatBox, debug: options.debug,
             quitWarning: options.quitWarning, onQuit: options.onQuit, onTableChange: options.onTableChange,
         });
 
-        this.buildScene();
         this.deckCount = new CSS2DObject(Object.assign(document.createElement('div'), {className: 'table3d-count'}));
         this.scene.add(this.deckCount);
         this.discardZone = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + .12, CARD_H + .12),
-            new THREE.MeshBasicMaterial({color: '#000', transparent: true, opacity: .2, depthWrite: false}));
+            new THREE.MeshBasicMaterial({color: '#000', transparent: true, opacity: .16, depthWrite: false}));
         this.discardZone.rotation.x = -Math.PI / 2;
-        this.discardZone.position.set(DISCARD_X, .001, PILES_Z);
+        this.discardZone.position.set(DISCARD_X, .0008, PILES_Z);
         this.discardZone.userData.discard = true;
         this.scene.add(this.discardZone);
 
         const canvasEl = this.renderer.domElement;
         canvasEl.addEventListener('pointerdown', e => this.pointerDown(e));
         canvasEl.addEventListener('pointermove', e => this.pointerMove(e));
+        canvasEl.addEventListener('pointerleave', () => this.swayTo.set(0, 0));
         window.addEventListener('pointerup', this.onPointerUp);
         this.resizeObserver = new ResizeObserver(() => this.resize());
         this.resizeObserver.observe(this.screen);
@@ -475,15 +235,73 @@ export class Table3DView {
             document.fonts.load(`800 16px ${SANS}`),
         ]).catch(() => undefined);
         if (this.destroyed) return;
-        // Drawn again now that the fonts are there
-        for (const t of textures.values()) t.dispose();
-        textures.clear();
+        this.buildScene();
+        this.ready = true;
+        this.setQuality(this.quality);
         this.resize(true);
-        this.renderer.setAnimationLoop(() => {
-            this.renderer.render(this.scene, this.camera);
-            this.labels.render(this.scene, this.camera);
-            this.keepBubblesInside();
-        });
+        // The camera comes down to the table
+        if (!this.still && this.prefs.speed !== 'fast') gsap.fromTo(this.intro, {k: 1}, {k: 0, duration: 2.2, ease: 'power3.out'});
+        this.renderer.setAnimationLoop(time => this.tick(time));
+    }
+
+    /** One picture: the camera, the shadows of the cards, the dust, then the table and its labels */
+    private tick(time: number) {
+        const dt = Math.min(.1, (time - this.pace.last) / 1000 || 0);
+        this.watchPace(time);
+        this.sway.lerp(this.swayTo, Math.min(1, dt * 3));
+        const {look, dir, distance} = this.stand;
+        const camera = this.camera;
+        camera.position.copy(look).addScaledVector(dir, distance * (1 + .3 * this.intro.k));
+        camera.position.x += this.sway.x * .28;
+        camera.position.y += this.sway.y * .14 + this.intro.k * 1.5;
+        camera.lookAt(look);
+        for (const sprite of this.sprites.values()) sprite.cast();
+        for (const sprite of this.leaving) sprite.cast();
+        this.dust.rotation.y += dt * .012;
+        this.dust.position.y = Math.sin(time / 9000) * .12;
+        if (this.finish) this.finish.render();
+        else this.renderer.render(this.scene, camera);
+        this.labels.render(this.scene, camera);
+        this.keepBubblesInside();
+    }
+
+    /** A device that draws too slowly gets a simpler picture (never the other way: no flickering between two) */
+    private watchPace(time: number) {
+        const pace = this.pace;
+        const dt = time - pace.last;
+        pace.last = time;
+        // Hidden page, first pictures (everything is being sent to the graphics card): not counted
+        if (this.pinned || dt > 250 || ++pace.frames <= 40) return;
+        pace.total += dt;
+        if (pace.frames < 100) return;
+        const average = pace.total / 60;
+        pace.frames = 0;
+        pace.total = 0;
+        const lower = LOWER[this.quality];
+        if (average > 27 && lower) this.setQuality(lower);
+    }
+
+    private setQuality(quality: Quality) {
+        this.quality = quality;
+        if (!this.pinned) remembered = quality;
+        const shadows = quality === 'high' ? 2048 : 1024;
+        if (this.lamp.shadow.mapSize.x !== shadows) {
+            this.lamp.shadow.mapSize.set(shadows, shadows);
+            this.lamp.shadow.map?.dispose();
+            this.lamp.shadow.map = null;
+        }
+        this.dust.visible = quality !== 'low';
+        if (quality !== 'high') {
+            this.finish?.dispose();
+            this.finish = null;
+        } else if (!this.finish) {
+            import('./post.js').then(module => {
+                if (this.destroyed || this.quality !== 'high' || this.finish) return;
+                this.finish = module.finish(this.renderer, this.scene, this.camera);
+                this.resize();
+            }).catch(error => console.warn('3D finish unavailable', error));
+        }
+        this.resize();
     }
 
     public render() {
@@ -508,11 +326,20 @@ export class Table3DView {
         clearTimeout(this.dutchTimer);
         this.chrome.destroy();
         this.renderer.setAnimationLoop(null);
-        for (const s of this.sprites.values()) s.dispose(this.scene);
+        gsap.killTweensOf(this.intro);
+        for (const s of [...this.sprites.values(), ...this.leaving]) s.dispose();
+        this.deck.dispose();
+        this.finish?.dispose();
+        for (const seat of this.seats.values()) gsap.killTweensOf([seat.chip.position, seat.ring.material]);
         this.scene.traverse(o => {
-            if (o instanceof THREE.Mesh && o.geometry !== cardGeometry) o.geometry.dispose();
+            if ((o instanceof THREE.Mesh || o instanceof THREE.Points) && !SHARED.has(o.geometry)) o.geometry.dispose();
+            if (o instanceof THREE.InstancedMesh) o.dispose();
         });
+        this.scene.environment?.dispose();
+        if (this.ready) Object.values(this.materials).forEach(m => m.dispose());
         this.renderer.dispose();
+        // The graphics memory is given back now, not when the browser gets to it
+        this.renderer.forceContextLoss();
         document.body.classList.remove('in-game');
         this.screen.remove();
     }
@@ -577,89 +404,16 @@ export class Table3DView {
     // region Scene: room, table, lights
     private buildScene() {
         const scene = this.scene;
-        scene.background = new THREE.Color('#090605');
-        scene.fog = new THREE.Fog('#090605', 14, 30);
-        const pmrem = new THREE.PMREMGenerator(this.renderer);
-        scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
-        scene.environmentIntensity = .22;
-        scene.add(this.tableGroup);
-
-        // The lamp above the table: a warm, dim pool of light; the room stays dark
-        const lamp = new THREE.SpotLight('#ffd9a8', 165, 0, .7, .85, 2);
-        lamp.position.set(0, 9.5, 1);
-        lamp.castShadow = true;
-        lamp.shadow.mapSize.set(2048, 2048);
-        lamp.shadow.bias = -.0003;
-        lamp.shadow.normalBias = .02;
-        lamp.shadow.radius = 5;
-        scene.add(lamp, lamp.target);
-        scene.add(new THREE.HemisphereLight('#ffe8cc', '#160d07', .28));
-        const fill = new THREE.DirectionalLight('#ffe9c8', .25);
-        fill.position.set(-3, 6, 9);
-        scene.add(fill);
-
-        // Draw pile: layers of cards, thicker when it has more cards
-        this.deck.position.set(DECK_X, 0, PILES_Z);
-        for (let i = 0; i < 14; i++) {
-            const m = new THREE.Mesh(cardGeometry, new THREE.MeshStandardMaterial({map: backTexture(), roughness: .72, alphaTest: .5, emissive: GLOW, emissiveIntensity: 0}));
-            m.rotation.x = -Math.PI / 2;
-            m.position.set(-i * .002, i * .006, -i * .003);
-            m.castShadow = true;
-            m.receiveShadow = true;
-            m.userData.deck = true;
-            this.deckLayers.push(m);
-            this.deck.add(m);
-        }
-        scene.add(this.deck);
-    }
-
-    /** Baize, padded leather rail, mahogany band and brass trim, body, floor: for the current table size */
-    private buildTable() {
-        const g = this.tableGroup;
-        g.traverse(o => {
-            if (o instanceof THREE.Mesh) o.geometry.dispose();
-        });
-        g.clear();
-        const {rx, rz} = this;
-        const feltGeo = new THREE.ShapeGeometry(ellipse(rx, rz), 120);
-        const pos = feltGeo.attributes.position, uv = feltGeo.attributes.uv;
-        // Same aspect whatever the table shape: the print stays round
-        const span = Math.max(rx, rz);
-        for (let i = 0; i < pos.count; i++) uv.setXY(i, .5 + pos.getX(i) / (2 * span), .5 + pos.getY(i) / (2 * span));
-        const felt = new THREE.Mesh(feltGeo, new THREE.MeshStandardMaterial({map: texture('baize', baize), roughness: .97}));
-        felt.rotation.x = -Math.PI / 2;
-        felt.receiveShadow = true;
-        // Padded leather armrest
-        const ring = ellipse(rx + RAIL, rz + RAIL);
-        ring.holes.push(ellipse(rx + .02, rz + .02));
-        const rail = new THREE.Mesh(new THREE.ExtrudeGeometry(ring, {depth: .06, bevelEnabled: true, bevelThickness: .12, bevelSize: .1, bevelSegments: 8, curveSegments: 140}),
-            new THREE.MeshStandardMaterial({map: texture('leather', leather, 1.2), roughness: .48, metalness: 0, envMapIntensity: 1.3}));
-        rail.rotation.x = -Math.PI / 2;
-        rail.position.y = .02;
-        rail.castShadow = true;
-        rail.receiveShadow = true;
-        // Mahogany band under the leather
-        const band = ellipse(rx + RAIL + .14, rz + RAIL + .14);
-        band.holes.push(ellipse(rx + RAIL - .05, rz + RAIL - .05));
-        const wood = new THREE.Mesh(new THREE.ExtrudeGeometry(band, {depth: .16, bevelEnabled: true, bevelThickness: .02, bevelSize: .02, bevelSegments: 2, curveSegments: 140}),
-            new THREE.MeshStandardMaterial({map: texture('mahogany', mahogany, .35), roughness: .35, envMapIntensity: 1.2}));
-        wood.rotation.x = -Math.PI / 2;
-        wood.position.y = -.2;
-        wood.receiveShadow = true;
-        // Brass trim between the baize and the leather
-        const brass = new THREE.Mesh(new THREE.RingGeometry(1, 1.012, 180), new THREE.MeshStandardMaterial({color: '#c9a050', metalness: .95, roughness: .28}));
-        brass.scale.set(rx + .01, rz + .01, 1);
-        brass.rotation.x = -Math.PI / 2;
-        brass.position.y = .003;
-        const body = new THREE.Mesh(new THREE.ExtrudeGeometry(ellipse(rx + RAIL, rz + RAIL), {depth: 1, bevelEnabled: false, curveSegments: 90}),
-            new THREE.MeshStandardMaterial({color: '#2a1209', roughness: .6}));
-        body.rotation.x = -Math.PI / 2;
-        body.position.y = -1.2;
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), new THREE.MeshStandardMaterial({color: '#150d08', roughness: 1}));
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -1.2;
-        floor.receiveShadow = true;
-        g.add(felt, rail, wood, brass, body, floor);
+        scene.background = new THREE.Color('#070504');
+        scene.fog = new THREE.Fog('#070504', 20, 50);
+        scene.environment = reflections(this.renderer);
+        scene.environmentIntensity = .5;
+        this.materials = tableMaterials();
+        const light = lights(this.quality === 'high' ? 2048 : 1024);
+        this.lamp = light.lamp;
+        this.dust = dust();
+        this.deck.group.position.set(DECK_X, 0, PILES_Z);
+        scene.add(this.tableGroup, this.chairs, light.group, this.dust, this.deck.group);
     }
     // endregion
 
@@ -676,11 +430,12 @@ export class Table3DView {
 
     private buildSeats(s: GameView) {
         for (const seat of this.seats.values()) {
+            gsap.killTweensOf([seat.chip.position, seat.ring.material]);
             this.scene.remove(seat.chip, seat.label, seat.ring);
             seat.labelEl.remove();
-            seat.chip.traverse(o => {
-                if (o instanceof THREE.Mesh) (o.material as THREE.Material[]).forEach?.(m => m.dispose());
-            });
+            empty(seat.chip);
+            seat.ring.geometry.dispose();
+            (seat.ring.material as THREE.Material).dispose();
         }
         this.seats.clear();
         const order = this.order(s);
@@ -723,8 +478,8 @@ export class Table3DView {
                 const along = index === 0 ? 0 : (ownShare / 2 + (index - .5) * otherShare) * stretch;
                 const angle = angleAt(along);
                 const scale = index === 0 ? ownScale : otherScale;
-                // Own hand closer to the rail: room for the piles and the held card
-                const radius = index === 0 ? .74 : f;
+                // Own hand closer to the rail (room for the piles and the held card), but never under its cushion
+                const radius = index === 0 ? Math.min(.74, (this.rz - .16 - handD * ownScale / 2) / this.rz) : f;
                 const pos = new THREE.Vector3(this.rx * radius * Math.cos(angle), 0, this.rz * radius * Math.sin(angle));
                 return {id, index, pos, yaw: Math.atan2(pos.x, pos.z), scale};
             });
@@ -771,20 +526,16 @@ export class Table3DView {
         placed.forEach(({id, index, pos, yaw, scale}) => {
             const p = s.players[id];
             const seat = {pos, yaw};
-            // Clay chip on the left of the hand, the name above it
+            // A small stack of clay chips on the left of the hand, the name above it
             const chip = new THREE.Group();
             const r = .2 + .04 * scale;
-            const sideMat = new THREE.MeshStandardMaterial({map: texture(`chip-side-${p.color}`, () => chipSide(p.color)), roughness: .55, emissive: GLOW, emissiveIntensity: 0});
-            const topMat = new THREE.MeshStandardMaterial({map: texture(`chip-top-${p.color}`, () => chipTop(p.color)), roughness: .5, emissive: GLOW, emissiveIntensity: 0});
-            const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .07, 48), [sideMat, topMat, topMat]);
-            disc.castShadow = true;
-            disc.userData.player = p.id;
-            chip.add(disc);
-            chip.position.copy(this.local(seat, -(handW * scale / 2 + r + .14), handD * scale * .2, .035));
+            const chips = index === 0 ? 6 : 5;
+            chip.add(chipStack(p.color, r, chips, p.id));
+            chip.position.copy(this.local(seat, -(handW * scale / 2 + r + .14), handD * scale * .2, 0));
             const labelEl = document.createElement('div');
             labelEl.className = scale < .62 && index ? 'table3d-tag small' : 'table3d-tag';
             const label = new CSS2DObject(labelEl);
-            label.position.copy(chip.position).add(new THREE.Vector3(0, .22, 0));
+            label.position.copy(chip.position).add(new THREE.Vector3(0, chips * CHIP_T + .1, 0));
             label.center.set(.5, 1);
             const ring = new THREE.Mesh(new THREE.RingGeometry(.97, 1, 96), new THREE.MeshBasicMaterial({color: '#e8c374', transparent: true, opacity: 0, depthWrite: false}));
             ring.rotation.x = -Math.PI / 2;
@@ -794,20 +545,28 @@ export class Table3DView {
             this.scene.add(chip, label, ring);
             this.seats.set(id, {id, pos, yaw, scale, compact: false, corners: footprint({pos, yaw, scale}), chip, label, labelEl, ring});
         });
+        // A chair behind everybody else (this player's own chair is under the camera)
+        buildChairs(this.chairs, placed.filter(p => p.index).map(p => p.pos), this.rx, this.rz, this.materials);
     }
     // endregion
 
     // region Camera: the cards framed for the screen, seen from the player's chair
     private resize(force = false) {
         const w = this.screen.clientWidth || innerWidth, h = this.screen.clientHeight || innerHeight;
+        const ratio = Math.min(devicePixelRatio || 1, this.quality === 'high' ? 2 : this.quality === 'medium' ? 1.5 : 1);
+        this.renderer.setPixelRatio(ratio);
         this.renderer.setSize(w, h);
+        this.finish?.setSize(w, h, ratio);
         this.labels.setSize(w, h);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        if (!this.ready) return;
         const upright = w / h < .8;
         if (force || upright !== this.upright || !this.tableGroup.children.length) {
             this.upright = upright;
             // Long table on an upright phone, wide table on a screen held sideways
             [this.rx, this.rz] = upright ? [3.3, 4.7] : [5, 3.3];
-            this.buildTable();
+            buildTable(this.tableGroup, this.rx, this.rz, this.materials);
             this.seatKey = '';
         }
         this.camera.aspect = w / h;
@@ -835,7 +594,7 @@ export class Table3DView {
         if (!this.upright && !short) {
             for (let i = 0; i < 24; i++) {
                 const a = i / 24 * Math.PI * 2;
-                points.push(new THREE.Vector3((this.rx + RAIL * .3) * Math.cos(a), 0, (this.rz + RAIL * .3) * Math.sin(a)));
+                points.push(new THREE.Vector3((this.rx + RAIL * .7) * Math.cos(a), 0, (this.rz + RAIL * .7) * Math.sin(a)));
             }
         }
         // Room for the top bar and the banner at the top, the buttons at the bottom
@@ -857,9 +616,14 @@ export class Table3DView {
         camera.lookAt(look);
         camera.updateProjectionMatrix();
         camera.updateMatrixWorld();
+        // Where the camera stands: every picture is taken from around there
+        this.stand.look.copy(look);
+        this.stand.dir.copy(dir);
+        this.stand.distance = distance;
+        // The room is lost in the dark beyond the pool of light
         const fog = this.scene.fog as THREE.Fog;
-        fog.near = distance * 1.3;
-        fog.far = distance * 2.6;
+        fog.near = distance * 1.5;
+        fog.far = distance * 3.8;
         // Cards small on the screen show their compact face
         for (const seat of this.seats.values()) {
             const a = this.local(seat, -CARD_W * seat.scale / 2, 0).project(camera);
@@ -873,7 +637,7 @@ export class Table3DView {
     // region Sync: every card where the state says it is
     private sync(instant = false) {
         const s = this.state;
-        if (!s || this.destroyed) return;
+        if (!s || this.destroyed || !this.ready) return;
         const key = this.order(s).join(',') + `|${s.settings.cardsPerPlayer}|${this.rx}`;
         if (key !== this.seatKey) {
             this.seatKey = key;
@@ -895,9 +659,9 @@ export class Table3DView {
             let sprite = this.sprites.get(view.id);
             const known = view.value ? view : this.revealed.get(view.id)?.view ?? roundFaces.get(view.id);
             if (!sprite) {
-                sprite = new Card3D(known ?? view);
-                sprite.group.position.set(DECK_X, .12, PILES_Z);
-                this.scene.add(sprite.group);
+                // A new card comes from the top of the draw pile
+                sprite = new Card3D(known ?? view, this.scene);
+                sprite.group.position.set(DECK_X, this.deck.height + .03, PILES_Z);
                 this.sprites.set(view.id, sprite);
             } else if (known) sprite.learn(known);
             if (this.drag?.sprite !== sprite) sprite.moveTo(t, delay, instant && !this.dealing);
@@ -918,7 +682,7 @@ export class Table3DView {
                 const z = (row - (rows - 1) / 2) * (CARD_H + GAP) * scale;
                 const picked = this.throwPick === card.id;
                 const up = !!card.value || this.revealed.has(card.id) || (roundOver && roundFaces.has(card.id));
-                put(card, {pos: this.local(seat, x, z, picked ? .25 : 0), yaw: seat.yaw + jitter(card.id) * .05, up, scale, compact: seat.compact},
+                put(card, {pos: this.local(seat, x, z, LIE + (picked ? .25 : 0)), yaw: seat.yaw + jitter(card.id) * .05, up, scale, compact: seat.compact, floor: 0},
                     {zone: 'hand', player: p.id, index},
                     this.dealing ? .5 + (index * n + seatIndex) * .06 : roundOver ? .15 * seatIndex + index * .06 : 0);
             });
@@ -931,7 +695,7 @@ export class Table3DView {
             const pos = !own ? this.local(seat, 0, 0, .55)
                 : this.upright ? new THREE.Vector3(0, .35, PILES_Z + CARD_H + .5) : new THREE.Vector3(DISCARD_X + 1.15, .35, PILES_Z + .15);
             const scale = own ? Math.max(1, seat.scale * .95) : seat.scale;
-            put(s.drawn.card, {pos, yaw: own ? -.06 : seat.yaw, up: !!s.drawn.card.value, scale, compact: !own && seat.compact}, {zone: 'held'});
+            put(s.drawn.card, {pos, yaw: own ? -.06 : seat.yaw, up: !!s.drawn.card.value, scale, compact: !own && seat.compact, floor: 0}, {zone: 'held'});
         }
         const top = s.topDiscard;
         if (!top) this.pile = [];
@@ -941,17 +705,16 @@ export class Table3DView {
         }
         const visible = this.pile.slice(-6).filter(c => !seen.has(c.id));
         visible.forEach((card, k) => put(card, {
-            pos: new THREE.Vector3(DISCARD_X + jitter(card.id, 1) * .1, .004 + k * .004, PILES_Z + jitter(card.id, 2) * .1),
-            yaw: jitter(card.id, 3) * .5, up: true, scale: 1, compact: false,
+            pos: new THREE.Vector3(DISCARD_X + jitter(card.id, 1) * .1, LIE + k * STACK, PILES_Z + jitter(card.id, 2) * .1),
+            yaw: jitter(card.id, 3) * .5, up: true, scale: 1, compact: false, floor: k * STACK,
         }, {zone: 'discard', top: k === visible.length - 1}, this.dealing ? .5 + n * s.settings.cardsPerPlayer * .06 + .2 : 0));
         for (const [id, sprite] of this.sprites) {
             if (seen.has(id)) continue;
             this.sprites.delete(id);
-            gsap.delayedCall(.6, () => sprite.dispose(this.scene));
+            this.leave(sprite, .6);
         }
         this.dealing = false;
-        const layers = Math.min(this.deckLayers.length, Math.ceil(s.deckRemaining / 7));
-        this.deckLayers.forEach((m, i) => m.visible = i < layers);
+        this.deck.count(s.deckRemaining);
         (this.deckCount.element as HTMLElement).textContent = s.deckRemaining ? `${s.deckRemaining}` : 'vide';
         this.trackMove(s);
         this.highlights(s);
@@ -969,8 +732,11 @@ export class Table3DView {
     }
 
     private startRound(s: GameView) {
+        // Every card is gathered back into the draw pile
         for (const sprite of this.sprites.values()) {
-            gsap.to(sprite.group.position, {x: DECK_X, z: PILES_Z, y: .2, duration: .4, delay: Math.random() * .2, ease: 'power2.in', onComplete: () => sprite.dispose(this.scene)});
+            gsap.killTweensOf(sprite.group.position);
+            gsap.to(sprite.group.position, {x: DECK_X, z: PILES_Z, y: this.deck.height + .2, duration: .4, delay: Math.random() * .2, ease: 'power2.in'});
+            this.leave(sprite, .65);
         }
         this.sprites.clear();
         this.pile = [];
@@ -979,6 +745,15 @@ export class Table3DView {
         this.shownRound = s.round;
         this.panelFor = '';
         this.panelEl.hidden = true;
+    }
+
+    /** A card that is not in the game any more: gone after a moment, its shadow with it */
+    private leave(sprite: Card3D, after: number) {
+        this.leaving.add(sprite);
+        gsap.delayedCall(after, () => {
+            this.leaving.delete(sprite);
+            sprite.dispose();
+        });
     }
 
     private trackMove(s: GameView) {
@@ -1022,7 +797,7 @@ export class Table3DView {
             sprite.glow(level);
         }
         const canDraw = myTurn && s.phase === 'draw' && !effect && !s.isStuck;
-        this.deckLayers.forEach(m => gsap.to(m.material, {emissiveIntensity: canDraw ? .14 : 0, duration: .3}));
+        this.deck.glow(canDraw);
         const turnStarts = s.viewerId !== null && myTurn && s.phase === 'draw';
         if (turnStarts && !this.myTurnBefore) buzz(this.prefs, 15);
         this.myTurnBefore = turnStarts;
@@ -1033,7 +808,7 @@ export class Table3DView {
             const ring = seat.ring.material as THREE.MeshBasicMaterial;
             if (active && !seat.labelEl.classList.contains('active')) {
                 gsap.fromTo(ring, {opacity: 0}, {opacity: .6, duration: .35});
-                gsap.fromTo(seat.chip.position, {y: .035}, {y: .22, duration: .25, yoyo: true, repeat: 1, ease: 'power2.out'});
+                gsap.fromTo(seat.chip.position, {y: 0}, {y: .18, duration: .25, yoyo: true, repeat: 1, ease: 'power2.out'});
             } else if (!active && seat.labelEl.classList.contains('active')) {
                 gsap.to(ring, {opacity: 0, duration: .3});
             }
@@ -1276,7 +1051,8 @@ export class Table3DView {
         const rect = this.renderer.domElement.getBoundingClientRect();
         const pointer = new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
         this.raycaster.setFromCamera(pointer, this.camera);
-        const targets: THREE.Object3D[] = [this.deck, this.discardZone];
+        const targets: THREE.Object3D[] = [this.discardZone];
+        if (this.deck.group.visible) targets.push(this.deck.group);
         for (const seat of this.seats.values()) targets.push(seat.chip);
         for (const sprite of this.sprites.values()) targets.push(sprite.group);
         const hits = this.raycaster.intersectObjects(targets, true).filter(h => h.object.visible);
@@ -1298,6 +1074,11 @@ export class Table3DView {
 
     private pointerMove(e: PointerEvent) {
         const drag = this.drag;
+        // The player leans a little to the side his mouse goes: the table is seen in depth
+        if (e.pointerType === 'mouse' && !this.still && !drag?.moved) {
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            this.swayTo.set((e.clientX - rect.left) / rect.width * 2 - 1, .5 - (e.clientY - rect.top) / rect.height);
+        }
         if (!drag) return;
         if (!drag.moved) {
             if (!drag.canDrag || Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) < 8) return;

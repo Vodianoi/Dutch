@@ -3,11 +3,12 @@
  *  The test versions are published on the same site as the real one, each in its own folder:
  *  - `dev` (branch dev): https://vodianoi.github.io/Dutch/dev/
  *  - `new-look` (branch style/new-look, a proposal for a new design): https://vodianoi.github.io/Dutch/new-look/
+ *  - `3d` (branch feat/3d-realistic, the realistic 3D table): https://vodianoi.github.io/Dutch/3d/
  *  They share the browser storage and the PeerJS server with the real site,
  *  so everything a test version saves and its room codes are kept apart with its own prefix.
  */
 export function testVersion(pathname: string): string | null {
-    return /\/(dev|new-look)\//.exec(pathname)?.[1] ?? null;
+    return /\/(dev|new-look|3d)\//.exec(pathname)?.[1] ?? null;
 }
 
 /** Name of the test version running (null on the real site) */
@@ -29,7 +30,7 @@ const path = typeof location !== 'undefined' ? location.pathname : '';
 export const IS_LOCAL = host === 'localhost' || host === '127.0.0.1' || host === '';
 
 /**
- *  Testing tools are offered on the test versions (/dev/, /new-look/) and on this computer, not on the real site
+ *  Testing tools are offered on the test versions (/dev/, /new-look/, /3d/) and on this computer, not on the real site
  */
 export function hasTestTools(hostname: string, pathname: string): boolean {
     return testVersion(pathname) !== null || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
@@ -40,3 +41,6 @@ export const HOT_SEAT = hasTestTools(host, path);
 
 /** The 3D table (prototype): a testing tool, never on the real site */
 export const TABLE_3D = hasTestTools(host, path);
+
+/** The preview of the 3D table opens with it (the other versions open with the flat table) */
+export const TABLE_3D_FIRST = TEST_VERSION === '3d';

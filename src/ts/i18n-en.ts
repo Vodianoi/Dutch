@@ -246,6 +246,7 @@ export const EN: Record<string, string> = {
     'Dutch (version de test)': 'Dutch (test version)',
     'Les parties sont séparées de celles du vrai site': 'Games are kept apart from those of the real site',
     'Aperçu du nouveau look': 'Preview of the new look',
+    'Aperçu de la table en 3D': 'Preview of the 3D table',
     'Version de test': 'Test version',
     'La partie enregistrée n\'a pas pu être reprise.': 'The saved game could not be resumed.',
     'Création de la partie…': 'Creating the game…',

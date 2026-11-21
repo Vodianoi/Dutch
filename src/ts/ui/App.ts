@@ -69,7 +69,7 @@ export class App {
             document.title = t('Dutch (version de test)');
             (document.querySelector('.brand') ?? document.querySelector('.site-header'))?.appendChild(
                 el('span', {class: 'dev-badge', title: t('Les parties sont séparées de celles du vrai site')},
-                    TEST_VERSION === 'new-look' ? t('Aperçu du nouveau look') : t('Version de test')));
+                    TEST_VERSION === 'new-look' ? t('Aperçu du nouveau look') : TEST_VERSION === '3d' ? t('Aperçu de la table en 3D') : t('Version de test')));
         }
         // The look chosen on this device, before anything is drawn with it
         applyTheme(loadPrefs().theme);
