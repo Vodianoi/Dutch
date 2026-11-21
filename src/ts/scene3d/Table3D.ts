@@ -158,12 +158,10 @@ export class Table3D {
         this.observer = new ResizeObserver(() => {
             if (this.stage.resize()) this.relayout();
         });
-        this.overlays = new MutationObserver(() => {
-            const covered = !!document.querySelector('body > .overlay');
-            this.stage.cover(covered);
-            this.skins?.hold(covered);
-        });
+        this.overlays = new MutationObserver(() => this.checkCovered());
         this.overlays.observe(document.body, {childList: true});
+        // A dialog may already be open (the table drawn again behind it)
+        this.checkCovered();
         this.listen();
         void this.init();
         // Automated checks find the cards on the screen through this
@@ -175,6 +173,7 @@ export class Table3D {
         await loadFonts();
         if (this.destroyed) return;
         this.skins = new CardSkins(this.prefs.back, this.stage.renderer.capabilities.getMaxAnisotropy(), this.stage.fine, this.stage.repaint);
+        this.skins.hold(!!document.querySelector('body > .overlay'));
         this.pile = new DrawPile(this.skins, this.stage.invalidate);
         this.stage.cards.add(this.pile.root);
         this.stage.resize();
@@ -184,6 +183,13 @@ export class Table3D {
 
     public render() {
         this.requestSync();
+    }
+
+    /** A menu or a dialog over the table: it is drawn less often and its cards stop breathing */
+    private checkCovered() {
+        const covered = !!document.querySelector('body > .overlay');
+        this.stage.cover(covered);
+        this.skins?.hold(covered);
     }
 
     public destroy() {

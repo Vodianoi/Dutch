@@ -117,6 +117,10 @@ export class Stage {
         /** Below 1 when the device could not keep up: fewer pixels are drawn (see tick) */
         this.quality = 1;
         this.slowFrames = [];
+        /** Time between two frames of the screen when nothing is drawn: 16.7 ms at 60 Hz, 33 ms on a phone saving its battery */
+        this.cadence = 1000 / 60;
+        this.lastTick = 0;
+        this.idleTicks = 0;
         this.stats = { draws: 0, shadows: 0, frames: 0, worst: 0, last: 0 };
         this.home = new Vector3();
         this.jolt = { x: 0, y: 0 };
@@ -136,8 +140,15 @@ export class Stage {
         this.tick = () => {
             const now = performance.now();
             this.measure(now);
-            if (!this.dirty && !this.lightDirty)
+            // Two frames in a row with nothing drawn: their gap is the pace of the screen itself
+            if (this.idleTicks >= 1 && this.lastTick && now - this.lastTick < 100)
+                this.cadence += (now - this.lastTick - this.cadence) * .1;
+            this.lastTick = now;
+            if (!this.dirty && !this.lightDirty) {
+                this.idleTicks++;
                 return;
+            }
+            this.idleTicks = 0;
             const gap = this.covered ? 1000 / COVERED_FPS : this.dirty ? 0 : 1000 / LIGHT_FPS;
             if (now - this.lastDraw < gap - 2)
                 return;
@@ -211,7 +222,8 @@ export class Stage {
             return;
         const average = this.slowFrames.reduce((sum, g) => sum + g, 0) / this.slowFrames.length;
         this.slowFrames = [];
-        if (average > 24 && this.pixelRatio() > 1.001) {
+        // Slower than the screen itself (a phone saving its battery only gives 30 frames a second: that is not slow)
+        if (average > Math.max(22, this.cadence * 1.5) && this.pixelRatio() > this.floor() + .001) {
             this.quality *= .82;
             this.applySize();
         }
@@ -232,7 +244,7 @@ export class Stage {
         const size = this.renderer.getDrawingBufferSize(new Vector2());
         this.perf.textContent = [
             gpu.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 60),
-            `${size.x}×${size.y} px (×${this.pixelRatio().toFixed(2)}, quality ${this.quality.toFixed(2)})`,
+            `${size.x}×${size.y} px (×${this.pixelRatio().toFixed(2)}, quality ${this.quality.toFixed(2)}, screen ${(1000 / this.cadence).toFixed(0)} Hz)`,
             `page ${stats.frames} fps · slowest ${stats.worst.toFixed(0)} ms`,
             `table drawn ${stats.draws}/s · shadows ${stats.shadows}/s · ${this.renderer.info.render.calls} calls${this.covered ? ' · covered' : ''}`,
         ].join('\n');
@@ -257,7 +269,11 @@ export class Stage {
     pixelRatio() {
         const budget = this.fine ? PIXELS_FINE : PIXELS_LIGHT;
         const ratio = Math.min(devicePixelRatio || 1, 2, Math.sqrt(budget / (this.width * this.height))) * this.quality;
-        return Math.max(Math.min(1, devicePixelRatio || 1), ratio);
+        return Math.max(this.floor(), ratio);
+    }
+    /** Never fewer pixels than this: one per pixel of the page, a little more on phones (small cards must stay sharp) */
+    floor() {
+        return Math.min(devicePixelRatio || 1, this.fine ? 1 : 1.5);
     }
     applySize() {
         this.renderer.setPixelRatio(this.pixelRatio());
