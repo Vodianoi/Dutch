@@ -1,4 +1,4 @@
-import { scoped } from '../env.js';
+import { scoped, TEST_VERSION } from '../env.js';
 import { DEFAULT_THEME, first, THEMES } from './themes.js';
 /** Multiplies the waiting times of the bots */
 export const BOT_PACES = {
@@ -9,7 +9,9 @@ export const BOT_PACES = {
 const KEY = scoped('prefs');
 const DEFAULTS = {
     sound: true, vibration: true, speed: 'normal', theme: DEFAULT_THEME,
-    back: first(THEMES[DEFAULT_THEME].backs), felt: first(THEMES[DEFAULT_THEME].tables), table: '2d', bots: 'normal',
+    back: first(THEMES[DEFAULT_THEME].backs), felt: first(THEMES[DEFAULT_THEME].tables),
+    // The preview of the 3D table (/3d/) opens on it
+    table: TEST_VERSION === '3d' ? '3d' : '2d', bots: 'normal',
 };
 export function loadPrefs() {
     try {
@@ -24,7 +26,7 @@ export function loadPrefs() {
             theme,
             back: saved.back in backs ? saved.back : first(backs),
             felt: saved.felt in tables ? saved.felt : first(tables),
-            table: saved.table === '3d' ? '3d' : '2d',
+            table: saved.table === '3d' || saved.table === '2d' ? saved.table : DEFAULTS.table,
             bots: saved.bots in BOT_PACES ? saved.bots : DEFAULTS.bots,
         };
     }

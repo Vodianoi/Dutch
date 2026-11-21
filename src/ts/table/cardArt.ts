@@ -20,11 +20,31 @@ export const EMOJI = '"Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji",
 /** Name written on the court cards, in the language of this device (Valet / Jack…) */
 const court = (value: Value): string | undefined => ['JACK', 'QUEEN', 'KING'].includes(value) ? valueName(value) : undefined;
 
+/** How many pixels per unit the pictures are drawn with (see drawnAt) */
+let density = 1;
+
+/**
+ *  Draw pictures bigger: the same drawings on canvases `scale` times the size.
+ *  For cards looked at closely (a card held up on the 3D table). Faces and backs only: the soft lights
+ *  (halo, glowArt) are drawn with shadows, which do not follow the scale.
+ */
+export function drawnAt<T>(scale: number, draw: () => T): T {
+    const before = density;
+    density = scale;
+    try {
+        return draw();
+    } finally {
+        density = before;
+    }
+}
+
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
     const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    return [c, c.getContext('2d')!];
+    c.width = Math.round(w * density);
+    c.height = Math.round(h * density);
+    const ctx = c.getContext('2d')!;
+    if (density !== 1) ctx.scale(density, density);
+    return [c, ctx];
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
