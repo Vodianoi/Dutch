@@ -2,7 +2,7 @@
 # - main (the real game) at https://vodianoi.github.io/Dutch/
 # - dev (the test version) at https://vodianoi.github.io/Dutch/dev/
 # - style/new-look (preview of the new look) at https://vodianoi.github.io/Dutch/new-look/
-# - feat/3d-realistic (preview of the realistic 3D table) at https://vodianoi.github.io/Dutch/3d/
+# - feat/3d-v2 (preview of the realistic 3D table) at https://vodianoi.github.io/Dutch/3d/
 # main and dev are published together on every push to either of them.
 # The previews are published from dev: only main and dev may deploy to GitHub Pages, so a push to
 # a preview branch publishes nothing by itself. To refresh a preview, run this workflow by hand
@@ -54,12 +54,12 @@ jobs:
             echo "No style/new-look branch: no preview"
           fi
 
-      - name: Preview of the realistic 3D table (feat/3d-realistic) under /3d/
+      - name: Preview of the realistic 3D table (feat/3d-v2) under /3d/
         run: |
-          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" feat/3d-realistic > /dev/null; then
-            git clone --depth 1 --branch feat/3d-realistic "https://github.com/${{ github.repository }}" _site/3d
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" feat/3d-v2 > /dev/null; then
+            git clone --depth 1 --branch feat/3d-v2 "https://github.com/${{ github.repository }}" _site/3d
           else
-            echo "No feat/3d-realistic branch: no preview"
+            echo "No feat/3d-v2 branch: no preview"
           fi
 
       - name: Remove what is not part of the site
