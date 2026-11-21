@@ -2,14 +2,16 @@
 # - main (the real game) at https://vodianoi.github.io/Dutch/
 # - dev (the test version) at https://vodianoi.github.io/Dutch/dev/
 # - style/new-look (preview of the new look) at https://vodianoi.github.io/Dutch/new-look/
-# The branches are published together on every push to any of them.
-# The preview stays online only while the branch that was pushed last has this step:
-# a push to main or dev before they have it publishes the site without /new-look/.
+# main and dev are published together on every push to either of them.
+# The preview is published from dev: only main and dev may deploy to GitHub Pages, so a push to
+# style/new-look publishes nothing by itself. To refresh the preview, run this workflow by hand
+# from dev (Actions > Pages > Run workflow), or push to dev.
+# A push to main publishes the site without /new-look/ as long as main does not have this step.
 name: Pages
 
 on:
   push:
-    branches: [main, dev, style/new-look]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:

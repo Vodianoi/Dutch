@@ -57,7 +57,7 @@ python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 
 ### Publication
 
-Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`. La branche `style/new-look` ajoute son aperçu sous `/new-look/` ; il reste en ligne tant que la dernière branche poussée a cette étape dans son `pages.yml`.
+Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`. L'aperçu de la branche `style/new-look` est publié sous `/new-look/` par le `pages.yml` de `dev` (seules `main` et `dev` ont le droit de publier) : pour le mettre à jour, lancer le workflow « Pages » à la main depuis `dev`, ou pousser sur `dev`. Un push sur `main` le retire tant que `main` n'a pas cette étape.
 
 Chaque push et chaque pull request est vérifié par GitHub Actions (`.github/workflows/ci.yml`) : compilation TypeScript sans erreur, tests (`npm test`) et fichiers `.js` versionnés à jour par rapport aux `.ts` (sinon : `npm run build` puis commit des `.js`).
 
