@@ -139,3 +139,23 @@ test('after playing, a bot leaves time to throw a card, more when his turn ends 
     assert.ok(lastWait() >= END_ROUND_MS, `ends the round after ${lastWait()} ms`);
     bots.stop();
 });
+
+test('the speed of the bots can change during a game', () => {
+    const game = new Dutch({players: ['Vous', 'B1'], peekVariant: false, effects: []});
+    const timers = [];
+    const solo = new SoloSession(game, undefined, {
+        setTimer: (fn, ms) => timers.push({fn, ms}) - 1,
+        clearTimer: () => {},
+    });
+    game.startRound();
+    solo.dispatch({type: 'drawFromPile', playerId: 0});
+    solo.dispatch({type: 'discardDrawn', playerId: 0});
+    solo.dispatch({type: 'endTurn', playerId: 0, dutch: false});
+    const normal = timers[timers.length - 1].ms;
+    solo.setBotSpeed(1.5);
+    const slow = timers[timers.length - 1].ms;
+    assert.ok(slow >= 1100 * 1.5, `slow: ${slow} ms (normal ${normal} ms)`);
+    solo.setBotSpeed(.65);
+    assert.ok(timers[timers.length - 1].ms <= 1800 * .65, 'fast');
+    solo.close();
+});

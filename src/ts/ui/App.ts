@@ -5,7 +5,7 @@ import Dutch, {DutchOptions, DutchSnapshot, RuleError} from '../Dutch.js';
 import {LocalSession, Session} from '../Session.js';
 import {SoloSession} from '../SoloSession.js';
 import {TableOptions, TableView} from '../table/TableView.js';
-import {loadPrefs, savePrefs} from '../table/prefs.js';
+import {BOT_PACES, loadPrefs, savePrefs} from '../table/prefs.js';
 import {BroadcastTransport} from '../net/BroadcastTransport.js';
 import {Client} from '../net/Client.js';
 import {Host, HostSnapshot} from '../net/Host.js';
@@ -227,7 +227,7 @@ export class App {
     }
 
     private runSolo(game: Dutch, options: DutchOptions) {
-        const session = new SoloSession(game, snapshot => this.saveSolo(snapshot));
+        const session = new SoloSession(game, snapshot => this.saveSolo(snapshot), {speed: BOT_PACES[loadPrefs().bots].factor});
         this.session = session;
         this.showGame(session, () => this.playSolo(options), () => this.home());
         (window as unknown as { dutch: Dutch }).dutch = game;

@@ -5,7 +5,7 @@ import { t } from '../i18n.js';
 import { describeSettings } from '../Settings.js';
 import { ChatBox } from '../ui/ChatBox.js';
 import { BACK_COLORS, TABLE_THEMES } from './cardArt.js';
-import { savePrefs } from './prefs.js';
+import { BOT_PACES, savePrefs } from './prefs.js';
 import { setMuted, unlockAudio } from './sound.js';
 export class TableChrome {
     constructor(o) {
@@ -257,6 +257,7 @@ export class TableChrome {
                     <label class="switch"><input type="checkbox" name="sound" ${prefs.sound ? 'checked' : ''}> ${t('Sons')}</label>
                     <label class="switch"><input type="checkbox" name="vibration" ${prefs.vibration ? 'checked' : ''}> ${t('Vibrations')}</label>
                     <label class="switch"><input type="checkbox" name="fast" ${prefs.speed === 'fast' ? 'checked' : ''}> ${t('Animations rapides')}</label>
+                    ${this.o.session.setBotSpeed ? `<label class="inline-field">${t('Vitesse des ordinateurs')} <select name="bots">${Object.keys(BOT_PACES).map(key => `<option value="${key}" ${prefs.bots === key ? 'selected' : ''}>${t(BOT_PACES[key].name)}</option>`).join('')}</select></label>` : ''}
                     ${this.o.onTableChange ? `<label class="switch"><input type="checkbox" name="table3d" ${prefs.table === '3d' ? 'checked' : ''}> ${t('Table en 3D (prototype)')}</label>` : ''}
                     ${backs}
                     ${felts}
@@ -287,6 +288,10 @@ export class TableChrome {
                 prefs.vibration = input.checked;
             if (input.name === 'fast')
                 prefs.speed = input.checked ? 'fast' : 'normal';
+            if (input.name === 'bots' && input.value in BOT_PACES) {
+                prefs.bots = input.value;
+                this.o.session.setBotSpeed?.(BOT_PACES[prefs.bots].factor);
+            }
             if (input.name === 'showAll')
                 this.o.session.setShowAll(input.checked);
             if (input.name === 'felt') {
