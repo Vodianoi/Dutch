@@ -1,14 +1,16 @@
 import { CanvasSource, Texture } from 'pixi.js';
 import { back, compactFace, face, glowArt, halo, ring, spark, spot } from './cardArt.js';
-import { ORANJE_LIGHT } from './palette.js';
-export { BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF, TABLE_THEMES } from './cardArt.js';
+import { theme } from './themes.js';
+export { CH, CW, drawTable, EMOJI } from './cardArt.js';
 /**
  *  Texture with mipmaps: cards drawn much smaller than their 240px source (opponents' hands) stay smooth
  */
 export function smooth(canvas) {
     return new Texture({ source: new CanvasSource({ resource: canvas, autoGenerateMipmaps: true, scaleMode: 'linear' }) });
 }
-export function makeArt(backColor = 'delft') {
+/** Card pictures in the theme of this device */
+export function makeArt(backColor) {
+    const ui = theme().ui;
     const faces = new Map();
     const compacts = new Map();
     return {
@@ -31,8 +33,8 @@ export function makeArt(backColor = 'delft') {
             return texture;
         },
         back: smooth(back(backColor)),
-        shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, .6)),
-        glow: smooth(glowArt(ORANJE_LIGHT)),
+        shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, ui.cardShadow)),
+        glow: smooth(glowArt(ui.glow)),
         spark: smooth(spark()),
         ring: smooth(ring()),
         spot: smooth(spot()),

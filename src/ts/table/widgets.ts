@@ -1,50 +1,42 @@
 import {Container, Graphics, Rectangle, Sprite, Text} from 'pixi.js';
 import {gsap} from 'gsap';
-import {Art, CH, CW, SANS} from './art.js';
+import {Art, CH, CW} from './art.js';
 import {centered} from './CardSprite.js';
 import {handH, handW, Seat} from './layout.js';
-import {DELFT, DELFT_DARK, FAIENCE, FAIENCE_MUTED, hex, INK, ORANJE, ORANJE_LIGHT} from './palette.js';
+import {hex, theme} from './themes.js';
 import {points} from '../i18n.js';
 import {sfx} from './sound.js';
 
-/** Warm light on the blue table: whose turn it is, notices */
-export const ACCENT = hex(ORANJE_LIGHT);
-/** Text on the table */
-export const WHITE = hex(FAIENCE);
-
-export function label(text: string, size: number, color = WHITE, weight: '400' | '600' | '800' = '600'): Text {
-    return new Text({text, style: {fontFamily: SANS, fontSize: size, fill: color, fontWeight: weight}});
+/** Text on the table, in the font and (unless told otherwise) the colour of the theme */
+export function label(text: string, size: number, color = hex(theme().ui.text), weight: '400' | '600' | '800' = '600'): Text {
+    return new Text({text, style: {fontFamily: theme().body, fontSize: size, fill: color, fontWeight: weight}});
 }
 
-/** `primary`: white key, on the table. `solid`: blue key, on a white panel. `danger`: the « Dutch » call. `ghost`: a way out */
+/** `primary`: on the table. `solid`: on the score panel. `danger`: the « Dutch » call. `ghost`: a way out */
 export type ButtonKind = 'primary' | 'solid' | 'danger' | 'ghost';
 
-const KEYS: Record<Exclude<ButtonKind, 'ghost'>, { face: string; edge: string; text: string }> = {
-    primary: {face: FAIENCE, edge: '#aebbd8', text: DELFT_DARK},
-    solid: {face: DELFT, edge: '#122a66', text: FAIENCE},
-    danger: {face: ORANJE, edge: '#a8420a', text: INK},
-};
-
 /**
- *  Button drawn on the table (turn actions, score panel): a glazed key, with its thickness showing under it
+ *  Button drawn on the table (turn actions, score panel): a key in the colours of the theme,
+ *  with its thickness showing under it when the theme has keys that stand out
  */
 export function button(text: string, kind: ButtonKind, scale: number, onTap: () => void): Container {
+    const ui = theme().ui;
     const box = new Container();
-    const key = kind === 'ghost' ? null : KEYS[kind];
-    const t = label(text, 15 * scale, key ? hex(key.text) : WHITE, '800');
+    const key = kind === 'ghost' ? null : ui.keys[kind];
+    const t = label(text, 15 * scale, hex(key ? key.text : ui.ghost.text), '800');
     t.anchor.set(.5);
     const w = Math.max(t.width + 36 * scale, 110 * scale);
     const h = 44 * scale;
-    const r = 12 * scale;
+    const r = Math.min(ui.keyRadius * scale, h / 2);
     const bg = new Graphics();
     if (key) {
         // The edge of the key shows under its face
-        const depth = 3 * scale;
-        bg.roundRect(-w / 2, -h / 2 + depth, w, h - depth, r).fill(key.edge);
+        const depth = ui.keyDepth * scale;
+        if (depth) bg.roundRect(-w / 2, -h / 2 + depth, w, h - depth, r).fill(key.edge);
         bg.roundRect(-w / 2, -h / 2, w, h - depth, r).fill(key.face);
         t.y = -depth / 2;
     } else {
-        bg.roundRect(-w / 2, -h / 2, w, h, r).fill({color: hex(INK), alpha: .4}).stroke({width: 1.5, color: WHITE, alpha: .6});
+        bg.roundRect(-w / 2, -h / 2, w, h, r).fill({color: hex(ui.ghost.fill), alpha: ui.ghost.alpha}).stroke({width: 1.5, color: hex(ui.ghost.stroke), alpha: .6});
     }
     box.addChild(bg, t);
     box.eventMode = 'static';
@@ -83,13 +75,16 @@ export class SeatView extends Container {
         this.fullName = name;
         this.initial = label(name[0]?.toUpperCase() ?? '?', 16, 0xffffff, '800');
         this.initial.anchor.set(.5);
-        this.nameText = label(name, 13, WHITE, '800');
-        this.scoreText = label('', 12, hex(FAIENCE_MUTED), '400');
-        // Names sit on the rim of the table or on the room: a soft shadow keeps them readable on both
-        const shadow = {color: hex(INK), alpha: .85, blur: 4, distance: 1, angle: Math.PI / 2};
-        this.nameText.style.dropShadow = shadow;
-        this.scoreText.style.dropShadow = shadow;
-        this.badgeText = label('DUTCH', 10, hex(INK), '800');
+        const ui = theme().ui;
+        this.nameText = label(name, 13, hex(ui.text), '800');
+        this.scoreText = label('', 12, hex(ui.muted), '400');
+        if (ui.textShadow) {
+            // Names sit on the rim of the table or on the room: a soft shadow keeps them readable on both
+            const shadow = {color: hex(ui.textShadow), alpha: .85, blur: 4, distance: 1, angle: Math.PI / 2};
+            this.nameText.style.dropShadow = shadow;
+            this.scoreText.style.dropShadow = shadow;
+        }
+        this.badgeText = label('DUTCH', 10, hex(ui.badge.text), '800');
         this.badgeText.anchor.set(.5);
         this.badge.addChild(new Graphics(), this.badgeText);
         this.badge.visible = false;
@@ -102,7 +97,7 @@ export class SeatView extends Container {
     public layout(seat: Seat, ui: number, cols: number) {
         const r = seat.avatar.r;
         this.position.set(seat.avatar.x, seat.avatar.y);
-        this.ring.clear().circle(0, 0, r + 4).stroke({width: 3, color: ACCENT});
+        this.ring.clear().circle(0, 0, r + 4).stroke({width: 3, color: hex(theme().ui.accent)});
         this.ring.alpha = this.lit ? 1 : 0;
         this.disc.clear().circle(0, 0, r).fill(this.color).stroke({width: 2, color: 0xffffff, alpha: .92});
         this.initial.style.fontSize = r * .85;
@@ -133,7 +128,7 @@ export class SeatView extends Container {
 
     private placeBadge(r: number, side: 'right' | 'below') {
         const w = this.badgeText.width + 14;
-        (this.badge.children[0] as Graphics).clear().roundRect(-w / 2, -9, w, 18, 6).fill(hex(ORANJE));
+        (this.badge.children[0] as Graphics).clear().roundRect(-w / 2, -9, w, 18, Math.min(6, theme().ui.keyRadius)).fill(hex(theme().ui.badge.fill));
         if (side === 'right') this.badge.position.set(r + 8 + Math.max(this.nameText.width, this.scoreText.width) + w / 2 + 8, 0);
         else this.badge.position.set(0, -r - 14);
     }

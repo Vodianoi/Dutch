@@ -5,15 +5,15 @@ import {Session, SessionEvent} from '../Session.js';
 import {ChatBox} from '../ui/ChatBox.js';
 import {joinNames, t} from '../i18n.js';
 import {Action, CardView, effectCard, GameView, isProtected, logText, noticeText, PlayerView} from '../View.js';
-import {Art, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
+import {Art, BackColor, CW, drawTable, EMOJI, makeArt} from './art.js';
 import {CH} from './size.js';
 import {TableChrome} from './chrome.js';
 import {CardSprite, centered, dispose, Place, stopTweens, Target} from './CardSprite.js';
 import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
 import {buzz, loadPrefs, Prefs} from './prefs.js';
 import {sfx, unlockAudio} from './sound.js';
-import {ACCENT, button, ButtonKind, label, SeatView, WHITE} from './widgets.js';
-import {ALERT, ALERT_DARK, DELFT, FAIENCE, hex, INK, INK_MUTED, ORANJE, ORANJE_DARK, ORANJE_LIGHT} from './palette.js';
+import {button, ButtonKind, label, SeatView} from './widgets.js';
+import {hex, theme, themeId} from './themes.js';
 
 /**
  *  The game screen: a card table drawn with PixiJS (WebGL) and animated with GSAP.
@@ -56,19 +56,28 @@ function artFor(back: BackColor): Art {
     return art;
 }
 
-let fontsReady: Promise<unknown> | null = null;
+/** Fonts of each theme already asked for */
+const fontsReady = new Map<string, Promise<unknown>>();
 
+/** The fonts the table writes with: those of the theme of this device, and the emojis of the reactions */
 function loadFonts() {
-    fontsReady ??= Promise.all([
-        document.fonts.load(`700 40px ${SERIF}`),
-        document.fonts.load(`italic 700 40px ${SERIF}`),
-        document.fonts.load(`italic 600 40px ${SERIF}`),
-        document.fonts.load(`800 16px ${SANS}`),
-        document.fonts.load(`600 16px ${SANS}`),
-        document.fonts.load(`400 16px ${SANS}`),
-        document.fonts.load(`32px ${EMOJI}`, '😀👍😂😮😬😡🎉🤔😎🙏🔥'),
-    ]).catch(() => undefined);
-    return fontsReady;
+    const {display, body, cards} = theme();
+    let ready = fontsReady.get(themeId());
+    if (!ready) {
+        ready = Promise.all([
+            document.fonts.load(`${cards.rank.weight} 40px ${cards.rank.family}`),
+            document.fonts.load(`${theme().ui.call.style} ${theme().ui.call.weight} 40px ${display}`),
+            document.fonts.load(`${theme().table.name.font} 40px ${display}`),
+            document.fonts.load(`italic 600 40px ${display}`),
+            document.fonts.load(`700 40px ${display}`),
+            document.fonts.load(`800 16px ${body}`),
+            document.fonts.load(`600 16px ${body}`),
+            document.fonts.load(`400 16px ${body}`),
+            document.fonts.load(`32px ${EMOJI}`, '😀👍😂😮😬😡🎉🤔😎🙏🔥'),
+        ]).catch(() => undefined);
+        fontsReady.set(themeId(), ready);
+    }
+    return ready;
 }
 
 export class TableView {
@@ -97,14 +106,14 @@ export class TableView {
     private readonly deckStack: Sprite[] = [];
     private deckGlow!: Sprite;
     private deckLit = false;
-    private readonly deckCount = label('', 12, WHITE, '600');
+    private readonly deckCount = label('', 12, undefined, '600');
     private readonly seatsLayer = new Container();
     private readonly cardsLayer = new Container();
     private readonly uiLayer = new Container();
     private readonly fxLayer = new Container();
     private readonly bannerBox = new Container();
     private readonly bannerBg = new Graphics();
-    private readonly bannerText = label('', 15, WHITE, '600');
+    private readonly bannerText = label('', 15, hex(theme().ui.banner.text), '600');
     private readonly buttons = new Container();
     private throwButton: Container | null = null;
 
@@ -168,6 +177,8 @@ export class TableView {
         this.chrome = new TableChrome({
             session, screen: this.screen, bar: left, prefs: this.prefs, chatBox: options.chatBox, debug: options.debug,
             quitWarning: options.quitWarning, onQuit: options.onQuit, onBackChange: () => this.changeBack(), onFeltChange: () => this.relayout(), onTableChange: options.onTableChange,
+            // Another theme: the same game on a new table, drawn with it
+            onThemeChange: options.onRebuild,
         });
         this.unsubscribe = session.on(event => this.onSessionEvent(event));
         void this.init();
@@ -182,7 +193,7 @@ export class TableView {
         const app = new Application();
         await app.init({
             resizeTo: this.host, antialias: true, autoDensity: true,
-            resolution: Math.min(devicePixelRatio || 1, 2), background: '#070c1f',
+            resolution: Math.min(devicePixelRatio || 1, 2), background: theme().ui.background,
         });
         if (this.destroyed) {
             app.destroy(true, {children: true});
@@ -271,7 +282,7 @@ export class TableView {
                 sfx.bad();
                 buzz(this.prefs, 20);
             }
-            this.chip(this.bottomId(), noticeText(event.notice), event.notice.kind === 'error' ? hex(ALERT) : ACCENT);
+            this.chip(this.bottomId(), noticeText(event.notice), event.notice.kind === 'error' ? hex(theme().ui.alert) : hex(theme().ui.accent));
         }
     }
 
@@ -385,10 +396,11 @@ export class TableView {
         this.deckCount.style.fontSize = 12 * L.ui;
         this.deckView.hitArea = new Rectangle(-L.pileW / 2, -L.pileW * RATIO / 2, L.pileW, L.pileW * RATIO);
         const zw = L.pileW, zh = zw * RATIO;
+        const slot = theme().ui.slot;
         this.discardZone.clear()
             .roundRect(L.discard.x - zw / 2, L.discard.y - zh / 2, zw, zh, zw * .08)
-            .fill({color: hex(INK), alpha: .2})
-            .stroke({width: 2, color: WHITE, alpha: .3});
+            .fill({color: hex(slot.fill), alpha: slot.fillAlpha})
+            .stroke({width: 2, color: hex(slot.stroke), alpha: slot.strokeAlpha + .06});
         this.discardZone.hitArea = new Rectangle(L.discard.x - zw / 2, L.discard.y - zh / 2, zw, zh);
         this.bannerText.style.fontSize = 15 * L.ui;
         this.bannerText.style.wordWrap = L.portrait;
@@ -636,7 +648,8 @@ export class TableView {
                 this.slots.roundRect(pos.x - w / 2, pos.y - h / 2, w, h, w * .08);
             });
         }
-        this.slots.fill({color: hex(INK), alpha: .2}).stroke({width: 1.5, color: WHITE, alpha: .22});
+        const empty = theme().ui.slot;
+        this.slots.fill({color: hex(empty.fill), alpha: empty.fillAlpha}).stroke({width: 1.5, color: hex(empty.stroke), alpha: empty.strokeAlpha});
 
         for (const sprite of this.sprites.values()) {
             const place = sprite.place;
@@ -727,7 +740,9 @@ export class TableView {
         this.bannerBox.scale.set(Math.min(1, this.layout.banner.maxW / (this.bannerText.width + 32)));
         const w = this.bannerText.width + 32;
         const h = this.bannerText.height + 14;
-        this.bannerBg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h / 2, 12)).fill({color: hex(INK), alpha: .62}).stroke({width: 1, color: WHITE, alpha: .24});
+        const banner = theme().ui.banner;
+        this.bannerBg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h / 2, theme().ui.keyRadius))
+            .fill({color: hex(banner.fill), alpha: banner.alpha}).stroke({width: 1, color: hex(banner.stroke), alpha: banner.strokeAlpha});
         gsap.fromTo(this.bannerBox, {alpha: .3}, {alpha: 1, duration: .3});
     }
 
@@ -846,13 +861,13 @@ export class TableView {
             dispose(previous);
         }
         const box = new Container();
-        const t = label(text, 12.5 * L.ui, 0xffffff, '600');
+        const t = label(text, 12.5 * L.ui, hex(theme().ui.chip.text), '600');
         t.style.wordWrap = true;
         t.style.wordWrapWidth = Math.min(230 * L.ui, L.w - 40);
         t.style.align = 'center';
         t.anchor.set(.5);
         const w = t.width + 22, h = t.height + 12;
-        box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, 9).fill({color: hex(INK), alpha: .92}).stroke({width: 2, color}), t);
+        box.addChild(new Graphics().roundRect(-w / 2, -h / 2, w, h, Math.min(9, theme().ui.keyRadius)).fill({color: hex(theme().ui.chip.fill), alpha: .92}).stroke({width: 2, color}), t);
         this.fxLayer.addChild(box);
         this.chips.set(key, box);
         this.chipAnchors.set(box, pos);
@@ -949,7 +964,7 @@ export class TableView {
             const actor = s.players.find(p => text.startsWith(p.name)) ?? s.players.find(p => text.includes(p.name));
             // This device's own routine moves are not announced: the player just did them
             if (actor && s.viewerId === actor.id && entry.kind === 'info') continue;
-            const color = actor ? parseInt(actor.color.slice(1), 16) : ACCENT;
+            const color = actor ? parseInt(actor.color.slice(1), 16) : hex(theme().ui.accent);
             this.chip(actor ? actor.id : null, text, color);
             this.live.textContent = text;
         }
@@ -1009,17 +1024,18 @@ export class TableView {
         sfx.dutch();
         buzz(this.prefs, [30, 40, 30]);
         const L = this.layout;
+        const call = theme().ui.call;
         const box = new Container();
         const big = new Text({
             text: 'DUTCH !',
             style: {
-                fontFamily: SERIF, fontStyle: 'italic', fontWeight: '700', fontSize: Math.min(L.w, L.h) * .17,
-                fill: hex(ORANJE), stroke: {color: WHITE, width: 9, join: 'round'},
-                dropShadow: {color: hex(INK), alpha: .65, blur: 12, distance: 6, angle: Math.PI / 2},
+                fontFamily: theme().display, fontStyle: call.style, fontWeight: call.weight, fontSize: Math.min(L.w, L.h) * .17,
+                fill: hex(call.fill), stroke: {color: hex(call.stroke), width: 9, join: 'round'},
+                dropShadow: {color: hex(call.shadow), alpha: .65, blur: 12, distance: 6, angle: Math.PI / 2},
             },
         });
         big.anchor.set(.5);
-        const small = label(me ? t('Vous annoncez la fin : dernier tour pour les autres') : t('{name} annonce la fin : dernier tour pour les autres', {name}), 15 * L.ui, 0xffffff, '800');
+        const small = label(me ? t('Vous annoncez la fin : dernier tour pour les autres') : t('{name} annonce la fin : dernier tour pour les autres', {name}), 15 * L.ui, hex(theme().ui.dim.text), '800');
         small.anchor.set(.5, 0);
         small.y = big.height / 2;
         box.addChild(big, small);
@@ -1040,7 +1056,7 @@ export class TableView {
     /** Victory: paper confetti falling over the table */
     private confetti() {
         const L = this.layout;
-        const colors = [hex(ORANJE), WHITE, 0x8fb0ff, hex(ORANJE_LIGHT), hex(DELFT), WHITE];
+        const colors = theme().ui.confetti.map(hex);
         sfx.dutch();
         for (let i = 0; i < 90; i++) {
             const piece = new Graphics().rect(-4, -7, 8, 14).fill(colors[i % colors.length]);
@@ -1099,23 +1115,24 @@ export class TableView {
         if (this.panel) dispose(this.panel);
         const L = this.layout;
         const ui = L.ui;
+        const {panel, dim: veil} = theme().ui;
         const p = new Container();
         const w = Math.min(400 * ui, L.w - 24);
         const rows = result.scores.length;
         const rowH = Math.min(40 * ui, (L.h - 220 * ui) / rows);
         const h = 130 * ui + rowH * rows;
-        const dim = new Graphics().rect(0, 0, L.w, L.h).fill({color: 0x050a1c, alpha: .55});
+        const dim = new Graphics().rect(0, 0, L.w, L.h).fill({color: hex(veil.color), alpha: veil.alpha});
         dim.eventMode = 'static';
         dim.cursor = 'pointer';
         dim.on('pointertap', () => this.lookAtTable());
         const box = new Container();
         box.position.set(L.w / 2, L.h / 2);
-        // A white plaque with the double blue frame of a tile
-        const back = new Graphics().roundRect(-w / 2, -h / 2, w, h, 12).fill(hex(FAIENCE))
-            .roundRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12, 7).stroke({width: 1.5, color: hex(DELFT), alpha: .55});
+        // A plaque like those of the menus, with a line a little inside its edge when the theme has one
+        const back = new Graphics().roundRect(-w / 2, -h / 2, w, h, panel.radius).fill(hex(panel.fill));
+        if (panel.frame) back.roundRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12, Math.max(0, panel.radius - 5)).stroke({width: 1.5, color: hex(panel.frame), alpha: .6});
         back.eventMode = 'static'; // A tap on the scores themselves doesn't close them
         box.addChild(back);
-        const aside = label(t('Touchez la table pour voir les cartes'), 13 * ui, WHITE, '600');
+        const aside = label(t('Touchez la table pour voir les cartes'), 13 * ui, hex(veil.text), '600');
         aside.anchor.set(.5, 0);
         aside.y = h / 2 + 12 * ui;
         aside.alpha = .9;
@@ -1125,7 +1142,7 @@ export class TableView {
             const names = result.winners.map(id => id === s.viewerId ? t('vous') : s.players[id].name);
             title = result.winners.length === 1 && result.winners[0] === s.viewerId ? t('Vous gagnez !') : t('Victoire : {names}', {names: joinNames(names)});
         }
-        const titleText = new Text({text: title, style: {fontFamily: SERIF, fontWeight: '700', fontSize: 24 * ui, fill: hex(DELFT)}});
+        const titleText = new Text({text: title, style: {fontFamily: theme().display, fontWeight: '700', fontSize: 24 * ui, fill: hex(panel.title)}});
         titleText.anchor.set(.5, 0);
         titleText.y = -h / 2 + 18 * ui;
         box.addChild(titleText);
@@ -1134,13 +1151,13 @@ export class TableView {
             const y = -h / 2 + 62 * ui + i * rowH + rowH / 2;
             const won = result.winners.includes(r.playerId);
             box.addChild(new Graphics().circle(-w / 2 + 28 * ui, y, 9 * ui).fill(player.color));
-            const name = label(`${r.playerId === s.viewerId ? t('{name} (vous)', {name: player.name}) : player.name}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}`, 15 * ui, hex(won ? ORANJE_DARK : INK), '800');
+            const name = label(`${r.playerId === s.viewerId ? t('{name} (vous)', {name: player.name}) : player.name}${r.playerId === result.dutchCallerId ? ' · Dutch' : ''}`, 15 * ui, hex(won ? panel.win : panel.text), '800');
             name.anchor.set(0, .5);
             name.position.set(-w / 2 + 46 * ui, y);
-            const pts = label(`+${r.points}${r.penalty ? ` (+${r.penalty})` : ''}`, 14 * ui, hex(r.penalty ? ALERT_DARK : INK_MUTED), '600');
+            const pts = label(`+${r.points}${r.penalty ? ` (+${r.penalty})` : ''}`, 14 * ui, hex(r.penalty ? panel.penalty : panel.muted), '600');
             pts.anchor.set(1, .5);
             pts.position.set(w / 2 - 80 * ui, y);
-            const total = label(`${r.total}`, 17 * ui, hex(INK), '800');
+            const total = label(`${r.total}`, 17 * ui, hex(panel.text), '800');
             total.anchor.set(1, .5);
             total.position.set(w / 2 - 22 * ui, y);
             box.addChild(name, pts, total);
@@ -1154,7 +1171,7 @@ export class TableView {
             next.y = bottom;
             box.addChild(next);
         } else {
-            const wait = label(result.gameOver ? t('En attente d\'une nouvelle partie…') : t('En attente de {name} pour la suite…', {name: s.players[0].name}), 14 * ui, hex(INK_MUTED), '600');
+            const wait = label(result.gameOver ? t('En attente d\'une nouvelle partie…') : t('En attente de {name} pour la suite…', {name: s.players[0].name}), 14 * ui, hex(panel.muted), '600');
             wait.anchor.set(.5);
             wait.y = bottom;
             box.addChild(wait);

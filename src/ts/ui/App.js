@@ -6,6 +6,7 @@ import { LocalSession } from '../Session.js';
 import { SoloSession } from '../SoloSession.js';
 import { TableView } from '../table/TableView.js';
 import { BOT_PACES, loadPrefs, savePrefs } from '../table/prefs.js';
+import { applyTheme } from '../table/themes.js';
 import { BroadcastTransport } from '../net/BroadcastTransport.js';
 import { Client } from '../net/Client.js';
 import { Host } from '../net/Host.js';
@@ -49,6 +50,8 @@ export class App {
             document.title = t('Dutch (version de test)');
             (document.querySelector('.brand') ?? document.querySelector('.site-header'))?.appendChild(el('span', { class: 'dev-badge', title: t('Les parties sont séparées de celles du vrai site') }, TEST_VERSION === 'new-look' ? t('Aperçu du nouveau look') : t('Version de test')));
         }
+        // The look chosen on this device, before anything is drawn with it
+        applyTheme(loadPrefs().theme);
         renderHero();
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
