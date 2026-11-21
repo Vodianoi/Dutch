@@ -4,6 +4,8 @@ import { normalizeCode } from '../net/Transport.js';
 import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, DEFAULTS_VERSION, describeSettings, EFFECT_LABELS, PLAYER_COLORS, upgradeDefaults, } from '../Settings.js';
 import { lang, LANGS, setLang, t } from '../i18n.js';
 import { clear, el } from './dom.js';
+import { renderHero } from './hero.js';
+import { themeSwitch } from './themePicker.js';
 import { BOT_PACES, loadPrefs, savePrefs } from '../table/prefs.js';
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', { n }))];
 const STORAGE_KEY = scoped('setup');
@@ -61,6 +63,8 @@ export function renderSetup(root, handlers, initial = {}) {
         const tabs = el('div', { class: 'tabs', role: 'group', 'aria-label': t('Mode de jeu') }, tab('solo', t('Contre l\'ordinateur')), tab('online', t('En ligne')), HOT_SEAT ? tab('local', t('Sur cet écran')) : null);
         root.appendChild(el('section', { class: 'setup panel' }, tabs, setup.mode === 'online' ? online() : setup.mode === 'solo' ? solo() : local()));
         root.appendChild(languageSwitch());
+        // The cards of the header are drawn again in the theme chosen
+        root.appendChild(themeSwitch(renderHero));
     };
     const switchMode = (mode) => {
         setup.mode = mode;

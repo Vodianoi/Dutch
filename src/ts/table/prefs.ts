@@ -1,15 +1,19 @@
 import {scoped} from '../env.js';
-import {BACK_COLORS, BackColor, TABLE_THEMES, TableTheme} from './cardArt.js';
+import {BackColor, TableTheme} from './cardArt.js';
+import {DEFAULT_THEME, first, ThemeId, THEMES} from './themes.js';
 
 /**
- *  Preferences of this device (not rules of the game): sound, vibration, animation speed, card back, table
+ *  Preferences of this device (not rules of the game): sound, vibration, animation speed, theme, card back, table
  */
 export interface Prefs {
     sound: boolean;
     vibration: boolean;
     speed: 'normal' | 'fast';
+    /** Look of the whole game: menus, cards, table */
+    theme: ThemeId;
+    /** Card back, among those of the theme */
     back: BackColor;
-    /** Looks of the flat table (felt, rail, room) */
+    /** Look of the flat table (top, rim, room), among those of the theme */
     felt: TableTheme;
     /** Game table: drawn flat (2D) or the 3D table (prototype) */
     table: '2d' | '3d';
@@ -26,17 +30,24 @@ export const BOT_PACES: Record<BotPace, { name: string; factor: number }> = {
 };
 
 const KEY = scoped('prefs');
-const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red', felt: 'green', table: '2d', bots: 'normal'};
+const DEFAULTS: Prefs = {
+    sound: true, vibration: true, speed: 'normal', theme: DEFAULT_THEME,
+    back: first(THEMES[DEFAULT_THEME].backs), felt: first(THEMES[DEFAULT_THEME].tables), table: '2d', bots: 'normal',
+};
 
 export function loadPrefs(): Prefs {
     try {
         const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') ?? {};
+        const theme: ThemeId = saved.theme in THEMES ? saved.theme : DEFAULTS.theme;
+        // A back or a table of another theme (or of an older version): the first ones of this theme
+        const {backs, tables} = THEMES[theme];
         return {
             sound: typeof saved.sound === 'boolean' ? saved.sound : DEFAULTS.sound,
             vibration: typeof saved.vibration === 'boolean' ? saved.vibration : DEFAULTS.vibration,
             speed: saved.speed === 'fast' ? 'fast' : 'normal',
-            back: saved.back in BACK_COLORS ? saved.back : DEFAULTS.back,
-            felt: saved.felt in TABLE_THEMES ? saved.felt : DEFAULTS.felt,
+            theme,
+            back: saved.back in backs ? saved.back : first(backs),
+            felt: saved.felt in tables ? saved.felt : first(tables),
             table: saved.table === '3d' ? '3d' : '2d',
             bots: saved.bots in BOT_PACES ? saved.bots : DEFAULTS.bots,
         };

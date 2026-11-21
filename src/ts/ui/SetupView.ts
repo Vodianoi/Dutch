@@ -8,6 +8,8 @@ import {
 } from '../Settings.js';
 import {lang, LANGS, setLang, t} from '../i18n.js';
 import {clear, el} from './dom.js';
+import {renderHero} from './hero.js';
+import {themeSwitch} from './themePicker.js';
 import {BOT_PACES, BotPace, loadPrefs, savePrefs} from '../table/prefs.js';
 import type {PublicGame} from '../net/PublicGames.js';
 
@@ -121,6 +123,8 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             tabs,
             setup.mode === 'online' ? online() : setup.mode === 'solo' ? solo() : local()));
         root.appendChild(languageSwitch());
+        // The cards of the header are drawn again in the theme chosen
+        root.appendChild(themeSwitch(renderHero));
     };
 
     const switchMode = (mode: SetupMode) => {

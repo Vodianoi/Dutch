@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="delft">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -10,10 +10,24 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#120d09">
+    <meta name="theme-color" content="#0b1433">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Playfair+Display:ital,wght@0,700;0,900;1,900&display=swap" rel="stylesheet">
+    <!-- The theme chosen on this device, worn before the first drawing (same storage name as scoped('prefs') in src/ts/env.ts;
+         the game then applies it itself: src/ts/table/themes.ts) -->
+    <script>
+        try {
+            var version = /\/(dev|new-look)\//.exec(location.pathname);
+            var theme = JSON.parse(localStorage.getItem('dutch-' + (version ? version[1] + '-' : '') + 'prefs') || '{}').theme;
+            if (theme) document.documentElement.dataset.theme = theme;
+        } catch (e) { /* no storage: the first theme */ }
+    </script>
+    <!-- Fonts of the themes, one sheet per theme: a browser only downloads the fonts of the theme it shows -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;600;800&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400..800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
     <!-- Colour emojis of the reactions only (same look on every device) -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap&text=%F0%9F%98%80%F0%9F%91%8D%F0%9F%98%82%F0%9F%98%AE%F0%9F%98%AC%F0%9F%98%A1%F0%9F%8E%89%F0%9F%A4%94%F0%9F%98%8E%F0%9F%99%8F%F0%9F%94%A5" rel="stylesheet">
     <!-- PixiJS (WebGL table) and GSAP (animations), pinned versions -->
@@ -32,11 +46,13 @@
 </head>
 <body>
 <header class="site-header">
-    <h1 class="title">
-        <span class="suits" aria-hidden="true"><span class="red">&#9829;</span><span>&#9824;</span></span>
-        Dutch
-        <span class="suits" aria-hidden="true"><span class="red">&#9830;</span><span>&#9827;</span></span>
-    </h1>
+    <div class="brand">
+        <h1 class="title">Dutch</h1>
+        <!-- What the game is, in the language of this device (src/ts/ui/hero.ts) -->
+        <p class="tagline" id="tagline"></p>
+    </div>
+    <!-- A hand of Dutch, drawn with the cards of the game (src/ts/ui/hero.ts) -->
+    <div class="hero-hand" id="hero-hand" aria-hidden="true"></div>
 </header>
 <main id="app"></main>
 </body>
