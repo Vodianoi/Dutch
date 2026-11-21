@@ -58,13 +58,26 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
     return element;
 }
 
+/** A name plate, where its token is, and the size it had when it was placed */
+interface Tag {
+    id: number;
+    box: HTMLElement;
+    score: HTMLElement;
+    badge: HTMLElement;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    anchor: { at: Point; away: Point; clear: number } | null;
+}
+
 export class Hud {
     public readonly root = make('div', 's3-hud');
     private readonly bannerBox = make('p', 's3-banner');
     private readonly toasts = make('div', 's3-toasts');
     private readonly actions = make('div', 's3-actions');
     private readonly countBox = make('span', 's3-count');
-    private readonly tags = new Map<number, { box: HTMLElement; score: HTMLElement; badge: HTMLElement; x: number; y: number }>();
+    private readonly tags = new Map<number, Tag>();
     private readonly chips = new Map<number, { box: HTMLElement; timer: number }>();
     private throwBox: HTMLButtonElement | null = null;
     private scoresBox: HTMLElement | null = null;
@@ -186,12 +199,13 @@ export class Hud {
                 if ((e.key === 'Enter' || e.key === ' ') && box.classList.contains('choosable')) this.onSeat(p.id);
             });
             this.root.append(box);
-            this.tags.set(p.id, {box, score, badge, x: 0, y: 0});
+            this.tags.set(p.id, {id: p.id, box, score, badge, x: 0, y: 0, w: 0, h: 0, anchor: null});
         }
     }
 
     /**
-     *  A name plate next to its token: on the side away from the cards of the player
+     *  A name plate next to its token: on the side away from the cards of the player.
+     *  Call placeTags() once every plate has been given its token.
      * @param at the token, on the screen
      * @param away direction from the cards to the token, on the screen (unit)
      * @param clear radius of the token on the screen: the plate stays off it
@@ -199,29 +213,72 @@ export class Hud {
      */
     public placeTag(id: number, at: Point, away: Point, clear: number, narrow = false) {
         const tag = this.tags.get(id);
-        if (!tag) return;
+        if (!tag || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return;
         tag.box.classList.toggle('narrow', narrow);
-        const w = tag.box.offsetWidth, h = tag.box.offsetHeight;
-        const reach = clear + 5 + (Math.abs(away.x) * w + Math.abs(away.y) * h) / 2;
-        tag.x = Math.max(w / 2 + 4, Math.min(this.width - w / 2 - 4, at.x + away.x * reach));
-        tag.y = Math.max(this.top + h / 2 + 4, Math.min(this.height - h / 2 - 6, at.y + away.y * reach));
-        tag.box.style.left = `${tag.x}px`;
-        tag.box.style.top = `${tag.y}px`;
+        tag.anchor = {at, away, clear};
     }
 
-    /** Name plates that cover each other (many players at the far end of the table) move up, one above the other */
-    public settleTags() {
-        const placed: { x: number; y: number; w: number; h: number }[] = [];
-        // From the bottom of the screen up: the plates nearest to this device's player keep their place
-        for (const tag of [...this.tags.values()].sort((a, b) => b.y - a.y)) {
-            const w = tag.box.offsetWidth, h = tag.box.offsetHeight;
-            for (let tries = 0; tries < 8; tries++) {
-                const hit = placed.find(o => Math.abs(o.x - tag.x) < (o.w + w) / 2 + 2 && Math.abs(o.y - tag.y) < (o.h + h) / 2 + 2);
-                if (!hit) break;
-                tag.y = Math.max(this.top + h / 2 + 4, hit.y - (hit.h + h) / 2 - 3);
+    /**
+     *  Every plate next to its token, then the plates that cover each other are moved apart: side by side when
+     *  their tokens are side by side (the far end of the table), one above the other when their tokens are
+     *  (along a side). Done again whenever a plate changes size (a score, a badge): see refreshTags.
+     */
+    public placeTags() {
+        const list = [...this.tags.values()].filter(tag => tag.anchor);
+        const minY = (tag: Tag) => this.top + tag.h / 2 + 4;
+        const maxY = (tag: Tag) => this.height - tag.h / 2 - 6;
+        const keepIn = (tag: Tag) => {
+            tag.x = Math.max(tag.w / 2 + 4, Math.min(this.width - tag.w / 2 - 4, tag.x));
+            tag.y = Math.max(minY(tag), Math.min(maxY(tag), tag.y));
+        };
+        for (const tag of list) {
+            const {at, away, clear} = tag.anchor!;
+            tag.w = tag.box.offsetWidth;
+            tag.h = tag.box.offsetHeight;
+            const reach = clear + 5 + (Math.abs(away.x) * tag.w + Math.abs(away.y) * tag.h) / 2;
+            tag.x = at.x + away.x * reach;
+            tag.y = at.y + away.y * reach;
+            keepIn(tag);
+        }
+        for (let pass = 0; pass < 30; pass++) {
+            let moved = false;
+            for (let i = 0; i < list.length; i++) {
+                for (let j = i + 1; j < list.length; j++) {
+                    const a = list[i], b = list[j];
+                    const gx = (a.w + b.w) / 2 + 6 - Math.abs(a.x - b.x);
+                    const gy = (a.h + b.h) / 2 + 3 - Math.abs(a.y - b.y);
+                    if (gx <= 0 || gy <= 0) continue;
+                    moved = true;
+                    // The plates keep the order of their tokens
+                    const dx = a.anchor!.at.x - b.anchor!.at.x, dy = a.anchor!.at.y - b.anchor!.at.y;
+                    if (Math.abs(dx) >= Math.abs(dy)) {
+                        const side = dx < 0 || (dx === 0 && a.id < b.id) ? -1 : 1;
+                        a.x += side * gx / 2;
+                        b.x -= side * gx / 2;
+                    } else {
+                        const side = dy < 0 ? -1 : 1;
+                        a.y += side * gy / 2;
+                        b.y -= side * gy / 2;
+                    }
+                    keepIn(a);
+                    keepIn(b);
+                }
             }
+            if (!moved) break;
+        }
+        for (const tag of list) {
+            tag.box.style.left = `${tag.x}px`;
             tag.box.style.top = `${tag.y}px`;
-            placed.push({x: tag.x, y: tag.y, w, h});
+        }
+    }
+
+    /** A plate changed size (its score, a badge, the fonts or the styles arriving late): every plate is placed again */
+    public refreshTags() {
+        for (const tag of this.tags.values()) {
+            if (tag.anchor && (tag.box.offsetWidth !== tag.w || tag.box.offsetHeight !== tag.h)) {
+                this.placeTags();
+                return;
+            }
         }
     }
 

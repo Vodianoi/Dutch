@@ -109,6 +109,15 @@ function sweep(path: PathPoint[], profile: [number, number][], turns: number): B
     return geometry;
 }
 
+/** Browser and its version, for `?perf` */
+function browserName(): string {
+    const agent = navigator.userAgent;
+    const found = /(Firefox|Edg|OPR|Chrome|Version)\/(\d+)/.exec(agent);
+    if (!found) return agent.slice(0, 40);
+    const name = {Edg: 'Edge', OPR: 'Opera', Version: 'Safari'}[found[1]] ?? found[1];
+    return `${name} ${found[2]}`;
+}
+
 function picture(canvas: HTMLCanvasElement, repeatX = 1, repeatY = 1, color = true): CanvasTexture {
     const texture = new CanvasTexture(canvas);
     if (color) texture.colorSpace = SRGBColorSpace;
@@ -282,7 +291,10 @@ export class Stage {
         const gpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
         const size = this.renderer.getDrawingBufferSize(new Vector2());
         this.perf.textContent = [
-            gpu.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 60),
+            // As the browser tells it: Firefox hides the exact model and names an older card of the same maker,
+            // followed by « or similar »
+            gpu.replace(/^ANGLE \((.*)\)(.*)$/, '$1$2'),
+            browserName(),
             `${size.x}×${size.y} px (×${this.pixelRatio().toFixed(2)}, quality ${this.quality.toFixed(2)}, screen ${(1000 / this.cadence).toFixed(0)} Hz)`,
             `page ${stats.frames} fps · slowest ${stats.worst.toFixed(0)} ms`,
             `table drawn ${stats.draws}/s · shadows ${stats.shadows}/s · ${this.renderer.info.render.calls} calls${this.covered ? ' · covered' : ''}`,

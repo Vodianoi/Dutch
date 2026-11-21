@@ -48,14 +48,29 @@ function loadFonts() {
     return ready;
 }
 
-/** Stylesheet of the 3D table, only loaded by the devices that use it */
-function loadStyles() {
-    if (document.getElementById('scene3d-styles')) return;
-    const link = document.createElement('link');
-    link.id = 'scene3d-styles';
-    link.rel = 'stylesheet';
-    link.href = new URL('../../css/scene3d.css', import.meta.url).href;
-    document.head.append(link);
+let stylesReady: Promise<unknown> | null = null;
+
+/**
+ *  Stylesheet of the 3D table, only loaded by the devices that use it. Nothing is measured before it is there:
+ *  without it the name plates are plain blocks as wide as the screen.
+ */
+function loadStyles(): Promise<unknown> {
+    if (!stylesReady) {
+        const link = document.createElement('link');
+        link.id = 'scene3d-styles';
+        link.rel = 'stylesheet';
+        link.href = new URL('../../css/scene3d.css', import.meta.url).href;
+        // Without the stylesheet (network lost), the table still opens after a while
+        stylesReady = Promise.race([
+            new Promise(resolve => {
+                link.addEventListener('load', resolve);
+                link.addEventListener('error', resolve);
+            }),
+            new Promise(resolve => setTimeout(resolve, 8000)),
+        ]);
+        document.head.append(link);
+    }
+    return stylesReady;
 }
 
 export class Table3D {
@@ -170,7 +185,7 @@ export class Table3D {
 
     // region Lifecycle
     private async init() {
-        await loadFonts();
+        await Promise.all([loadFonts(), loadStyles()]);
         if (this.destroyed) return;
         this.skins = new CardSkins(this.prefs.back, this.stage.renderer.capabilities.getMaxAnisotropy(), this.stage.fine, this.stage.repaint);
         this.skins.hold(!!document.querySelector('body > .overlay'));
@@ -349,7 +364,7 @@ export class Table3D {
             const narrow = mobile && Math.abs(Math.sin(seat.yaw)) > .7;
             this.hud.placeTag(seat.id, at, {x: dx / length, y: dy / length}, radius, narrow);
         }
-        this.hud.settleTags();
+        this.hud.placeTags();
         this.discardPad.position.set(plan.discard.x, .0006, plan.discard.z);
         this.pile!.root.position.set(plan.deck.x, 0, plan.deck.z);
         // Reactions: under the thumb on phones, in the top bar elsewhere
@@ -645,6 +660,8 @@ export class Table3D {
                 connected: p.connected,
             });
         }
+        // A new score or badge makes a plate wider: it must not slide over its token
+        this.hud.refreshTags();
         const active = lit ? (effect ? effect.playerId : cur) : null;
         this.stage.light(active === null ? null : this.seatOf(active));
         this.updateBanner(s);
