@@ -3379,6 +3379,12 @@ fieldset.game-options > legend {
     font-weight: 600;
 }
 
+/* A rule on two or three lines keeps its distance from the next one */
+.setup .checkbox, .game-options .checkbox {
+    padding: 5px 0;
+    line-height: 1.35;
+}
+
 /* A game in progress on this device: the one thing on the home screen that asks to be seen */
 .resume {
     border: 1.5px solid var(--oranje);
