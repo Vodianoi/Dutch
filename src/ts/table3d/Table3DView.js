@@ -23,11 +23,15 @@ import { setSharpness } from './surfaces.js';
 // region Sizes (1 unit = 10 cm)
 const GAP = .08;
 const PILES_Z = -.15;
-const DECK_X = -.5;
-const DISCARD_X = .5;
+/** The two piles are bigger than the cards of the hands: the discard is read all the time */
+const PILE = 1.25;
+const DECK_X = -.62;
+const DISCARD_X = .62;
 const REVEAL_MS = 3000;
-/** Below this size on the screen (pixels), a card shows its compact face (big rank and suit) */
-const COMPACT_PX = 58;
+/** Below this width on the screen (pixels), a card lying on the table shows its compact face (big rank and suit) */
+const COMPACT_PX = 100;
+/** The same for a card held up, turned towards the player: seen straight, it is read smaller */
+const FACING_PX = 74;
 const LOWER = { high: 'medium', medium: 'low', low: null };
 /** What this device could do, kept when the table is drawn again */
 let remembered = null;
@@ -70,7 +74,7 @@ export class Table3DView {
         /** Time of the last frames, to notice a device that draws too slowly */
         this.pace = { last: 0, frames: 0, total: 0 };
         /** Where the camera stands (set for the size of the screen), and what moves it a little around that place */
-        this.stand = { look: new THREE.Vector3(), dir: new THREE.Vector3(0, 1, 1).normalize(), distance: 12 };
+        this.stand = { look: new THREE.Vector3(), dir: new THREE.Vector3(0, 1, 1).normalize(), distance: 12, elevation: .88 };
         this.intro = { k: 0 };
         this.sway = new THREE.Vector2();
         this.swayTo = new THREE.Vector2();
@@ -157,7 +161,7 @@ export class Table3DView {
         });
         this.deckCount = new CSS2DObject(Object.assign(document.createElement('div'), { className: 'table3d-count' }));
         this.scene.add(this.deckCount);
-        this.discardZone = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + .12, CARD_H + .12), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: .16, depthWrite: false }));
+        this.discardZone = new THREE.Mesh(new THREE.PlaneGeometry((CARD_W + .1) * PILE, (CARD_H + .1) * PILE), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: .16, depthWrite: false }));
         this.discardZone.rotation.x = -Math.PI / 2;
         this.discardZone.position.set(DISCARD_X, .0008, PILES_Z);
         this.discardZone.userData.discard = true;
@@ -366,6 +370,7 @@ export class Table3DView {
         this.lamp = light.lamp;
         this.dust = dust();
         this.deck.group.position.set(DECK_X, 0, PILES_Z);
+        this.deck.group.scale.setScalar(PILE);
         scene.add(this.tableGroup, this.chairs, light.group, this.dust, this.deck.group);
     }
     // endregion
@@ -415,11 +420,12 @@ export class Table3DView {
             return Math.PI / 2 + (i - 1 + k) / steps * Math.PI * 2;
         };
         const need = handW + .78;
-        const ownMax = this.upright ? 1.3 : 1.15;
+        // The own cards are the ones that are read: as big as the table allows
+        const ownMax = this.upright ? 1.4 : 1.3;
         let otherScale = clamp((perimeter - n * .22) / (need * (n - 1 + 1.5)), .4, 1);
         // Radial room: hands must stay between the rail and the piles
         otherScale = Math.min(otherScale, clamp((Math.min(this.rx, this.rz) * .62 - 1) / handD * 1.6, .45, 1));
-        let ownScale = clamp(otherScale * 1.5, Math.min(1, ownMax), ownMax);
+        let ownScale = clamp(otherScale * 2.2, 1, ownMax);
         const chipW = (scale) => 2 * (.2 + .04 * scale) + .14;
         const place = () => {
             const ownShare = ownScale * need + .3, otherShare = otherScale * need + .22;
@@ -499,7 +505,7 @@ export class Table3DView {
             ring.scale.set(handW * scale / 2 + .3, handD * scale / 2 + .3, 1);
             ring.position.copy(pos).setY(.004);
             this.scene.add(chip, label, ring);
-            this.seats.set(id, { id, pos, yaw, scale, compact: false, corners: footprint({ pos, yaw, scale }), chip, label, labelEl, ring });
+            this.seats.set(id, { id, pos, yaw, scale, depth: handD * scale, compact: false, corners: footprint({ pos, yaw, scale }), chip, label, labelEl, ring });
         });
         // A chair behind everybody else (this player's own chair is under the camera)
         buildChairs(this.chairs, placed.filter(p => p.index).map(p => p.pos), this.rx, this.rz, this.materials);
@@ -520,8 +526,8 @@ export class Table3DView {
         const upright = w / h < .8;
         if (force || upright !== this.upright || !this.tableGroup.children.length) {
             this.upright = upright;
-            // Long table on an upright phone, wide table on a screen held sideways
-            [this.rx, this.rz] = upright ? [3.3, 4.7] : [5, 3.3];
+            // A long, narrow table seen from its end on an upright phone; a wide table on a screen held sideways
+            [this.rx, this.rz] = upright ? [2.8, 5] : [5, 3.3];
             buildTable(this.tableGroup, this.rx, this.rz, this.materials);
             this.seatKey = '';
         }
@@ -537,11 +543,20 @@ export class Table3DView {
         const camera = this.camera;
         // Short screens (phone held sideways): more from above, the height is precious
         const short = h < 500;
-        const elevation = aspect < .8 ? 1.08 : short ? 1.12 : aspect < 1.3 ? .98 : .88;
+        // Upright phone: the table seen from the player's chair, close and wide. His own cards are right under
+        // his eyes, big; the other players are across the table, as they are for somebody who sits there
+        camera.fov = this.upright ? 56 : 36;
+        const elevation = this.upright ? .85 : short ? 1.12 : aspect < 1.3 ? .98 : .88;
+        this.stand.elevation = elevation;
         const dir = new THREE.Vector3(0, Math.sin(elevation), Math.cos(elevation));
-        const look = new THREE.Vector3(0, 0, aspect < .8 ? .45 : .3);
-        // What must be on the screen: every hand and chip, the piles; on a wide screen the whole table
-        const points = [new THREE.Vector3(DECK_X - .5, 0, PILES_Z - .6), new THREE.Vector3(DISCARD_X + 1.6, 0, PILES_Z + .6)];
+        const look = new THREE.Vector3(0, 0, .3);
+        // What must be on the screen: every hand and chip, the piles, the card held; on a wide screen the whole table
+        const half = CARD_W * PILE / 2 + .1;
+        const points = [new THREE.Vector3(DECK_X - half, 0, PILES_Z - .7), new THREE.Vector3(DISCARD_X + half, 0, PILES_Z + .7)];
+        const held = this.heldSpot();
+        const up = new THREE.Vector3(0, Math.cos(elevation), -Math.sin(elevation)).multiplyScalar(CARD_H * held.scale / 2);
+        const side = new THREE.Vector3(CARD_W * held.scale / 2 + .05, 0, 0);
+        points.push(held.pos.clone().add(up).add(side), held.pos.clone().sub(up).sub(side));
         for (const seat of this.seats.values()) {
             points.push(...seat.corners);
             // The name tag stands above the chip
@@ -556,18 +571,24 @@ export class Table3DView {
         }
         // Room for the top bar and the banner at the top, the buttons at the bottom
         const top = 1 - 2 * ((short ? 50 : 104) / h), bottom = -1 + 2 * ((short ? 64 : 78) / h);
+        const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         let distance = 12;
-        for (let i = 0; i < 8; i++) {
+        const v = new THREE.Vector3();
+        for (let i = 0; i < 14; i++) {
             camera.position.copy(look).addScaledVector(dir, distance);
             camera.lookAt(look);
             camera.updateProjectionMatrix();
             camera.updateMatrixWorld();
-            let need = 0;
+            let wide = 0, high = -1, low = 1;
             for (const p of points) {
-                const v = p.clone().project(camera);
-                need = Math.max(need, Math.abs(v.x) / .96, v.y > 0 ? v.y / top : v.y / bottom);
+                v.copy(p).project(camera);
+                wide = Math.max(wide, Math.abs(v.x));
+                high = Math.max(high, v.y);
+                low = Math.min(low, v.y);
             }
-            distance *= need;
+            // As close as everything fits, between the bar at the top and the buttons at the bottom
+            distance *= Math.max(wide / .96, (high - low) / (top - bottom));
+            look.z -= ((high + low) - (top + bottom)) / 2 * distance * tan / Math.sin(elevation) * .8;
         }
         camera.position.copy(look).addScaledVector(dir, distance);
         camera.lookAt(look);
@@ -581,13 +602,41 @@ export class Table3DView {
         const fog = this.scene.fog;
         fog.near = distance * 1.5;
         fog.far = distance * 3.8;
-        // Cards small on the screen show their compact face
-        for (const seat of this.seats.values()) {
-            const a = this.local(seat, -CARD_W * seat.scale / 2, 0).project(camera);
-            const b = this.local(seat, CARD_W * seat.scale / 2, 0).project(camera);
-            seat.compact = Math.hypot((a.x - b.x) * w / 2, (a.y - b.y) * h / 2) < COMPACT_PX;
+        for (const seat of this.seats.values())
+            seat.compact = this.small(seat.pos, seat.scale);
+        this.deckCount.position.set(DECK_X, 0, PILES_Z + CARD_H * PILE / 2 + .14);
+    }
+    /** How much a card held up is raised to face the player */
+    get tilt() {
+        return Math.PI / 2 - this.stand.elevation;
+    }
+    /** Cards too small on the screen to be read show their compact face (big rank and suit) */
+    small(pos, scale, facing = false) {
+        const { look, dir, distance } = this.stand;
+        const depth = distance - (pos.x - look.x) * dir.x - (pos.y - look.y) * dir.y - (pos.z - look.z) * dir.z;
+        const h = this.screen.clientHeight || innerHeight;
+        const width = scale * CARD_W * h / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * Math.max(.1, depth));
+        return width < (facing ? FACING_PX : COMPACT_PX);
+    }
+    /** A card held up at a place of the table: lifted so that its lower edge clears the baize */
+    raised(scale) {
+        return CARD_H / 2 * scale * Math.cos(this.stand.elevation) + .12;
+    }
+    /** Where this device's player holds the card he drew: lifted and turned towards his eyes, big enough to be read */
+    heldSpot() {
+        const e = this.stand.elevation;
+        const own = this.seats.get(this.bottomId());
+        if (this.upright && own) {
+            // Between the piles and his own cards, as big as the room between them
+            const near = PILES_Z + CARD_H * PILE / 2, far = own.pos.z - own.depth / 2;
+            const scale = clamp(((far - near) * Math.sin(e) - .3) / CARD_H, 1, 1.7);
+            const y = this.raised(scale);
+            return { pos: new THREE.Vector3(0, y, (near + far) / 2 + y / Math.tan(e)), scale };
         }
-        this.deckCount.position.set(DECK_X, 0, PILES_Z + CARD_H / 2 + .14);
+        // On the right of the discard pile
+        const scale = 1.5;
+        const y = this.raised(scale);
+        return { pos: new THREE.Vector3(DISCARD_X + CARD_W * PILE / 2 + .25 + CARD_W * scale / 2, y, PILES_Z + y / Math.tan(e)), scale };
     }
     // endregion
     // region Sync: every card where the state says it is
@@ -621,7 +670,7 @@ export class Table3DView {
             if (!sprite) {
                 // A new card comes from the top of the draw pile
                 sprite = new Card3D(known ?? view, this.scene);
-                sprite.group.position.set(DECK_X, this.deck.height + .03, PILES_Z);
+                sprite.group.position.set(DECK_X, this.deck.height * PILE + .03, PILES_Z);
                 this.sprites.set(view.id, sprite);
             }
             else if (known)
@@ -645,18 +694,25 @@ export class Table3DView {
                 const z = (row - (rows - 1) / 2) * (CARD_H + GAP) * scale;
                 const picked = this.throwPick === card.id;
                 const up = !!card.value || this.revealed.has(card.id) || (roundOver && roundFaces.has(card.id));
-                put(card, { pos: this.local(seat, x, z, LIE + (picked ? .25 : 0)), yaw: seat.yaw + jitter(card.id) * .05, up, scale, compact: seat.compact, floor: 0 }, { zone: 'hand', player: p.id, index }, this.dealing ? .5 + (index * n + seatIndex) * .06 : roundOver ? .15 * seatIndex + index * .06 : 0);
+                // A card shown for a moment (first cards, Queen, wrong throw) is held up, turned towards the player, to be read
+                const shown = this.revealed.has(card.id) && !roundOver;
+                const size = shown ? Math.max(scale, 1.1) : scale;
+                const pos = this.local(seat, x, z, shown ? this.raised(size) : LIE * scale + (picked ? .25 : 0));
+                put(card, shown ? { pos, yaw: 0, up, scale: size, compact: this.small(pos, size, true), floor: 0, tilt: this.tilt }
+                    : { pos, yaw: seat.yaw + jitter(card.id) * .05, up, scale, compact: this.small(pos, scale), floor: 0 }, { zone: 'hand', player: p.id, index }, this.dealing ? .5 + (index * n + seatIndex) * .06 : roundOver ? .15 * seatIndex + index * .06 : 0);
             });
         }
         if (s.drawn) {
             const cur = s.currentPlayerIndex;
             const seat = this.seats.get(cur);
             const own = cur === this.bottomId();
-            // Own card: next to the piles (between the piles and the hand on an upright phone); the others hold theirs above their hand
-            const pos = !own ? this.local(seat, 0, 0, .55)
-                : this.upright ? new THREE.Vector3(0, .35, PILES_Z + CARD_H + .5) : new THREE.Vector3(DISCARD_X + 1.15, .35, PILES_Z + .15);
-            const scale = own ? Math.max(1, seat.scale * .95) : seat.scale;
-            put(s.drawn.card, { pos, yaw: own ? -.06 : seat.yaw, up: !!s.drawn.card.value, scale, compact: !own && seat.compact, floor: 0 }, { zone: 'held' });
+            // Own card: held up next to the piles (between the piles and the hand on an upright phone), to be read;
+            // the others hold theirs above their hand
+            const spot = own ? this.heldSpot() : { pos: this.local(seat, 0, 0, .55), scale: seat.scale };
+            put(s.drawn.card, {
+                pos: spot.pos, yaw: own ? 0 : seat.yaw, up: !!s.drawn.card.value, scale: spot.scale,
+                compact: this.small(spot.pos, spot.scale, own), floor: 0, tilt: own ? this.tilt : 0,
+            }, { zone: 'held' });
         }
         const top = s.topDiscard;
         if (!top)
@@ -666,9 +722,11 @@ export class Table3DView {
             this.pile = at >= 0 ? this.pile.slice(0, at + 1) : [...this.pile, top].slice(-8);
         }
         const visible = this.pile.slice(-6).filter(c => !seen.has(c.id));
+        const pileSmall = this.small(new THREE.Vector3(DISCARD_X, 0, PILES_Z), PILE);
         visible.forEach((card, k) => put(card, {
-            pos: new THREE.Vector3(DISCARD_X + jitter(card.id, 1) * .1, LIE + k * STACK, PILES_Z + jitter(card.id, 2) * .1),
-            yaw: jitter(card.id, 3) * .5, up: true, scale: 1, compact: false, floor: k * STACK,
+            pos: new THREE.Vector3(DISCARD_X + jitter(card.id, 1) * .08, (LIE + k * STACK) * PILE, PILES_Z + jitter(card.id, 2) * .08),
+            // Never much askew: the card on top is the one everybody reads
+            yaw: jitter(card.id, 3) * .28, up: true, scale: PILE, compact: pileSmall, floor: k * STACK * PILE,
         }, { zone: 'discard', top: k === visible.length - 1 }, this.dealing ? .5 + n * s.settings.cardsPerPlayer * .06 + .2 : 0));
         for (const [id, sprite] of this.sprites) {
             if (seen.has(id))
@@ -699,7 +757,7 @@ export class Table3DView {
         // Every card is gathered back into the draw pile
         for (const sprite of this.sprites.values()) {
             gsap.killTweensOf(sprite.group.position);
-            gsap.to(sprite.group.position, { x: DECK_X, z: PILES_Z, y: this.deck.height + .2, duration: .4, delay: Math.random() * .2, ease: 'power2.in' });
+            gsap.to(sprite.group.position, { x: DECK_X, z: PILES_Z, y: this.deck.height * PILE + .2, duration: .4, delay: Math.random() * .2, ease: 'power2.in' });
             this.leave(sprite, .65);
         }
         this.sprites.clear();
@@ -1104,7 +1162,7 @@ export class Table3DView {
             const place = d.sprite.place;
             const cur = s.currentPlayerIndex;
             const before = s.lastMove?.seq;
-            if (Math.hypot(g.x - DISCARD_X, g.z - PILES_Z) < .65) {
+            if (Math.hypot(g.x - DISCARD_X, g.z - PILES_Z) < .8) {
                 if (place.zone === 'held')
                     this.dispatch({ type: 'discardDrawn', playerId: cur });
                 else if (place.zone === 'hand')

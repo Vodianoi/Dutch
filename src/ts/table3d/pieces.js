@@ -77,7 +77,7 @@ const backTexture = () => texture('back', vintageBack);
 function cardMaterial(map) {
     return new THREE.MeshStandardMaterial({
         // A little darker than the drawing: right under the lamp, white paper would burn out and hide the card
-        map, color: '#d9d3c8', normalMap: linen(), normalScale: new THREE.Vector2(.16, .16),
+        map, color: '#e3ddd2', normalMap: linen(), normalScale: new THREE.Vector2(.12, .12),
         roughness: .66, metalness: 0, envMapIntensity: .45, emissive: GLOW, emissiveIntensity: 0,
     });
 }
@@ -152,28 +152,32 @@ export class Card3D {
         }
     }
     moveTo(t, delay = 0, instant = false) {
-        if (t.compact !== this.compact) {
-            this.compact = t.compact;
-            this.drawFace();
-        }
         const previous = this.target;
         this.target = t;
         const flip = t.up && this.view.value ? 0 : Math.PI;
+        // The drawing of the face only changes when it is seen: never in the middle of a card being turned face down
+        if (flip === 0 && t.compact !== this.compact) {
+            this.compact = t.compact;
+            this.drawFace();
+        }
+        // Only a card whose face is seen is held up
+        const tilt = flip === 0 ? t.tilt ?? 0 : 0;
         const yaw = nearestAngle(this.group.rotation.y, t.yaw);
         if (instant) {
             this.moveTween?.kill();
             gsap.killTweensOf(this.group.rotation);
             gsap.killTweensOf(this.group.scale);
             this.group.position.copy(t.pos);
-            this.group.rotation.set(0, yaw, flip);
+            this.group.rotation.set(tilt, yaw, flip);
             this.group.scale.setScalar(t.scale);
             return;
         }
         const travelling = !!this.moveTween && this.moveTween.progress() < 1;
         if (previous && previous.pos.distanceTo(t.pos) < .001 && previous.yaw === t.yaw && previous.up === t.up && previous.scale === t.scale
-            && (travelling || this.group.position.distanceTo(t.pos) < .001))
+            && (previous.tilt ?? 0) === (t.tilt ?? 0) && (travelling || this.group.position.distanceTo(t.pos) < .001))
             return;
         const from = this.group.position.clone();
+        const fromTilt = this.group.rotation.x;
         const distance = from.distanceTo(t.pos);
         const flips = Math.abs(this.group.rotation.z - flip) > .1;
         const duration = Math.min(.8, .34 + distance * .065 + (flips ? .12 : 0));
@@ -195,7 +199,7 @@ export class Card3D {
                 const arc = Math.sin(k.v * Math.PI);
                 this.group.position.lerpVectors(from, t.pos, k.v);
                 this.group.position.y += arc * height;
-                this.group.rotation.x = -arc * lean;
+                this.group.rotation.x = fromTilt + (tilt - fromTilt) * k.v - arc * lean;
             },
         });
         gsap.to(this.group.rotation, { y: yaw, z: flip, duration, delay, ease: 'power2.inOut', onComplete: () => flips && sfx.flip() });
