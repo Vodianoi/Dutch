@@ -32,4 +32,5 @@ test('each test version has its own name, the real site has none', async () => {
     assert.equal(testVersion('/Dutch/dev/'), 'dev');
     assert.equal(testVersion('/Dutch/dev/index.html'), 'dev');
     assert.equal(testVersion('/Dutch/new-look/'), 'new-look');
+    assert.equal(testVersion('/Dutch/3d/'), '3d', 'the preview of the 3D table');
 });

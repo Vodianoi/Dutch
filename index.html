@@ -17,7 +17,7 @@
          the game then applies it itself: src/ts/table/themes.ts) -->
     <script>
         try {
-            var version = /\/(dev|new-look)\//.exec(location.pathname);
+            var version = /\/(dev|new-look|3d)\//.exec(location.pathname);
             var theme = JSON.parse(localStorage.getItem('dutch-' + (version ? version[1] + '-' : '') + 'prefs') || '{}').theme;
             if (theme) document.documentElement.dataset.theme = theme;
         } catch (e) { /* no storage: the first theme */ }

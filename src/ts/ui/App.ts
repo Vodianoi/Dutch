@@ -446,10 +446,10 @@ export class App {
         let cancelled = false;
         const waiting = {render: () => undefined, destroy: () => cancelled = true};
         this.view = waiting;
-        import('../table3d/Table3DView.js')
+        import('../scene3d/Table3D.js')
             .then(module => {
                 if (cancelled || this.view !== waiting) return;
-                this.view = new module.Table3DView(this.root, session, options);
+                this.view = new module.Table3D(this.root, session, options);
                 this.view.render();
             })
             .catch(error => {

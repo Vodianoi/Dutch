@@ -3,11 +3,12 @@
  *  The test versions are published on the same site as the real one, each in its own folder:
  *  - `dev` (branch dev): https://vodianoi.github.io/Dutch/dev/
  *  - `new-look` (branch style/new-look, a proposal for a new design): https://vodianoi.github.io/Dutch/new-look/
+ *  - `3d` (branch feat/3d-v2, the realistic 3D table, shown by default): https://vodianoi.github.io/Dutch/3d/
  *  They share the browser storage and the PeerJS server with the real site,
  *  so everything a test version saves and its room codes are kept apart with its own prefix.
  */
 export function testVersion(pathname: string): string | null {
-    return /\/(dev|new-look)\//.exec(pathname)?.[1] ?? null;
+    return /\/(dev|new-look|3d)\//.exec(pathname)?.[1] ?? null;
 }
 
 /** Name of the test version running (null on the real site) */
