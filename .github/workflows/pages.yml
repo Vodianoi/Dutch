@@ -1,12 +1,15 @@
 # Publish the site on GitHub Pages:
 # - main (the real game) at https://vodianoi.github.io/Dutch/
 # - dev (the test version) at https://vodianoi.github.io/Dutch/dev/
-# Both branches are published together on every push to either of them.
+# - style/new-look (preview of the new look) at https://vodianoi.github.io/Dutch/new-look/
+# The branches are published together on every push to any of them.
+# The preview stays online only while the branch that was pushed last has this step:
+# a push to main or dev before they have it publishes the site without /new-look/.
 name: Pages
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, style/new-look]
   workflow_dispatch:
 
 permissions:
@@ -40,9 +43,17 @@ jobs:
             echo "No dev branch: only main is published"
           fi
 
+      - name: Preview of the new look (style/new-look) under /new-look/
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" style/new-look > /dev/null; then
+            git clone --depth 1 --branch style/new-look "https://github.com/${{ github.repository }}" _site/new-look
+          else
+            echo "No style/new-look branch: no preview"
+          fi
+
       - name: Remove what is not part of the site
         # The prototypes (proto/, proto3d/) stay on the test version only
-        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github
+        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github _site/new-look/.git _site/new-look/.github _site/new-look/proto _site/new-look/proto3d
 
       - uses: actions/configure-pages@v5
 

@@ -19,7 +19,17 @@ test('testing tools (shared screen, 3D table) only on the test version and on th
     assert.equal(hasTestTools('vodianoi.github.io', '/Dutch/'), false, 'never on the real site');
     assert.equal(hasTestTools('vodianoi.github.io', '/Dutch/index.html'), false);
     assert.equal(hasTestTools('vodianoi.github.io', '/Dutch/dev/'), true);
+    assert.equal(hasTestTools('vodianoi.github.io', '/Dutch/new-look/'), true, 'the preview of the new look is a test version too');
     assert.equal(hasTestTools('localhost', '/'), true);
     assert.equal(hasTestTools('127.0.0.1', '/Dutch/'), true);
     assert.equal(TABLE_3D, true, 'here: no page address, like a local file');
+});
+
+test('each test version has its own name, the real site has none', async () => {
+    const {testVersion} = await import('../src/ts/env.js');
+    assert.equal(testVersion('/Dutch/'), null);
+    assert.equal(testVersion('/Dutch/index.html'), null);
+    assert.equal(testVersion('/Dutch/dev/'), 'dev');
+    assert.equal(testVersion('/Dutch/dev/index.html'), 'dev');
+    assert.equal(testVersion('/Dutch/new-look/'), 'new-look');
 });
