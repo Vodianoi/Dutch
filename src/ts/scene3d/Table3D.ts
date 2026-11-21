@@ -70,6 +70,8 @@ export class Table3D {
     private readonly hud: Hud;
     private readonly stage: Stage;
     private readonly observer: ResizeObserver;
+    /** Menus and dialogs are added to the page: the table under them is drawn less often */
+    private readonly overlays: MutationObserver;
     private readonly unsubscribe: () => void;
     private readonly discardPad: Mesh;
     private skins: CardSkins | null = null;
@@ -118,7 +120,7 @@ export class Table3D {
         const phone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 700;
         this.stage = new Stage(this.host, !phone);
         loadStyles();
-        document.body.classList.add('in-game');
+        document.body.classList.add('in-game', 'scene3d-on');
         this.screen = document.createElement('div');
         this.screen.className = 'table-screen scene3d';
         this.bar = document.createElement('div');
@@ -156,6 +158,12 @@ export class Table3D {
         this.observer = new ResizeObserver(() => {
             if (this.stage.resize()) this.relayout();
         });
+        this.overlays = new MutationObserver(() => {
+            const covered = !!document.querySelector('body > .overlay');
+            this.stage.cover(covered);
+            this.skins?.hold(covered);
+        });
+        this.overlays.observe(document.body, {childList: true});
         this.listen();
         void this.init();
         // Automated checks find the cards on the screen through this
@@ -182,12 +190,13 @@ export class Table3D {
         this.destroyed = true;
         document.removeEventListener('visibilitychange', this.onVisibility);
         this.observer.disconnect();
+        this.overlays.disconnect();
         this.unsubscribe();
         this.revealed.forEach(r => clearTimeout(r.timer));
         clearTimeout(this.dutchTimer);
         this.chrome.destroy();
         this.hud.destroy();
-        document.body.classList.remove('in-game');
+        document.body.classList.remove('in-game', 'scene3d-on');
         for (const card of this.cards.values()) card.dispose();
         this.cards.clear();
         if (this.pile) gsap.killTweensOf(this.pile.root.rotation);

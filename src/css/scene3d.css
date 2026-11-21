@@ -11,6 +11,29 @@
     touch-action: none;
 }
 
+/* A blur over the moving 3D table would be worked out again at every frame: the menus only darken it */
+body.scene3d-on .overlay {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+/* `?perf`: what the table costs on this device */
+.s3-perf {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    max-width: min(320px, 70vw);
+    white-space: pre-wrap;
+    z-index: 3;
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, .75);
+    color: #b9f5c4;
+    font: 11px/1.35 ui-monospace, monospace;
+    pointer-events: none;
+}
+
 /* The corners of the room fall into the dark */
 .s3-vignette {
     position: absolute;

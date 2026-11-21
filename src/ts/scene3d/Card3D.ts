@@ -161,6 +161,7 @@ export class CardSkins {
     private readonly faces = new Map<string, MeshStandardMaterial>();
     private readonly textures: Texture[] = [];
     private breath: gsap.core.Tween | null = null;
+    private held = false;
 
     /**
      * @param anisotropy how sharp the pictures stay when seen at a low angle (from the graphics card)
@@ -202,7 +203,14 @@ export class CardSkins {
             this.breath = gsap.fromTo(this.glows[0], {opacity: .45}, {
                 opacity: .95, duration: .9, ease: 'sine.inOut', yoyo: true, repeat: -1, onUpdate: this.onChange,
             });
+            this.breath.paused(this.held);
         }
+    }
+
+    /** A menu covers the table: the cards stop breathing until it is closed */
+    public hold(on: boolean) {
+        this.held = on;
+        this.breath?.paused(on);
     }
 
     public changeBack(backColor: BackColor) {
@@ -216,7 +224,8 @@ export class CardSkins {
         const key = `${card.value}-${card.suit}-${detail}`;
         let material = this.faces.get(key);
         if (!material) {
-            const drawing = detail === 'full' ? drawnAt(this.fine ? 2.5 : 2, () => face(card)) : drawnAt(this.fine ? 1.5 : 1, () => compactFace(card));
+            // Big enough for a card held up to the eye, small enough to be made in the middle of a move
+            const drawing = detail === 'full' ? drawnAt(this.fine ? 2 : 1.5, () => face(card)) : drawnAt(this.fine ? 1.5 : 1, () => compactFace(card));
             material = this.paper(this.picture(onPaper(drawing)));
             this.faces.set(key, material);
         }

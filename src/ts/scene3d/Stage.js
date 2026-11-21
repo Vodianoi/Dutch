@@ -1,4 +1,4 @@
-import { AdditiveBlending, BoxGeometry, BufferGeometry, CanvasTexture, CircleGeometry, Color, CylinderGeometry, Float32BufferAttribute, FogExp2, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NeutralToneMapping, PCFShadowMap, PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, Raycaster, RepeatWrapping, Scene, Shape, ShapeGeometry, SpotLight, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, } from 'three';
+import { AdditiveBlending, BoxGeometry, BufferGeometry, CanvasTexture, CircleGeometry, Color, CylinderGeometry, Float32BufferAttribute, FogExp2, Group, HemisphereLight, InstancedMesh, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D, PCFShadowMap, PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, Raycaster, RepeatWrapping, Scene, Shape, ShapeGeometry, SpotLight, SRGBColorSpace, Vector2, Vector3, WebGLRenderer, } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { gsap } from 'gsap';
 import { ring, spark, tables } from '../table/cardArt.js';
@@ -13,6 +13,14 @@ import { boards, clothColor, clothRelief, css, hexOf, leatherRelief, mix, rgb, r
 const TABLE_H = .74;
 /** Top of the rim above the cloth */
 const RIM_H = .013;
+/** Most pixels drawn for one picture: past this, a big or very sharp screen is drawn a little softer (computers, phones) */
+const PIXELS_FINE = 3700000;
+const PIXELS_LIGHT = 2400000;
+/** Frames per second when only a light changes (the glow of the cards breathing), or when a menu covers the table */
+const LIGHT_FPS = 30;
+const COVERED_FPS = 20;
+/** Most places of cards printed on the cloth at once */
+const MAX_MARKS = 160;
 /** Seated view: the widest this device's own cards are shown, in pixels */
 const OWN_CARD_MAX = 112;
 function lookOf(choice) {
@@ -96,9 +104,20 @@ export class Stage {
         this.fx = new Group();
         this.plan = null;
         this.marksPicture = null;
-        this.marksScale = 1;
+        /** Places of the cards printed on the cloth: one shape repeated (see marks) */
+        this.slots = null;
+        /** Something moved: drawn at the next frame */
         this.dirty = true;
+        /** Only a light changed: drawn at LIGHT_FPS at most */
+        this.lightDirty = false;
         this.shadowsDirty = true;
+        /** A menu or a dialog covers the table */
+        this.covered = false;
+        this.lastDraw = 0;
+        /** Below 1 when the device could not keep up: fewer pixels are drawn (see tick) */
+        this.quality = 1;
+        this.slowFrames = [];
+        this.stats = { draws: 0, shadows: 0, frames: 0, worst: 0, last: 0 };
         this.home = new Vector3();
         this.jolt = { x: 0, y: 0 };
         // region Drawing
@@ -107,23 +126,38 @@ export class Stage {
             this.dirty = true;
             this.shadowsDirty = true;
         };
-        /** Only a light changed (the glow of the cards breathing): the shadows of the lamp stay as they are */
+        /**
+         *  Only a light changed (the glow of the cards breathing, the light of the turn): the shadows of the lamp stay
+         *  as they are, and a soft change of light does not need every frame of a fast screen
+         */
         this.repaint = () => {
-            this.dirty = true;
+            this.lightDirty = true;
         };
         this.tick = () => {
-            if (!this.dirty)
+            const now = performance.now();
+            this.measure(now);
+            if (!this.dirty && !this.lightDirty)
                 return;
+            const gap = this.covered ? 1000 / COVERED_FPS : this.dirty ? 0 : 1000 / LIGHT_FPS;
+            if (now - this.lastDraw < gap - 2)
+                return;
+            const moving = this.dirty;
             this.dirty = false;
-            if (this.shadowsDirty)
+            this.lightDirty = false;
+            if (this.shadowsDirty) {
                 this.renderer.shadowMap.needsUpdate = true;
+                this.stats.shadows++;
+            }
             this.shadowsDirty = false;
             this.renderer.render(this.scene, this.camera);
+            this.stats.draws++;
+            if (moving && !this.covered)
+                this.adapt(now - this.lastDraw);
+            this.lastDraw = now;
         };
         const renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         this.renderer = renderer;
         this.canvas = renderer.domElement;
-        renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
         renderer.outputColorSpace = SRGBColorSpace;
         renderer.toneMapping = NeutralToneMapping;
         renderer.toneMappingExposure = 1;
@@ -149,7 +183,60 @@ export class Stage {
         this.fxPictures = { ring: new CanvasTexture(ring()), spark: new CanvasTexture(spark()) };
         this.fxPictures.ring.colorSpace = this.fxPictures.spark.colorSpace = SRGBColorSpace;
         this.reflections();
+        // `?perf`: what the table costs on this device, written in a corner
+        this.perf = new URLSearchParams(location.search).has('perf') ? document.createElement('pre') : null;
+        if (this.perf) {
+            this.perf.className = 's3-perf';
+            host.appendChild(this.perf);
+        }
         gsap.ticker.add(this.tick);
+    }
+    /** A menu covers the table: what goes on under it is drawn at a few frames per second */
+    cover(on) {
+        this.covered = on;
+        if (!on)
+            this.invalidate();
+    }
+    /**
+     *  While things move, the table is drawn at every frame. When the frames come too slowly for a while,
+     *  the device cannot keep up: fewer pixels are drawn (never fewer than one per pixel of the page).
+     * @param gap time since the previous drawing (ms)
+     */
+    adapt(gap) {
+        // A pause between two moves is not a slow frame
+        if (gap > 250)
+            return;
+        this.slowFrames.push(gap);
+        if (this.slowFrames.length < 45)
+            return;
+        const average = this.slowFrames.reduce((sum, g) => sum + g, 0) / this.slowFrames.length;
+        this.slowFrames = [];
+        if (average > 24 && this.pixelRatio() > 1.001) {
+            this.quality *= .82;
+            this.applySize();
+        }
+    }
+    /** Frames of the page and the slowest one, for `?perf` */
+    measure(now) {
+        const stats = this.stats;
+        if (stats.last)
+            stats.worst = Math.max(stats.worst, now - stats.last);
+        stats.last = now;
+        stats.frames++;
+        if (!this.perf || now - (this.perf.dataset.at ? +this.perf.dataset.at : 0) < 1000)
+            return;
+        this.perf.dataset.at = String(now);
+        const gl = this.renderer.getContext();
+        const info = gl.getExtension('WEBGL_debug_renderer_info');
+        const gpu = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
+        const size = this.renderer.getDrawingBufferSize(new Vector2());
+        this.perf.textContent = [
+            gpu.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 60),
+            `${size.x}×${size.y} px (×${this.pixelRatio().toFixed(2)}, quality ${this.quality.toFixed(2)})`,
+            `page ${stats.frames} fps · slowest ${stats.worst.toFixed(0)} ms`,
+            `table drawn ${stats.draws}/s · shadows ${stats.shadows}/s · ${this.renderer.info.render.calls} calls${this.covered ? ' · covered' : ''}`,
+        ].join('\n');
+        stats.frames = stats.draws = stats.shadows = stats.worst = 0;
     }
     /**
      *  The picture follows the size of its place on the page
@@ -161,11 +248,21 @@ export class Stage {
             return false;
         this.width = width;
         this.height = height;
-        this.renderer.setSize(width, height);
+        this.applySize();
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.invalidate();
         return true;
+    }
+    /** Pixels drawn per pixel of the page: sharp screens up to 2, within the budget of pixels of the device */
+    pixelRatio() {
+        const budget = this.fine ? PIXELS_FINE : PIXELS_LIGHT;
+        const ratio = Math.min(devicePixelRatio || 1, 2, Math.sqrt(budget / (this.width * this.height))) * this.quality;
+        return Math.max(Math.min(1, devicePixelRatio || 1), ratio);
+    }
+    applySize() {
+        this.renderer.setPixelRatio(this.pixelRatio());
+        this.renderer.setSize(this.width, this.height);
+        this.invalidate();
     }
     dispose() {
         gsap.ticker.remove(this.tick);
@@ -180,7 +277,10 @@ export class Stage {
         this.marksPicture?.dispose();
         this.scene.environment?.dispose();
         this.renderer.dispose();
+        // Give the graphics context back now: browsers only keep a few, and each new table (theme, table chosen) makes one
+        this.renderer.forceContextLoss();
         this.canvas.remove();
+        this.perf?.remove();
     }
     clear(group) {
         group.traverse(object => {
@@ -240,6 +340,7 @@ export class Stage {
         this.tokens.length = 0;
         this.marksPicture?.dispose();
         this.marksPicture = null;
+        this.slots = null;
         const look = this.look;
         const dark = shade(look.room, .28);
         this.scene.background = new Color(hexOf(dark));
@@ -312,17 +413,13 @@ export class Stage {
         cloth.rotation.x = -Math.PI / 2;
         cloth.receiveShadow = true;
         cloth.userData.table = true;
-        // What is printed on the cloth: the shade of the rim, a line, the places of the cards (see marks)
-        const longest = Math.max(plan.a, plan.b) * 2;
-        this.marksScale = Math.min(1700, (fine ? 2048 : 1024) / longest);
-        const print = document.createElement('canvas');
-        print.width = Math.round(plan.a * 2 * this.marksScale);
-        print.height = Math.round(plan.b * 2 * this.marksScale);
-        this.marksPicture = new CanvasTexture(print);
+        // Printed on the cloth, drawn once: the shade of the rim and a line. The places of the cards are added by marks().
+        // A plain matt material: it covers the whole cloth, which is already the costliest thing to draw.
+        this.marksPicture = new CanvasTexture(this.print(plan));
         this.marksPicture.colorSpace = SRGBColorSpace;
         this.marksPicture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-        const printed = new Mesh(new PlaneGeometry(plan.a * 2, plan.b * 2), new MeshStandardMaterial({
-            map: this.marksPicture, transparent: true, roughness: 1, depthWrite: false,
+        const printed = new Mesh(new PlaneGeometry(plan.a * 2, plan.b * 2), new MeshLambertMaterial({
+            map: this.marksPicture, transparent: true, depthWrite: false,
             // Only a hair above the cloth, and never pulled forward: it must stay under the cards that lie on it
             polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -1,
         }));
@@ -330,7 +427,17 @@ export class Stage {
         printed.position.y = .0001;
         printed.receiveShadow = true;
         printed.renderOrder = 1;
-        this.marks([]);
+        const slotPicture = new CanvasTexture(this.slotPicture());
+        slotPicture.colorSpace = SRGBColorSpace;
+        slotPicture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        this.slots = new InstancedMesh(new PlaneGeometry(CARD_W, CARD_H), new MeshLambertMaterial({
+            map: slotPicture, transparent: true, depthWrite: false,
+            polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -1,
+        }), MAX_MARKS);
+        this.slots.count = 0;
+        this.slots.receiveShadow = true;
+        this.slots.renderOrder = 1;
+        this.slots.frustumCulled = false;
         // Rim: varnished wood, flat on top (the tokens sit on it), rounded on both sides
         const turns = Math.max(2, Math.round(pathLength(plan.a, plan.b, plan.r) / .7));
         const rimMap = picture(wood(look.rim), turns, 1);
@@ -366,7 +473,7 @@ export class Stage {
             leg.castShadow = true;
             legs.add(leg);
         }
-        this.table.add(cloth, printed, rim, inlay, apron, under, legs);
+        this.table.add(cloth, printed, this.slots, rim, inlay, apron, under, legs);
     }
     buildToken(seat, info) {
         const top = new CanvasTexture(token(info.color, info.initial, theme().display));
@@ -423,20 +530,14 @@ export class Stage {
         chair.rotation.y = seat.yaw;
         this.room.add(chair);
     }
-    /**
-     *  Printed on the cloth: the soft shade along the rim, a thin line, and the places of the cards
-     *  (hands and discard pile), so that an empty place still shows
-     */
-    marks(places) {
-        const plan = this.plan, texture = this.marksPicture;
-        if (!plan || !texture)
-            return;
-        const c = texture.image;
+    /** The shade of the rim and a thin line, printed on the cloth (drawn once for a table) */
+    print(plan) {
+        const scale = Math.min(1700, (this.fine ? 2048 : 1024) / (Math.max(plan.a, plan.b) * 2));
+        const c = document.createElement('canvas');
+        c.width = Math.round(plan.a * 2 * scale);
+        c.height = Math.round(plan.b * 2 * scale);
         const ctx = c.getContext('2d');
-        const k = this.marksScale;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, c.width, c.height);
-        ctx.setTransform(k, 0, 0, k, plan.a * k, plan.b * k);
+        ctx.setTransform(scale, 0, 0, scale, plan.a * scale, plan.b * scale);
         const trace = (inset) => {
             ctx.beginPath();
             ctx.roundRect(-plan.a + inset, -plan.b + inset, (plan.a - inset) * 2, (plan.b - inset) * 2, Math.max(.001, plan.r - inset));
@@ -452,27 +553,51 @@ export class Stage {
             ctx.stroke();
         }
         ctx.restore();
-        const ink = this.look.ink;
         if (!this.look.wooden) {
-            ctx.strokeStyle = css(ink, .3);
+            ctx.strokeStyle = css(this.look.ink, .3);
             ctx.lineWidth = .0012;
             trace(.0085);
             ctx.stroke();
         }
-        for (const place of places) {
-            ctx.save();
-            ctx.translate(place.x, place.z);
-            ctx.rotate(-place.yaw);
-            ctx.beginPath();
-            ctx.roundRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, CARD_W * .075);
-            ctx.fillStyle = 'rgba(0, 0, 0, .1)';
-            ctx.fill();
-            ctx.strokeStyle = css(ink, .2);
-            ctx.lineWidth = .0009;
-            ctx.stroke();
-            ctx.restore();
+        return c;
+    }
+    /** The place of one card: a slightly darker card shape with a faint line round it */
+    slotPicture() {
+        const k = 2000;
+        const c = document.createElement('canvas');
+        c.width = Math.round(CARD_W * k);
+        c.height = Math.round(CARD_H * k);
+        const ctx = c.getContext('2d');
+        ctx.scale(k, k);
+        const line = .0009;
+        ctx.beginPath();
+        ctx.roundRect(line, line, CARD_W - 2 * line, CARD_H - 2 * line, CARD_W * .075);
+        ctx.fillStyle = 'rgba(0, 0, 0, .1)';
+        ctx.fill();
+        ctx.strokeStyle = css(this.look.ink, .2);
+        ctx.lineWidth = line;
+        ctx.stroke();
+        return c;
+    }
+    /**
+     *  The places of the cards (hands and discard pile), printed on the cloth so that an empty place still shows.
+     *  Only moves a few repeated shapes: cheap enough to be done at every card thrown.
+     */
+    marks(places) {
+        const slots = this.slots;
+        if (!slots)
+            return;
+        const place = new Object3D();
+        place.rotation.order = 'YXZ';
+        const count = Math.min(MAX_MARKS, places.length);
+        for (let i = 0; i < count; i++) {
+            place.position.set(places[i].x, .0001, places[i].z);
+            place.rotation.set(-Math.PI / 2, places[i].yaw, 0);
+            place.updateMatrix();
+            slots.setMatrixAt(i, place.matrix);
         }
-        texture.needsUpdate = true;
+        slots.count = count;
+        slots.instanceMatrix.needsUpdate = true;
         this.invalidate();
     }
     // endregion
