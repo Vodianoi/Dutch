@@ -2,11 +2,12 @@
 # - main (the real game) at https://vodianoi.github.io/Dutch/
 # - dev (the test version) at https://vodianoi.github.io/Dutch/dev/
 # - style/new-look (preview of the new look) at https://vodianoi.github.io/Dutch/new-look/
+# - feat/3d-realistic (preview of the realistic 3D table) at https://vodianoi.github.io/Dutch/3d/
 # main and dev are published together on every push to either of them.
-# The preview is published from dev: only main and dev may deploy to GitHub Pages, so a push to
-# style/new-look publishes nothing by itself. To refresh the preview, run this workflow by hand
+# The previews are published from dev: only main and dev may deploy to GitHub Pages, so a push to
+# a preview branch publishes nothing by itself. To refresh a preview, run this workflow by hand
 # from dev (Actions > Pages > Run workflow), or push to dev.
-# A push to main publishes the site without /new-look/ as long as main does not have this step.
+# A push to main publishes the site without the previews as long as main does not have these steps.
 name: Pages
 
 on:
@@ -53,9 +54,17 @@ jobs:
             echo "No style/new-look branch: no preview"
           fi
 
+      - name: Preview of the realistic 3D table (feat/3d-realistic) under /3d/
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" feat/3d-realistic > /dev/null; then
+            git clone --depth 1 --branch feat/3d-realistic "https://github.com/${{ github.repository }}" _site/3d
+          else
+            echo "No feat/3d-realistic branch: no preview"
+          fi
+
       - name: Remove what is not part of the site
         # The prototypes (proto/, proto3d/) stay on the test version only
-        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github _site/new-look/.git _site/new-look/.github _site/new-look/proto _site/new-look/proto3d
+        run: rm -rf _site/.git _site/.github _site/proto _site/proto3d _site/dev/.git _site/dev/.github _site/new-look/.git _site/new-look/.github _site/new-look/proto _site/new-look/proto3d _site/3d/.git _site/3d/.github _site/3d/proto _site/3d/proto3d
 
       - uses: actions/configure-pages@v5
 
