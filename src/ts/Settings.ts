@@ -16,6 +16,12 @@ export interface GameSettings {
     peekVariant: boolean;
     /** Special cards whose effect is played */
     effects: EffectType[];
+    /** The player who said "Dutch" is protected from the Valet: his cards can't be exchanged */
+    protectFromJack: boolean;
+    /** The player who said "Dutch" is protected from the As: he can't be given a card */
+    protectFromAce: boolean;
+    /** The Dame looks at any card on the table, not only one's own */
+    queenAny: boolean;
 }
 
 export const ALL_EFFECTS: EffectType[] = ['JACK', 'QUEEN', 'ACE'];
@@ -31,6 +37,9 @@ export const DEFAULT_SETTINGS: GameSettings = {
     dutchPenalty: 10,
     peekVariant: true,
     effects: ALL_EFFECTS.slice(),
+    protectFromJack: true,
+    protectFromAce: true,
+    queenAny: false,
 };
 
 /** The defaults before version 2 (saved setups that still have them get the new ones) */
@@ -79,6 +88,9 @@ export function cleanSettings(raw: Partial<GameSettings> | null | undefined): Ga
         dutchPenalty: pick('dutchPenalty'),
         peekVariant: typeof raw?.peekVariant === 'boolean' ? raw.peekVariant : DEFAULT_SETTINGS.peekVariant,
         effects: Array.isArray(raw?.effects) ? ALL_EFFECTS.filter(e => raw!.effects!.includes(e)) : ALL_EFFECTS.slice(),
+        protectFromJack: typeof raw?.protectFromJack === 'boolean' ? raw.protectFromJack : DEFAULT_SETTINGS.protectFromJack,
+        protectFromAce: typeof raw?.protectFromAce === 'boolean' ? raw.protectFromAce : DEFAULT_SETTINGS.protectFromAce,
+        queenAny: typeof raw?.queenAny === 'boolean' ? raw.queenAny : DEFAULT_SETTINGS.queenAny,
     };
 }
 
@@ -117,8 +129,22 @@ export function describeSettings(settings: GameSettings): string[] {
         t('Fin de partie à {score} points', {score: settings.targetScore}),
         settings.dutchPenalty ? t('Dutch raté : +{penalty} points', {penalty: settings.dutchPenalty}) : t('Dutch raté : pas de pénalité'),
         effects,
+        ...(settings.effects.includes('QUEEN') && settings.queenAny ? [t('La Dame regarde n\'importe quelle carte')] : []),
+        ...dutchProtection(settings),
         ...(settings.peekVariant ? [t('Chacun regarde ses 2 dernières cartes en début de ronde')] : []),
     ];
+}
+
+/** What protects the player who said "Dutch", for the special cards of this game */
+function dutchProtection(settings: GameSettings): string[] {
+    const jack = settings.effects.includes('JACK'), ace = settings.effects.includes('ACE');
+    if (!jack && !ace) return [];
+    // The usual rule (protected from both) goes without saying
+    if ((!jack || settings.protectFromJack) && (!ace || settings.protectFromAce)) return [];
+    const fromJack = jack && settings.protectFromJack, fromAce = ace && settings.protectFromAce;
+    if (fromJack) return [t('Après « Dutch » : protégé du Valet seulement')];
+    if (fromAce) return [t('Après « Dutch » : protégé de l\'As seulement')];
+    return [t('Après « Dutch » : pas de protection')];
 }
 
 /**

@@ -37,6 +37,10 @@ export function toCard(view) {
  *  to everybody; online, only the player who drew it sees it.
  *  Hands are always face down: nobody knows his own cards, reveals are sent separately.
  */
+/** Is the player who said "Dutch" out of reach of this special card, in this game? */
+export function isProtected(view, playerId, from) {
+    return view.dutchCallerId === playerId && (from === 'JACK' ? view.settings.protectFromJack : view.settings.protectFromAce);
+}
 export function buildView(game, viewerId, options = {}) {
     const show = (card) => options.showAll ? faceUp(card) : faceDown(card);
     const drawnVisible = viewerId === null || viewerId === game.currentPlayerIndex || options.showAll;
@@ -54,6 +58,9 @@ export function buildView(game, viewerId, options = {}) {
             dutchPenalty: game.dutchPenalty,
             peekVariant: game.peekVariant,
             effects: game.effectsEnabled.slice(),
+            protectFromJack: game.protectFromJack,
+            protectFromAce: game.protectFromAce,
+            queenAny: game.queenAny,
         },
         currentPlayerIndex: game.currentPlayerIndex,
         dutchCallerId: game.dutchCallerId,
