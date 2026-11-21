@@ -657,8 +657,8 @@ class Dutch {
         this.phase = 'played';
         this.addLog('{name} échange une carte et jette {card}.', {name: player.name, card: old.ref}, 'info');
         this.move('swap', player.id, [newCard.id, old.id], [], old);
-        // A card that was in the hand: no effect
-        this.discardCard(player, old, false);
+        // A card that was in the hand of the player who said Dutch: no effect
+        this.discardCard(player, old, player.id !== this.dutchCallerId);
         // The player now knows the card he just placed
         this.reveal(player, newCard);
         this.changed();
@@ -684,8 +684,8 @@ class Dutch {
 
     /**
      *  Any player (not only the current one) throws a card of the same value as the visible discard.
-     *  - Right value: the card goes to the discard pile. A card from the hand has no effect, except when the
-     *    same player throws a second card in a row: the effect of that last card plays
+     *  - Right value: the card goes to the discard pile, with its effect. For the player who said Dutch, a card from
+     *    his hand has no effect, except when he throws a second card in a row: the effect of that last card plays
      *  - Wrong value: the card stays, the player gets a penalty card and can't throw again this turn
      * @returns true if the card matched
      */
@@ -707,7 +707,7 @@ class Dutch {
             this.addLog('{name} jette {card} sur {top} !', {name: player.name, card: card.ref, top: top.ref}, 'good');
             this.move('throw', player.id, [card.id], [], card);
             const inRow = this.handThrow?.playerId === player.id && this.handThrow.cardId === top.id;
-            this.discardCard(player, card, inRow);
+            this.discardCard(player, card, player.id !== this.dutchCallerId || inRow);
             this.handThrow = {playerId: player.id, cardId: card.id};
             this.changed();
             return true;
@@ -767,8 +767,8 @@ class Dutch {
 
     // region Special cards
     /**
-     *  Put a card on the discard pile and queue its effect if it is a special card and may play it:
-     *  only a card drawn from the deck and thrown at once, or the second card a player throws in a row from his hand
+     *  Put a card on the discard pile and queue its effect if it is a special card and may play it
+     *  (after "Dutch", the caller only has the effect of the second card he throws in a row from his hand)
      */
     private discardCard(player: Player, card: Card, withEffect: boolean) {
         this.deck.discard(card);
