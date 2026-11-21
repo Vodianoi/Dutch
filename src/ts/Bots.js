@@ -172,17 +172,19 @@ export class Bots {
     useEffect(id, type) {
         const g = this.game;
         const { known, unknown } = this.mine(id);
-        const others = g.players.filter(p => p.id !== id && !g.isImmune(p.id) && p.cards.length > 0);
+        const others = (from) => g.players.filter(p => p.id !== id && !g.isProtected(p.id, from) && p.cards.length > 0);
         if (type === 'QUEEN' && unknown.length)
             return void g.queenPeek(id, pick(unknown).id);
-        if (type === 'JACK' && known[0] && known[0].points >= 7 && others.length) {
+        const swapWith = others('JACK');
+        if (type === 'JACK' && known[0] && known[0].points >= 7 && swapWith.length) {
             const give = known[0];
             this.known.get(id).delete(give.id);
-            return g.jackSwap(id, give.id, pick(pick(others).cards).id);
+            return g.jackSwap(id, give.id, pick(pick(swapWith).cards).id);
         }
-        if (type === 'ACE' && others.length) {
+        const giveTo = others('ACE');
+        if (type === 'ACE' && giveTo.length) {
             // The player with the fewest cards gets one more
-            const target = others.slice().sort((a, b) => a.cards.length - b.cards.length)[0];
+            const target = giveTo.slice().sort((a, b) => a.cards.length - b.cards.length)[0];
             return g.aceGive(id, target.id);
         }
         g.skipEffect(id);

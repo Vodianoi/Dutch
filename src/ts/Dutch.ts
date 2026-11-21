@@ -112,6 +112,9 @@ export interface DutchSnapshot {
     dutchPenalty: number;
     peekVariant: boolean;
     effectsEnabled?: EffectType[];
+    protectFromJack?: boolean;
+    protectFromAce?: boolean;
+    queenAny?: boolean;
     drawPile: CardData[];
     discardPile: CardData[];
     phase: Phase;
@@ -140,6 +143,12 @@ export interface DutchOptions {
     peekVariant?: boolean;
     /** Special cards whose effect is played (all by default) */
     effects?: EffectType[];
+    /** The player who said "Dutch" keeps his cards: nobody exchanges them with a Valet (yes by default) */
+    protectFromJack?: boolean;
+    /** The player who said "Dutch" can't be given a card with an As (yes by default) */
+    protectFromAce?: boolean;
+    /** The Dame looks at any card on the table, not only one's own (no by default) */
+    queenAny?: boolean;
     /** Colour of each player (see PLAYER_COLORS); missing or taken colours are replaced */
     playerColors?: (string | null | undefined)[];
     rng?: Rng;
@@ -217,6 +226,9 @@ class Dutch {
     public readonly dutchPenalty: number;
     public readonly peekVariant: boolean;
     public readonly effectsEnabled: EffectType[];
+    public readonly protectFromJack: boolean;
+    public readonly protectFromAce: boolean;
+    public readonly queenAny: boolean;
     // endregion
 
     // region Private Properties
@@ -238,6 +250,9 @@ class Dutch {
         this.dutchPenalty = options.dutchPenalty ?? 10;
         this.peekVariant = options.peekVariant ?? false;
         this.effectsEnabled = ALL_EFFECTS.filter(e => (options.effects ?? ALL_EFFECTS).includes(e));
+        this.protectFromJack = options.protectFromJack ?? true;
+        this.protectFromAce = options.protectFromAce ?? true;
+        this.queenAny = options.queenAny ?? false;
         const problem = settingsProblem(this.players.length, {deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer});
         if (problem) throw new RuleError(problem);
         this.rng = options.rng ?? Math.random;
@@ -261,6 +276,9 @@ class Dutch {
             dutchPenalty: this.dutchPenalty,
             peekVariant: this.peekVariant,
             effectsEnabled: this.effectsEnabled.slice(),
+            protectFromJack: this.protectFromJack,
+            protectFromAce: this.protectFromAce,
+            queenAny: this.queenAny,
             drawPile: this.deck.drawPile.map(cardData),
             discardPile: this.deck.discardPile.map(cardData),
             phase: this.phase,
@@ -296,6 +314,9 @@ class Dutch {
             dutchPenalty: data.dutchPenalty,
             peekVariant: data.peekVariant,
             effects: data.effectsEnabled ?? ALL_EFFECTS,
+            protectFromJack: data.protectFromJack ?? true,
+            protectFromAce: data.protectFromAce ?? true,
+            queenAny: data.queenAny ?? false,
             playerColors: data.players.map(p => p.color),
             rng,
         });
@@ -357,10 +378,11 @@ class Dutch {
     }
 
     /**
-     *  The player who said "Dutch" is immune: his cards can't be exchanged and he can't receive cards
+     *  The player who said "Dutch" is protected, as the rules of the game say:
+     *  from the Valet (his cards can't be exchanged), from the As (he can't receive a card)
      */
-    public isImmune(playerId: number): boolean {
-        return this.dutchCallerId === playerId;
+    public isProtected(playerId: number, from: 'JACK' | 'ACE'): boolean {
+        return this.dutchCallerId === playerId && (from === 'JACK' ? this.protectFromJack : this.protectFromAce);
     }
 
     /**
@@ -768,7 +790,7 @@ class Dutch {
         const ownerB = this.ownerOf(cardIdB);
         if (!ownerA || !ownerB) throw new RuleError('Carte introuvable.');
         for (const owner of [ownerA, ownerB]) {
-            if (this.isImmune(owner.id) && owner.id !== playerId) {
+            if (this.isProtected(owner.id, 'JACK') && owner.id !== playerId) {
                 throw new RuleError('{name} a dit Dutch : ses cartes sont protégées.', {name: owner.name});
             }
         }
@@ -786,16 +808,20 @@ class Dutch {
     }
 
     /**
-     *  Dame: look at one of your cards without penalty
+     *  Dame: look at one of your cards without penalty (any card on the table if the rules say so)
      * @returns the card
      */
     public queenPeek(playerId: number, cardId: string): Card {
         this.assertEffect(playerId, 'QUEEN');
         const player = this.getPlayer(playerId);
-        const card = player.getCard(cardId);
-        if (!card) throw new RuleError('Choisissez une de vos cartes.');
+        const owner = this.ownerOf(cardId);
+        const card = owner?.getCard(cardId);
+        if (!owner || !card || (owner !== player && !this.queenAny)) {
+            throw new RuleError(this.queenAny ? 'Choisissez une carte sur la table.' : 'Choisissez une de vos cartes.');
+        }
         this.reveal(player, card);
-        this.addLog('{name} (Dame) regarde une de ses cartes.', {name: player.name}, 'effect');
+        if (owner === player) this.addLog('{name} (Dame) regarde une de ses cartes.', {name: player.name}, 'effect');
+        else this.addLog('{name} (Dame) regarde une carte {deA}.', {name: player.name, a: owner.name, deA: de(owner.name)}, 'effect');
         this.move('queenPeek', playerId, [card.id]);
         this.effects.shift();
         this.changed();
@@ -808,7 +834,7 @@ class Dutch {
     public aceGive(playerId: number, targetId: number) {
         this.assertEffect(playerId, 'ACE');
         const target = this.getPlayer(targetId);
-        if (this.isImmune(target.id)) throw new RuleError('{name} a dit Dutch : il est protégé.', {name: target.name});
+        if (this.isProtected(target.id, 'ACE')) throw new RuleError('{name} a dit Dutch : il est protégé.', {name: target.name});
         const card = this.deck.draw();
         this.move('aceGive', playerId, card ? [card.id] : [], [target.id]);
         if (card) {

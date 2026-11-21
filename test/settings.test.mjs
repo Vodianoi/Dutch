@@ -15,7 +15,8 @@ test('the chosen rules are used by the engine', () => {
     game.startRound();
     assert.ok(game.players.every(p => p.hand.length === 6));
     const view = buildView(game, 1);
-    assert.deepEqual(view.settings, {deckCount: 1, cardsPerPlayer: 6, targetScore: 50, dutchPenalty: 0, peekVariant: false, effects: ['JACK', 'QUEEN', 'ACE']});
+    assert.deepEqual(view.settings, {deckCount: 1, cardsPerPlayer: 6, targetScore: 50, dutchPenalty: 0, peekVariant: false, effects: ['JACK', 'QUEEN', 'ACE'],
+        protectFromJack: true, protectFromAce: true, queenAny: false});
     assert.equal(view.targetScore, 50);
 });
 
@@ -42,8 +43,9 @@ test('too many cards for the deck is refused, with a clear message', () => {
 });
 
 test('settings from storage or the network are cleaned', () => {
-    assert.deepEqual(cleanSettings({deckCount: 7, cardsPerPlayer: 5, targetScore: '100', effects: ['ACE', 'BOGUS'], peekVariant: 'yes'}),
-        {deckCount: 1, cardsPerPlayer: 5, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE']});
+    assert.deepEqual(cleanSettings({deckCount: 7, cardsPerPlayer: 5, targetScore: '100', effects: ['ACE', 'BOGUS'], peekVariant: 'yes', queenAny: 1, protectFromAce: false}),
+        {deckCount: 1, cardsPerPlayer: 5, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE'],
+            protectFromJack: true, protectFromAce: false, queenAny: false});
     assert.deepEqual(cleanSettings(null).effects, ['JACK', 'QUEEN', 'ACE']);
 });
 
@@ -84,6 +86,7 @@ test('the rules are described for the players', () => {
 test('a new game proposes the variant, 50 points and one deck', () => {
     assert.deepEqual(cleanSettings(null), {
         deckCount: 1, cardsPerPlayer: 4, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['JACK', 'QUEEN', 'ACE'],
+        protectFromJack: true, protectFromAce: true, queenAny: false,
     });
     assert.deepEqual(DEFAULT_SETTINGS, cleanSettings(null));
     // One deck is enough for 10 players with the default 4 cards
@@ -98,4 +101,14 @@ test('saved rules left on the old defaults take the new ones, chosen rules are k
     assert.deepEqual(upgradeDefaults(chosen, undefined), chosen);
     // Saved with the new defaults: never changed again (2 decks chosen after the update stay)
     assert.deepEqual(upgradeDefaults(old, DEFAULTS_VERSION), old);
+});
+
+test('the rules say when the Dutch protection or the Dame differ from the usual rules', () => {
+    const lines = settings => describeSettings(cleanSettings(settings));
+    assert.ok(!lines({}).some(l => /Après « Dutch »|La Dame/.test(l)), 'nothing to say about the usual rules');
+    assert.ok(lines({protectFromJack: false}).includes('Après « Dutch » : protégé de l\'As seulement'));
+    assert.ok(lines({protectFromAce: false}).includes('Après « Dutch » : protégé du Valet seulement'));
+    assert.ok(lines({protectFromJack: false, protectFromAce: false}).includes('Après « Dutch » : pas de protection'));
+    assert.ok(!lines({protectFromJack: false, effects: ['QUEEN', 'ACE']}).some(l => /Après « Dutch »/.test(l)), 'no Valet in this game');
+    assert.ok(lines({queenAny: true}).includes('La Dame regarde n\'importe quelle carte'));
 });
