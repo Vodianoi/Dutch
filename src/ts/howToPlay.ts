@@ -25,7 +25,7 @@ export function howToPlay(settings: GameSettings): RulesSection[] {
     const effects = settings.effects;
     const special: string[] = effects.length
         ? [
-            t('Elles agissent quand on les jette sur la défausse, pas quand on les prend. On peut passer l\'effet.'),
+            t('Elles agissent seulement quand on les pioche et qu\'on les jette aussitôt. Une carte qui vient de votre main (échangée, ou jetée sur une carte identique) n\'a pas d\'effet, sauf si vous en jetez deux à la suite : la dernière agit. On peut passer l\'effet.'),
             ...(effects.includes('JACK') ? [t('Valet : échangez deux cartes sur la table, les vôtres ou celles des autres, sans les regarder.')] : []),
             ...(effects.includes('QUEEN') ? [settings.queenAny ? t('Dame : regardez une carte de votre choix, la vôtre ou celle d\'un autre joueur.') : t('Dame : regardez une de vos cartes.')] : []),
             ...(effects.includes('ACE') ? [t('As : donnez une carte de la pioche au joueur de votre choix.')] : []),
