@@ -6,6 +6,7 @@ import {ChatBox} from '../ui/ChatBox.js';
 import {joinNames, t} from '../i18n.js';
 import {Action, CardView, effectCard, GameView, logText, noticeText, PlayerView} from '../View.js';
 import {Art, BackColor, CW, drawTable, EMOJI, makeArt, SANS, SERIF} from './art.js';
+import {CH} from './size.js';
 import {TableChrome} from './chrome.js';
 import {CardSprite, centered, dispose, Place, stopTweens, Target} from './CardSprite.js';
 import {cardWidth, clamp, computeLayout, jitter, Layout, Point, RATIO, Rect, slot} from './layout.js';
@@ -520,6 +521,7 @@ export class TableView {
         }
 
         this.dealing = false;
+        if (this.revealed.size) this.relocateChips();
         this.trackMove(s);
         this.updateTable(s);
         this.readLog(s);
@@ -870,6 +872,13 @@ export class TableView {
             return {x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY};
         };
         if (this.throwButton) list.push(around(this.throwButton));
+        // A card shown for a moment (Dame, Valet, start of the round…) must stay readable
+        for (const id of this.revealed.keys()) {
+            const target = this.sprites.get(id)?.target;
+            if (!target) continue;
+            const w = CW * target.scale / 2 + 4, h = CH * target.scale / 2 + 4;
+            list.push({x1: target.x - w, y1: target.y - h, x2: target.x + w, y2: target.y + h});
+        }
         for (const other of this.chips.values()) if (other !== except && !other.destroyed) list.push(around(other));
         return list;
     }
