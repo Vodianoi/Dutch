@@ -59,7 +59,7 @@ test('colours and first choices are read the way the table needs them', () => {
 test('the menus have the tokens of every theme, and the page finds the saved theme before drawing', () => {
     const css = readFileSync('src/css/styles.css', 'utf8');
     for (const id of THEME_IDS) {
-        if (id === DEFAULT_THEME) continue;
+        if (id === THEME_IDS[0]) continue; // its values are the tokens of :root
         assert.ok(css.includes(`[data-theme="${id}"] {`), `styles.css: [data-theme="${id}"]`);
         // The room of the menus is the browser bar colour of the theme
         const block = css.slice(css.indexOf(`[data-theme="${id}"] {`));
@@ -72,4 +72,11 @@ test('the menus have the tokens of every theme, and the page finds the saved the
     assert.ok(versions, 'env.ts names the test versions');
     assert.ok(page.includes(`/\\/(${versions})\\//`), 'index.html names the same test versions');
     assert.ok(page.includes(`'dutch-' + (version ? version[1] + '-' : '') + 'prefs'`));
+});
+
+test('Saloon 1880 is the theme of a new device, from the first drawing of the page', () => {
+    assert.equal(DEFAULT_THEME, 'saloon');
+    const page = readFileSync('index.html', 'utf8');
+    assert.ok(page.includes('<html lang="fr" data-theme="saloon">'));
+    assert.ok(page.includes(`<meta name="theme-color" content="${THEMES.saloon.chrome}">`));
 });
