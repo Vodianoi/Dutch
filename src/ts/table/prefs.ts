@@ -26,7 +26,7 @@ export const BOT_PACES: Record<BotPace, { name: string; factor: number }> = {
 };
 
 const KEY = scoped('prefs');
-const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red', felt: 'green', table: '2d', bots: 'normal'};
+const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'delft', felt: 'delft', table: '2d', bots: 'normal'};
 
 export function loadPrefs(): Prefs {
     try {

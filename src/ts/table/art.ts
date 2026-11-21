@@ -1,6 +1,7 @@
 import {CanvasSource, Texture} from 'pixi.js';
 import Card from '../Card.js';
 import {back, BackColor, compactFace, face, glowArt, halo, ring, spark, spot} from './cardArt.js';
+import {ORANJE_LIGHT} from './palette.js';
 
 export {BACK_COLORS, CH, CW, drawTable, EMOJI, SANS, SERIF, TABLE_THEMES} from './cardArt.js';
 export type {BackColor, TableShape, TableTheme} from './cardArt.js';
@@ -26,7 +27,7 @@ export interface Art {
     spot: Texture;
 }
 
-export function makeArt(backColor: BackColor = 'red'): Art {
+export function makeArt(backColor: BackColor = 'delft'): Art {
     const faces = new Map<string, Texture>();
     const compacts = new Map<string, Texture>();
     return {
@@ -50,7 +51,7 @@ export function makeArt(backColor: BackColor = 'red'): Art {
         },
         back: smooth(back(backColor)),
         shadow: smooth(halo('rgba(0,0,0,1)', 22, 44, .6)),
-        glow: smooth(glowArt('#ffd166')),
+        glow: smooth(glowArt(ORANJE_LIGHT)),
         spark: smooth(spark()),
         ring: smooth(ring()),
         spot: smooth(spot()),

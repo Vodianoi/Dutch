@@ -3,34 +3,50 @@ import {gsap} from 'gsap';
 import {Art, CH, CW, SANS} from './art.js';
 import {centered} from './CardSprite.js';
 import {handH, handW, Seat} from './layout.js';
+import {DELFT, DELFT_DARK, FAIENCE, FAIENCE_MUTED, hex, INK, ORANJE, ORANJE_LIGHT} from './palette.js';
 import {points} from '../i18n.js';
 import {sfx} from './sound.js';
 
-export const GOLD = 0xffd166;
-export const CREAM = 0xf6ead0;
+/** Warm light on the blue table: whose turn it is, notices */
+export const ACCENT = hex(ORANJE_LIGHT);
+/** Text on the table */
+export const WHITE = hex(FAIENCE);
 
-export function label(text: string, size: number, color = CREAM, weight: '400' | '600' | '800' = '600'): Text {
+export function label(text: string, size: number, color = WHITE, weight: '400' | '600' | '800' = '600'): Text {
     return new Text({text, style: {fontFamily: SANS, fontSize: size, fill: color, fontWeight: weight}});
 }
 
-export type ButtonKind = 'primary' | 'danger' | 'ghost';
+/** `primary`: white key, on the table. `solid`: blue key, on a white panel. `danger`: the « Dutch » call. `ghost`: a way out */
+export type ButtonKind = 'primary' | 'solid' | 'danger' | 'ghost';
+
+const KEYS: Record<Exclude<ButtonKind, 'ghost'>, { face: string; edge: string; text: string }> = {
+    primary: {face: FAIENCE, edge: '#aebbd8', text: DELFT_DARK},
+    solid: {face: DELFT, edge: '#122a66', text: FAIENCE},
+    danger: {face: ORANJE, edge: '#a8420a', text: INK},
+};
 
 /**
- *  Pill button drawn on the table (turn actions, score panel)
+ *  Button drawn on the table (turn actions, score panel): a glazed key, with its thickness showing under it
  */
 export function button(text: string, kind: ButtonKind, scale: number, onTap: () => void): Container {
     const box = new Container();
-    const t = label(text, 15 * scale, kind === 'primary' ? 0x2a1805 : 0xffffff, '800');
+    const key = kind === 'ghost' ? null : KEYS[kind];
+    const t = label(text, 15 * scale, key ? hex(key.text) : WHITE, '800');
     t.anchor.set(.5);
     const w = Math.max(t.width + 36 * scale, 110 * scale);
     const h = 44 * scale;
-    const bg = new Graphics().roundRect(-w / 2, -h / 2, w, h, h / 2);
-    if (kind === 'primary') bg.fill(0xf2c14e).stroke({width: 2, color: 0xffe7a3});
-    else if (kind === 'danger') bg.fill(0xc8323c).stroke({width: 2, color: 0xff8a8a});
-    else bg.fill({color: 0x000000, alpha: .35}).stroke({width: 1.5, color: 0xffffff, alpha: .45});
-    const shine = new Graphics().roundRect(-w / 2 + 4, -h / 2 + 3, w - 8, h * .42, h / 2)
-        .fill({color: 0xffffff, alpha: kind === 'ghost' ? .05 : .22});
-    box.addChild(bg, shine, t);
+    const r = 12 * scale;
+    const bg = new Graphics();
+    if (key) {
+        // The edge of the key shows under its face
+        const depth = 3 * scale;
+        bg.roundRect(-w / 2, -h / 2 + depth, w, h - depth, r).fill(key.edge);
+        bg.roundRect(-w / 2, -h / 2, w, h - depth, r).fill(key.face);
+        t.y = -depth / 2;
+    } else {
+        bg.roundRect(-w / 2, -h / 2, w, h, r).fill({color: hex(INK), alpha: .4}).stroke({width: 1.5, color: WHITE, alpha: .6});
+    }
+    box.addChild(bg, t);
     box.eventMode = 'static';
     box.cursor = 'pointer';
     // Bigger touch area than the drawing
@@ -67,9 +83,13 @@ export class SeatView extends Container {
         this.fullName = name;
         this.initial = label(name[0]?.toUpperCase() ?? '?', 16, 0xffffff, '800');
         this.initial.anchor.set(.5);
-        this.nameText = label(name, 13, CREAM, '800');
-        this.scoreText = label('', 12, 0xd9c9a3, '400');
-        this.badgeText = label('DUTCH', 10, 0x2a1805, '800');
+        this.nameText = label(name, 13, WHITE, '800');
+        this.scoreText = label('', 12, hex(FAIENCE_MUTED), '400');
+        // Names sit on the rim of the table or on the room: a soft shadow keeps them readable on both
+        const shadow = {color: hex(INK), alpha: .85, blur: 4, distance: 1, angle: Math.PI / 2};
+        this.nameText.style.dropShadow = shadow;
+        this.scoreText.style.dropShadow = shadow;
+        this.badgeText = label('DUTCH', 10, hex(INK), '800');
         this.badgeText.anchor.set(.5);
         this.badge.addChild(new Graphics(), this.badgeText);
         this.badge.visible = false;
@@ -82,9 +102,9 @@ export class SeatView extends Container {
     public layout(seat: Seat, ui: number, cols: number) {
         const r = seat.avatar.r;
         this.position.set(seat.avatar.x, seat.avatar.y);
-        this.ring.clear().circle(0, 0, r + 4).stroke({width: 3, color: GOLD});
+        this.ring.clear().circle(0, 0, r + 4).stroke({width: 3, color: ACCENT});
         this.ring.alpha = this.lit ? 1 : 0;
-        this.disc.clear().circle(0, 0, r).fill(this.color).stroke({width: 2, color: 0xffffff, alpha: .8});
+        this.disc.clear().circle(0, 0, r).fill(this.color).stroke({width: 2, color: 0xffffff, alpha: .92});
         this.initial.style.fontSize = r * .85;
         this.nameText.style.fontSize = 13 * ui;
         // Long names end with « … » to stay in their place
@@ -113,7 +133,7 @@ export class SeatView extends Container {
 
     private placeBadge(r: number, side: 'right' | 'below') {
         const w = this.badgeText.width + 14;
-        (this.badge.children[0] as Graphics).clear().roundRect(-w / 2, -9, w, 18, 9).fill(GOLD);
+        (this.badge.children[0] as Graphics).clear().roundRect(-w / 2, -9, w, 18, 6).fill(hex(ORANJE));
         if (side === 'right') this.badge.position.set(r + 8 + Math.max(this.nameText.width, this.scoreText.width) + w / 2 + 8, 0);
         else this.badge.position.set(0, -r - 14);
     }

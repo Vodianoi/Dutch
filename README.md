@@ -14,6 +14,8 @@ Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
 Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
 
+Aperçu du nouveau look (branche `style/new-look`, inspiré des faïences de Delft) : https://vodianoi.github.io/Dutch/new-look/. Comme la version de test, ses parties et ses réglages sont séparés de ceux du vrai site.
+
 Table en 3D (prototype, style vieux casino) : seulement sur la version de test et en développement (localhost), jamais sur le vrai site. Dans le menu d'une partie, « Table en 3D » ; ou https://vodianoi.github.io/Dutch/dev/?table=3d. Chaque appareil choisit sa table, même dans une partie en ligne. Code dans `src/ts/table3d/` (Three.js, chargé seulement par les appareils qui l'utilisent).
 
 * **Contre l'ordinateur** : vous jouez contre 1 à 9 adversaires de l'ordinateur. Ils ne voient pas vos cartes et ne retiennent que celles qu'on leur a montrées. La partie est enregistrée à chaque coup : l'accueil propose de la reprendre.
@@ -55,12 +57,14 @@ python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 
 ### Publication
 
-Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`.
+Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`. La branche `style/new-look` ajoute son aperçu sous `/new-look/` ; il reste en ligne tant que la dernière branche poussée a cette étape dans son `pages.yml`.
 
 Chaque push et chaque pull request est vérifié par GitHub Actions (`.github/workflows/ci.yml`) : compilation TypeScript sans erreur, tests (`npm test`) et fichiers `.js` versionnés à jour par rapport aux `.ts` (sinon : `npm run build` puis commit des `.js`).
 
 * Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
 * Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
+
+Les couleurs du jeu (bleu de Delft, blanc de faïence, un seul accent orange) sont dans `src/ts/table/palette.ts` pour les cartes et la table, et reprises comme variables dans `src/css/styles.css` (région « Faïence ») pour les menus.
 
 La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et animée avec [GSAP](https://gsap.com), chargés depuis un CDN (versions fixées dans `index.html`) ; les paquets npm ne servent qu'aux types. Code de la table : `src/ts/table/`. Ajouter `?classic` à l'URL affiche l'ancien écran de jeu (HTML), et `?debug` ajoute au menu une case « Voir toutes les cartes » (sans le jeu en ligne côté joueur).
 

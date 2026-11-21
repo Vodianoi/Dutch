@@ -93,14 +93,12 @@ export const EN = {
     'orange': 'orange',
     'indigo': 'indigo',
     'couleur': 'colour',
-    'Bordeaux': 'Burgundy',
-    'Marine': 'Navy',
-    'Ébène': 'Ebony',
+    'Bleu de Delft': 'Delft blue',
+    'Manganèse': 'Manganese',
+    'Orange': 'Orange',
     'Tapis': 'Table',
-    'Tapis vert': 'Green felt',
-    'Bleu nuit': 'Midnight blue',
-    'Ardoise': 'Slate',
-    'Bois': 'Wood',
+    'Encre': 'Ink',
+    'Céladon': 'Celadon',
     // endregion
     // region Home screen
     'Mode de jeu': 'Game mode',
@@ -211,7 +209,8 @@ export const EN = {
     // endregion
     // region App and network
     'Dutch (version de test)': 'Dutch (test version)',
-    'Branche dev : les parties sont séparées de celles du vrai site': 'Dev branch: games are kept apart from the real site',
+    'Les parties sont séparées de celles du vrai site': 'Games are kept apart from those of the real site',
+    'Aperçu du nouveau look': 'Preview of the new look',
     'Version de test': 'Test version',
     'La partie enregistrée n\'a pas pu être reprise.': 'The saved game could not be resumed.',
     'Création de la partie…': 'Creating the game…',
@@ -350,6 +349,7 @@ export const EN = {
     'Si celui qui a dit Dutch n\'a pas le moins de points, il prend {penalty} points de plus (à égalité, il est à l\'abri).': 'If whoever said Dutch doesn\'t have the fewest points, they take {penalty} extra points (a tie is safe).',
     'Dutch raté : pas de pénalité dans cette partie.': 'Wrong Dutch: no penalty in this game.',
     'Dos des cartes': 'Card backs',
+    'Retenez vos cartes, débarrassez-vous des grosses, et dites Dutch avant les autres.': 'Remember your cards, get rid of the big ones, and call Dutch before the others.',
     'Réglages de cet appareil': 'Settings of this device',
     'Sons': 'Sounds',
     'Vibrations': 'Vibrations',

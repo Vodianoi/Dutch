@@ -270,7 +270,7 @@ export class TableChrome {
         const felts = this.o.onFeltChange ? `<p class="choice-title" aria-hidden="true">${t('Tapis')}</p><div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${(Object.keys(TABLE_THEMES) as TableTheme[]).map(key => {
             const c = TABLE_THEMES[key];
             const swatch = `background: radial-gradient(ellipse at 50% 40%, ${c.felt[0]}, ${c.felt[1]} 60%, ${c.felt[2]}); border-color: ${c.rail[1]}`;
-            return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch${c.wood ? ' felt-wood' : ''}" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
+            return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
         }).join('')}</div>` : '';
         dialog.innerHTML = `
             <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">

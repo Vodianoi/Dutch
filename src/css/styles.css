@@ -2893,3 +2893,960 @@ button.small {
     color: var(--ink-muted);
     font-weight: 500;
 }
+
+/* region Faïence: the look of the game, after Delft tiles (cobalt blue painted on tin-glaze white).
+   The rules above still place everything; this region gives the colours, the type and the shapes.
+   Same values as src/ts/table/palette.ts, which draws the cards and the table. */
+:root {
+    --encre: #0b1433;
+    --delft: #1f47a8;
+    --delft-dark: #17357f;
+    --faience: #f4f7fb;
+    --well: #e7edf7;
+    --oranje: #f26a1b;
+    --oranje-dark: #c2500e;
+    --oranje-light: #ffae57;
+    /* Thickness showing under a key (button) */
+    --edge-white: #aebbd8;
+    --edge-delft: #122a66;
+    --edge-oranje: #a8420a;
+
+    /* On the room (dark blue): white text, the accent in its light form */
+    --ink: var(--faience);
+    --ink-muted: #c6d2ec;
+    --line: rgba(244, 247, 251, .22);
+    --frame: var(--delft);
+    --danger: #ff8f85;
+    --danger-strong: #b3261e;
+    --ok: #86e0b0;
+
+    /* Names of the previous looks, kept for the rules above */
+    --gold: var(--oranje-light);
+    --gold-dark: var(--oranje-dark);
+    --gold-ink: var(--encre);
+    --cream: var(--faience);
+    --cream-muted: var(--ink-muted);
+    --violet: #b9c8ff;
+    --violet-strong: var(--delft);
+    --room: var(--encre);
+    --room-light: #17244f;
+    --surface: rgba(11, 20, 51, .78);
+    --surface-strong: rgba(11, 20, 51, .94);
+    --surface-raised: rgba(244, 247, 251, .08);
+    --felt-light: #2f5ecf;
+    --felt: #2149b0;
+    --felt-deep: #16307c;
+    --rail-light: #1c2c63;
+    --rail: #121c45;
+    --rail-dark: #0a1130;
+    --card-paper: #ffffff;
+    --card-red: #c4202f;
+    --card-back: var(--delft);
+
+    --font-display: 'Lora', Georgia, 'Times New Roman', serif;
+    --font-body: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --radius: 12px;
+}
+
+/* On a white plaque: dark blue text, cobalt for what was light */
+.panel, .emote-pop {
+    --ink: var(--encre);
+    --ink-muted: #56658c;
+    --line: rgba(31, 71, 168, .22);
+    --gold: var(--delft);
+    --cream: var(--encre);
+    --cream-muted: #56658c;
+    --violet: var(--delft);
+    --danger: #b3261e;
+    --ok: #17794a;
+    --surface-raised: var(--well);
+    color: var(--ink);
+}
+
+/* The room: dark blue, the joints of its tiles barely showing (on the page itself: the body may be narrower) */
+html {
+    background-color: var(--encre);
+    background-image:
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(47, 94, 207, .3), transparent 70%),
+        linear-gradient(rgba(244, 247, 251, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(244, 247, 251, .04) 1px, transparent 1px);
+    background-size: auto, 72px 72px, 72px 72px;
+    background-position: 0 0, 50% 0, 50% 0;
+    background-attachment: fixed;
+}
+
+body {
+    color: var(--ink);
+    background: none;
+}
+
+:focus-visible {
+    outline: 3px solid var(--oranje);
+    outline-offset: 2px;
+}
+
+h2, h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -.005em;
+}
+
+/* Header: the name, what the game is, and a hand of Dutch */
+.site-header {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 18px 4px 18px;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 16px;
+}
+
+.brand {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.site-header .title {
+    display: block;
+    margin: 0;
+    font: italic 700 clamp(46px, 14vw, 68px)/.95 var(--font-display);
+    letter-spacing: -.015em;
+    color: var(--faience);
+    text-shadow: none;
+}
+
+.tagline {
+    margin: 0;
+    max-width: 30ch;
+    color: var(--ink-muted);
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.tagline:empty {
+    display: none;
+}
+
+.hero-hand {
+    --hero-card: clamp(42px, 12.5vw, 56px);
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(2, var(--hero-card));
+    gap: calc(var(--hero-card) * .13);
+    /* Room for the four cards before they are drawn: nothing moves when they come */
+    min-height: calc(var(--hero-card) * 2.93);
+}
+
+.hero-card {
+    width: var(--hero-card);
+    aspect-ratio: 240 / 336;
+    perspective: 600px;
+    filter: drop-shadow(0 3px 5px rgba(3, 6, 20, .55));
+}
+
+.hero-card canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* The two cards looked at turn over, once */
+.hero-turn {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    animation: hero-turn 650ms var(--ease-out) both;
+}
+
+.hero-turn canvas {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.hero-turn .hero-face {
+    transform: rotateY(180deg);
+}
+
+@keyframes hero-turn {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(180deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-turn {
+        animation: none;
+        transform: rotateY(180deg);
+    }
+}
+
+/* The test version says so, quietly */
+.dev-badge {
+    padding: 2px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--oranje-light);
+    background: transparent;
+    color: var(--oranje-light);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+    box-shadow: none;
+}
+
+/* Wide screens: the header on the left, the menu on the right */
+@media (min-width: 1000px) {
+    body:has(#app > .setup, #app > .lobby) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
+        column-gap: clamp(40px, 6vw, 96px);
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 0 32px;
+    }
+
+    body:has(#app > .setup, #app > .lobby) .site-header {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        height: 100dvh;
+        max-width: none;
+        margin: 0;
+        padding: 40px 0;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 40px;
+    }
+
+    body:has(#app > .setup, #app > .lobby) .title {
+        font-size: clamp(104px, 11vw, 148px);
+    }
+
+    body:has(#app > .setup, #app > .lobby) .tagline {
+        max-width: 24ch;
+        font-size: 20px;
+    }
+
+    body:has(#app > .setup, #app > .lobby) .brand {
+        gap: 18px;
+    }
+
+    body:has(#app > .setup, #app > .lobby) .hero-hand {
+        --hero-card: 104px;
+    }
+
+    body:has(#app > .setup, #app > .lobby) #app {
+        align-self: center;
+        width: 100%;
+        margin: 0;
+        padding: 48px 7px;
+    }
+}
+
+/* Plaques: tin-glaze white, with the cobalt line of a tile a little inside the edge */
+.panel {
+    background: var(--faience);
+    border: 1.5px solid var(--frame);
+    border-radius: 8px;
+    box-shadow: 0 0 0 6px var(--faience), 0 0 0 7px rgba(11, 20, 51, .5), 0 26px 60px rgba(3, 6, 20, .55);
+}
+
+.panel h2, .panel h3, .resume h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--delft-dark);
+}
+
+.hint {
+    color: var(--ink-muted);
+}
+
+/* Buttons are keys: flat face, their thickness showing underneath, pressed down when touched */
+button {
+    font-family: var(--font-body);
+    font-weight: 600;
+    border: 0;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--delft-dark);
+    box-shadow: 0 3px 0 var(--edge-white);
+    transition: transform 90ms var(--ease-out), box-shadow 90ms var(--ease-out), background-color 160ms ease-out;
+}
+
+button:hover:not(:disabled) {
+    transform: none;
+    filter: brightness(1.05);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--edge-white);
+}
+
+button.primary {
+    background: var(--delft);
+    color: #fff;
+    border: 0;
+    box-shadow: 0 3px 0 var(--edge-delft);
+}
+
+button.primary:active:not(:disabled) {
+    box-shadow: 0 1px 0 var(--edge-delft);
+}
+
+button.secondary {
+    background: transparent;
+    color: var(--ink);
+    border: 1.5px solid color-mix(in srgb, var(--ink) 45%, transparent);
+    box-shadow: none;
+}
+
+button.secondary:active:not(:disabled) {
+    transform: scale(.97);
+    box-shadow: none;
+}
+
+/* The « Dutch » call: the one orange key */
+button.dutch-button {
+    background: var(--oranje);
+    color: var(--encre);
+    box-shadow: 0 3px 0 var(--edge-oranje);
+}
+
+button:disabled {
+    box-shadow: none;
+}
+
+button.small {
+    border-radius: 9px;
+}
+
+input[type="text"], select {
+    font: 400 16px var(--font-body);
+    background: #fff;
+    color: var(--encre);
+    border: 1.5px solid rgba(31, 71, 168, .4);
+    border-radius: 10px;
+}
+
+input[type="text"]::placeholder {
+    color: #7b88a8;
+    opacity: 1;
+}
+
+input[type="text"]:focus-visible, select:focus-visible {
+    border-color: var(--delft);
+    outline-offset: 1px;
+}
+
+select {
+    font-weight: 600;
+}
+
+input[type=checkbox], .switch input, .public-switch input {
+    accent-color: var(--delft);
+}
+
+input.invalid {
+    border-color: var(--danger-strong);
+}
+
+.field-error {
+    color: var(--danger-strong);
+    font-weight: 600;
+}
+
+/* Home */
+.setup {
+    padding: 22px 20px 24px;
+}
+
+.stack, .inline-field {
+    font-weight: 600;
+}
+
+/* Ways to play: one strip, the chosen one lifted */
+.tabs {
+    align-self: stretch;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 4px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--well);
+}
+
+.tab {
+    min-height: 44px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--ink-muted);
+    font-size: 15px;
+    line-height: 1.15;
+    box-shadow: none;
+    text-wrap: balance;
+}
+
+.tab:active:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 360px) {
+    .tab {
+        padding: 6px 4px;
+        font-size: 13.5px;
+    }
+}
+
+.tab.active {
+    background: #fff;
+    color: var(--delft-dark);
+    box-shadow: 0 1px 0 rgba(11, 20, 51, .12), 0 2px 6px rgba(11, 20, 51, .12);
+}
+
+.color-button {
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1.5px rgba(11, 20, 51, .35);
+}
+
+.color-button:active:not(:disabled) {
+    transform: scale(.94);
+    box-shadow: 0 0 0 1.5px rgba(11, 20, 51, .35);
+}
+
+.color-dot {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(11, 20, 51, .25);
+}
+
+.choice, fieldset.game-options {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.rules-details {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.rules-details > summary:focus-visible {
+    outline: 3px solid var(--oranje);
+    border-radius: 10px;
+}
+
+.rules-details > summary strong {
+    color: var(--delft-dark);
+    font-family: var(--font-display);
+    font-weight: 700;
+}
+
+.rules-details > summary::after {
+    border-color: var(--delft);
+}
+
+.rules-summary {
+    color: var(--ink-muted);
+}
+
+.rules-details .game-options {
+    background: transparent;
+}
+
+fieldset.game-options > legend {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--delft-dark);
+}
+
+.option-field span, fieldset.effects > legend, .name-field span {
+    font-weight: 600;
+}
+
+/* A game in progress on this device: the one thing on the home screen that asks to be seen */
+.resume {
+    border: 1.5px solid var(--oranje);
+    border-radius: 10px;
+    background: #fff4ec;
+}
+
+.resume h3 {
+    color: var(--encre);
+}
+
+.message {
+    font-weight: 600;
+    border-radius: 10px;
+}
+
+.message.error {
+    background: #fdecea;
+    border: 1px solid #e3a39d;
+    color: #8a1c17;
+}
+
+.message.info {
+    background: var(--well);
+    color: var(--ink);
+}
+
+.public-games {
+    background: var(--well);
+    border: 0;
+    border-radius: 10px;
+}
+
+.public-game {
+    background: #fff;
+    border-radius: 9px;
+}
+
+.public-players {
+    color: var(--delft);
+}
+
+.public-late {
+    color: var(--ink-muted);
+}
+
+.setup input.code-input, #room-code {
+    font-weight: 800;
+    letter-spacing: .28em;
+}
+
+.lang-switch button {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    box-shadow: none;
+}
+
+.lang-switch button.active {
+    background: var(--faience);
+    border-color: var(--faience);
+    color: var(--delft-dark);
+}
+
+.lang-switch button:focus-visible {
+    outline: 3px solid var(--oranje);
+}
+
+/* Waiting room */
+.lobby {
+    padding: 22px 20px 24px;
+}
+
+.room-code {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--well);
+}
+
+.room-code strong {
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 44px;
+    line-height: 1.1;
+    letter-spacing: .22em;
+    /* The spacing after the last letter would push the code off centre */
+    margin-right: -.22em;
+    color: var(--delft-dark);
+}
+
+.share input {
+    background: var(--well);
+    border-color: transparent;
+    color: var(--ink-muted);
+}
+
+.lobby-players {
+    list-style: none;
+    padding: 0;
+    gap: 0;
+    font-size: 17px;
+}
+
+.lobby-players li {
+    min-height: 44px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+}
+
+.lobby-players .kick {
+    border-color: rgba(179, 38, 30, .45);
+    border-radius: 8px;
+    color: var(--danger-strong);
+    box-shadow: none;
+}
+
+.lobby-players .kick:hover,
+.lobby-players .kick:focus-visible {
+    background: #fdecea;
+}
+
+.badge {
+    border-radius: 6px;
+    background: var(--well);
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.badge.turn {
+    background: var(--delft);
+    color: #fff;
+}
+
+.badge.you {
+    background: var(--encre);
+    color: #fff;
+}
+
+.badge.dutch {
+    background: var(--oranje);
+    color: var(--encre);
+}
+
+.badge.locked {
+    background: var(--danger-strong);
+    color: #fff;
+}
+
+.badge.next-round {
+    background: #fff;
+    border: 1px solid var(--line);
+    color: var(--delft-dark);
+}
+
+.rules ul, .menu-panel details ul {
+    color: var(--ink);
+}
+
+/* Chat */
+.chat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.emote-button {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.emote-button:active:not(:disabled) {
+    transform: scale(.92);
+    box-shadow: none;
+}
+
+/* Dialogs */
+.overlay {
+    background: rgba(5, 10, 28, .66);
+}
+
+.result {
+    background: var(--faience);
+    padding: 22px 20px;
+}
+
+.result h2 .icon {
+    color: var(--oranje-dark);
+}
+
+.menu-panel {
+    padding: 22px 20px;
+}
+
+.menu-panel details, .menu-panel fieldset {
+    border-color: var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.menu-panel summary {
+    font-weight: 600;
+}
+
+.menu-panel legend, .choice-title, .how-to-body h3 {
+    color: var(--delft-dark);
+    font-weight: 600;
+}
+
+.menu-panel legend {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+}
+
+.menu-panel .danger {
+    color: var(--danger-strong);
+    border-color: rgba(179, 38, 30, .45);
+}
+
+/* Choices of the card back and of the table: the chosen one wears the orange ring */
+.back-swatch {
+    border-radius: 5px;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px rgba(11, 20, 51, .25), 0 2px 5px rgba(11, 20, 51, .3);
+}
+
+.back-delft { background: radial-gradient(circle, var(--faience) 0 8px, transparent 8.5px), linear-gradient(135deg, #2a58c8, #17357f); }
+.back-manganese { background: radial-gradient(circle, var(--faience) 0 8px, transparent 8.5px), linear-gradient(135deg, #7a4a9e, #4a2867); }
+.back-oranje { background: radial-gradient(circle, var(--faience) 0 8px, transparent 8.5px), linear-gradient(135deg, #f47a2c, #cf4f0c); }
+
+.felts {
+    gap: 6px;
+}
+
+.felt-swatch {
+    box-shadow: 0 2px 5px rgba(11, 20, 51, .35), inset 0 0 0 1.5px rgba(255, 255, 255, .55);
+}
+
+.back-choice input:checked + .back-swatch,
+.felt-choice input:checked + .felt-swatch {
+    outline: 3px solid var(--oranje);
+    outline-offset: 2px;
+}
+
+.back-choice input:focus-visible + .back-swatch,
+.felt-choice input:focus-visible + .felt-swatch {
+    outline: 3px solid var(--encre);
+    outline-offset: 2px;
+}
+
+/* Messages above everything */
+.toast {
+    background: #101c44;
+    border-color: var(--line);
+    border-radius: 10px;
+    color: var(--faience);
+    font-weight: 600;
+}
+
+.toast.error {
+    background: #3a1318;
+    border-color: var(--danger);
+}
+
+.net-banner {
+    border-color: var(--oranje-light);
+    border-radius: 10px;
+    background: #101c44;
+    color: var(--faience);
+}
+
+.spinner {
+    border-color: rgba(255, 174, 87, .3);
+    border-top-color: var(--oranje-light);
+}
+
+/* Around the game table: what can be pressed is a white key, what is only read is plain text */
+.table-menu-button {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--faience);
+    color: var(--delft-dark);
+    font: 600 14px var(--font-body);
+    box-shadow: 0 2px 0 var(--edge-white), 0 6px 14px rgba(3, 6, 20, .35);
+}
+
+.table-menu-button:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 var(--edge-white), 0 4px 10px rgba(3, 6, 20, .35);
+}
+
+.table-menu-button:focus-visible {
+    outline: 3px solid var(--oranje);
+    outline-offset: 2px;
+}
+
+.table-info {
+    min-height: 36px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--faience);
+    font: 600 14px var(--font-body);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 4px rgba(11, 20, 51, .85);
+}
+
+.table-menu-button .unread {
+    border-radius: 6px;
+    background: var(--oranje);
+    color: var(--encre);
+}
+
+.table-menu-button.seat-emote-button {
+    border: 0;
+    border-radius: 50%;
+    background: var(--faience);
+    box-shadow: 0 2px 0 var(--edge-white), 0 6px 14px rgba(3, 6, 20, .4);
+}
+
+.table-menu-button.seat-emote-button[aria-expanded="true"] {
+    background: #fff;
+    box-shadow: 0 0 0 3px var(--oranje), 0 6px 14px rgba(3, 6, 20, .4);
+}
+
+.emote-pop {
+    border: 1.5px solid var(--frame);
+    border-radius: 10px;
+    background: var(--faience);
+    box-shadow: 0 0 0 4px var(--faience), 0 14px 34px rgba(3, 6, 20, .55);
+}
+
+.table-hint {
+    border-color: rgba(255, 174, 87, .55);
+    border-radius: 9px;
+    background: rgba(11, 20, 51, .86);
+    color: var(--faience);
+}
+
+/* The 3D table (prototype) keeps its own look, brass and leather */
+.table3d .table-menu-button, .table3d .table-info {
+    padding: 0 14px;
+    border-radius: 999px;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* The previous game screen (?classic): the same plaques and keys */
+.turn-banner.mine {
+    border-radius: 9px;
+    background: var(--oranje);
+    color: var(--encre);
+    animation: none;
+}
+
+.turn-banner.effect {
+    color: var(--delft);
+}
+
+.move-feed {
+    background: var(--well);
+    --tone: var(--delft);
+}
+
+.move-feed.active {
+    background: #dbe5f6;
+}
+
+.move-feed.tone-bad { --tone: var(--danger-strong); }
+
+.move-icon {
+    color: #fff;
+}
+
+.round {
+    color: var(--ink-muted);
+}
+
+.player.current {
+    border-color: var(--oranje);
+    box-shadow: 0 0 0 6px var(--faience), 0 0 0 9px var(--oranje), 0 26px 60px rgba(3, 6, 20, .55);
+}
+
+.player.effect-owner {
+    border-color: var(--delft);
+    box-shadow: 0 0 0 6px var(--faience), 0 0 0 9px var(--delft), 0 26px 60px rgba(3, 6, 20, .55);
+}
+
+.player.immune {
+    background-color: #fff4ec;
+}
+
+.card.slot, .card.empty {
+    border-color: rgba(31, 71, 168, .35);
+    background: var(--well);
+}
+
+.table-center .card.empty, .center .card.empty {
+    border-color: rgba(244, 247, 251, .5);
+    background: rgba(11, 20, 51, .2);
+}
+
+.card.clickable .card-face {
+    box-shadow: 0 0 0 2.5px var(--oranje-light), 0 4px 10px rgba(3, 6, 20, .35);
+}
+
+.card-back {
+    background:
+        radial-gradient(circle, var(--faience) 0 22%, transparent 23%),
+        radial-gradient(circle, rgba(255, 255, 255, .22) 1.2px, transparent 1.6px) 0 0 / 9px 9px,
+        linear-gradient(135deg, #2a58c8, var(--delft-dark));
+    border: 4px solid #fff;
+    outline: 1.5px solid rgba(255, 255, 255, .9);
+    outline-offset: -8px;
+}
+
+.card-front {
+    background: linear-gradient(160deg, #fff, #edf1f7);
+    color: #111830;
+    font-family: var(--font-display);
+}
+
+.pile.stacked .card {
+    box-shadow: 3px 3px 0 -1px #1b3b94, 6px 6px 0 -2px #142b6e;
+}
+
+.pile-label, .table-center .instruction, .table-center .turn-banner:not(.mine) {
+    color: var(--faience);
+}
+
+.pile-label .count {
+    border-radius: 6px;
+}
+
+.table-board::before {
+    background: radial-gradient(ellipse at 50% 40%, var(--felt-light), var(--felt) 55%, var(--felt-deep));
+    box-shadow:
+        inset 0 0 0 1.5px rgba(255, 255, 255, .6),
+        inset 0 18px 40px rgba(3, 6, 20, .35),
+        0 18px 40px rgba(3, 6, 20, .5);
+}
+
+.scores th, .scores td, .result th, .result td {
+    border-bottom-color: var(--line);
+}
+
+.scores tr.me th, .lead {
+    color: var(--oranje-dark);
+}
+
+.result tr.best {
+    background: #e3f3ea;
+}
+
+.log li {
+    border-bottom-color: var(--line);
+}
+
+.log li .dot {
+    background: var(--ink-muted);
+}
+
+.log li.dutch .icon { color: var(--oranje-dark); }
+
+.confirm-text {
+    color: var(--ink);
+}
+/* endregion Faïence */

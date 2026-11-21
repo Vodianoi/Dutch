@@ -7,7 +7,7 @@ export const BOT_PACES = {
     fast: { name: 'Rapide', factor: .65 },
 };
 const KEY = scoped('prefs');
-const DEFAULTS = { sound: true, vibration: true, speed: 'normal', back: 'red', felt: 'green', table: '2d', bots: 'normal' };
+const DEFAULTS = { sound: true, vibration: true, speed: 'normal', back: 'delft', felt: 'delft', table: '2d', bots: 'normal' };
 export function loadPrefs() {
     try {
         const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') ?? {};
