@@ -30,6 +30,11 @@ export class Bots {
             }
         });
     }
+    /** Faster or slower from the next move (the menu can change it during a game) */
+    setSpeed(speed) {
+        this.speed = speed;
+        this.schedule();
+    }
     stop() {
         this.stopped = true;
         this.unsubscribe();

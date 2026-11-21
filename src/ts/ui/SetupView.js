@@ -4,6 +4,7 @@ import { normalizeCode } from '../net/Transport.js';
 import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, DEFAULTS_VERSION, describeSettings, EFFECT_LABELS, PLAYER_COLORS, upgradeDefaults, } from '../Settings.js';
 import { lang, LANGS, setLang, t } from '../i18n.js';
 import { clear, el } from './dom.js';
+import { BOT_PACES, loadPrefs, savePrefs } from '../table/prefs.js';
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', { n }))];
 const STORAGE_KEY = scoped('setup');
 /** Names of the computer players */
@@ -139,6 +140,11 @@ export function renderSetup(root, handlers, initial = {}) {
                 saveSetup(setup);
                 error.hidden = true;
             } }, ...Array.from({ length: 9 }, (_, i) => el('option', { value: String(i + 1), selected: i + 1 === setup.botCount }, t(i ? '{n} adversaires' : '{n} adversaire', { n: i + 1 }))));
+        const pace = el('select', { id: 'bot-pace', onchange: () => {
+                const prefs = loadPrefs();
+                prefs.bots = pace.value;
+                savePrefs(prefs);
+            } }, ...Object.keys(BOT_PACES).map(key => el('option', { value: key, selected: key === loadPrefs().bots }, t(BOT_PACES[key].name))));
         const options = gameOptions(setup.settings, () => {
             setup.settings = options.read();
             saveSetup(setup);
@@ -162,7 +168,7 @@ export function renderSetup(root, handlers, initial = {}) {
             });
         };
         const resume = initial.soloResume;
-        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, t('Votre partie est en cours')), el('p', { class: 'hint' }, t('Manche {round} contre {players}.', { round: resume.round, players: resume.players.slice(1).join(', ') })), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, t('Reprendre')), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, t('Contre '), bots), folded(options), el('p', { class: 'hint' }, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? t('Nouvelle partie') : t('Jouer')));
+        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, t('Votre partie est en cours')), el('p', { class: 'hint' }, t('Manche {round} contre {players}.', { round: resume.round, players: resume.players.slice(1).join(', ') })), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, t('Reprendre')), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, t('Contre '), bots), el('label', { class: 'inline-field' }, t('Vitesse des ordinateurs '), pace), folded(options), el('p', { class: 'hint' }, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? t('Nouvelle partie') : t('Jouer')));
     };
     // endregion
     // region Local

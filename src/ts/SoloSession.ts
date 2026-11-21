@@ -69,6 +69,10 @@ export class SoloSession implements Session {
         }
     }
 
+    public setBotSpeed(factor: number) {
+        this.bots.setSpeed(factor);
+    }
+
     public setShowAll(on: boolean) {
         this.showAll = on;
         this.refresh();

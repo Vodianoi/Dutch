@@ -13,10 +13,20 @@ export interface Prefs {
     felt: TableTheme;
     /** Game table: drawn flat (2D) or the 3D table (prototype) */
     table: '2d' | '3d';
+    /** How fast the computer players play */
+    bots: BotPace;
 }
 
+export type BotPace = 'slow' | 'normal' | 'fast';
+/** Multiplies the waiting times of the bots */
+export const BOT_PACES: Record<BotPace, { name: string; factor: number }> = {
+    slow: {name: 'Lente', factor: 1.5},
+    normal: {name: 'Normale', factor: 1},
+    fast: {name: 'Rapide', factor: .65},
+};
+
 const KEY = scoped('prefs');
-const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red', felt: 'green', table: '2d'};
+const DEFAULTS: Prefs = {sound: true, vibration: true, speed: 'normal', back: 'red', felt: 'green', table: '2d', bots: 'normal'};
 
 export function loadPrefs(): Prefs {
     try {
@@ -28,6 +38,7 @@ export function loadPrefs(): Prefs {
             back: saved.back in BACK_COLORS ? saved.back : DEFAULTS.back,
             felt: saved.felt in TABLE_THEMES ? saved.felt : DEFAULTS.felt,
             table: saved.table === '3d' ? '3d' : '2d',
+            bots: saved.bots in BOT_PACES ? saved.bots : DEFAULTS.bots,
         };
     } catch {
         return {...DEFAULTS};

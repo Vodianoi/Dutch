@@ -32,7 +32,7 @@ export class Bots {
     private readonly throwTimers = new Map<number, unknown>();
     private readonly peekTimers = new Map<number, unknown>();
     private stopped = false;
-    private readonly speed: number;
+    private speed: number;
     private readonly setTimer: (fn: () => void, ms: number) => unknown;
     private readonly clearTimer: (handle: unknown) => void;
     private readonly unsubscribe: () => void;
@@ -47,6 +47,12 @@ export class Bots {
                 this.known.get(event.playerId)!.add(event.cardId);
             }
         });
+    }
+
+    /** Faster or slower from the next move (the menu can change it during a game) */
+    public setSpeed(speed: number) {
+        this.speed = speed;
+        this.schedule();
     }
 
     public stop() {

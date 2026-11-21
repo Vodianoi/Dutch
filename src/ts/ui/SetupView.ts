@@ -8,6 +8,7 @@ import {
 } from '../Settings.js';
 import {lang, LANGS, setLang, t} from '../i18n.js';
 import {clear, el} from './dom.js';
+import {BOT_PACES, BotPace, loadPrefs, savePrefs} from '../table/prefs.js';
 import type {PublicGame} from '../net/PublicGames.js';
 
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', {n}))];
@@ -231,6 +232,11 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
             error.hidden = true;
         }}, ...Array.from({length: 9}, (_, i) => el('option', {value: String(i + 1), selected: i + 1 === setup.botCount},
             t(i ? '{n} adversaires' : '{n} adversaire', {n: i + 1}))));
+        const pace = el('select', {id: 'bot-pace', onchange: () => {
+            const prefs = loadPrefs();
+            prefs.bots = pace.value as BotPace;
+            savePrefs(prefs);
+        }}, ...(Object.keys(BOT_PACES) as BotPace[]).map(key => el('option', {value: key, selected: key === loadPrefs().bots}, t(BOT_PACES[key].name))));
         const options = gameOptions(setup.settings, () => {
             setup.settings = options.read();
             saveSetup(setup);
@@ -266,6 +272,7 @@ export function renderSetup(root: HTMLElement, handlers: SetupHandlers, initial:
                 el('div', {class: 'name-row'}, color, nameInput),
                 nameError),
             el('label', {class: 'inline-field'}, t('Contre '), bots),
+            el('label', {class: 'inline-field'}, t('Vitesse des ordinateurs '), pace),
             folded(options),
             el('p', {class: 'hint'}, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')),
             error,
