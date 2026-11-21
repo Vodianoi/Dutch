@@ -1,4 +1,4 @@
-import { toCard } from '../View.js';
+import { isProtected, toCard } from '../View.js';
 import { renderCard } from './CardView.js';
 import { clear, el } from './dom.js';
 import { describeSettings } from '../Settings.js';
@@ -305,14 +305,14 @@ class GameView {
                 this.flash(`${state.players[effect.playerId].name} utilise l'effet de: ${effect.cardName}.`, 'error');
             }
             else if (effect.type === 'QUEEN') {
-                if (player.id !== effect.playerId) {
+                if (player.id !== effect.playerId && !state.settings.queenAny) {
                     this.flash('La Dame permet de regarder une de vos propres cartes.', 'error');
                     return;
                 }
                 this.dispatch({ type: 'queenPeek', playerId: effect.playerId, cardId: card.id });
             }
             else if (effect.type === 'JACK') {
-                if (state.dutchCallerId === player.id && player.id !== effect.playerId) {
+                if (isProtected(state, player.id, 'JACK') && player.id !== effect.playerId) {
                     this.flash(`${player.name} a dit Dutch : ses cartes sont protégées.`, 'error');
                 }
                 else if (this.selectedCardId === null) {
@@ -374,7 +374,9 @@ class GameView {
                         ? `${who} (Valet) : choisissez la deuxième carte à échanger.`
                         : `${who} (Valet) : choisissez deux cartes sur la table à échanger, ou passez.`;
                 case 'QUEEN':
-                    return `${who} (Dame) : cliquez sur une de vos cartes pour la regarder.`;
+                    return state.settings.queenAny
+                        ? `${who} (Dame) : cliquez sur une carte pour la regarder.`
+                        : `${who} (Dame) : cliquez sur une de vos cartes pour la regarder.`;
                 case 'ACE':
                     return `${who} (As) : choisissez le joueur qui reçoit une carte de la pioche.`;
             }
@@ -561,8 +563,8 @@ class GameView {
         if (move && move.view.type !== 'endTurn' && (move.view.playerId === player.id || move.view.playerIds.includes(player.id))) {
             classes.push('touched', `tone-${describeMove(state, move.view).tone}`);
         }
-        const handClickable = running && ((effectMine && effect?.type === 'QUEEN' && effect.playerId === player.id)
-            || (effectMine && effect?.type === 'JACK' && (!immune || effect.playerId === player.id))
+        const handClickable = running && ((effectMine && effect?.type === 'QUEEN' && (effect.playerId === player.id || state.settings.queenAny))
+            || (effectMine && effect?.type === 'JACK' && (!isProtected(state, player.id, 'JACK') || effect.playerId === player.id))
             || (!effect && mine && state.phase === 'drawn' && isCurrent)
             || (!effect && mine && player.canThrow));
         // Cards in a square of 2 rows (4 cards: 2 x 2), each card keeps its place:
@@ -597,7 +599,7 @@ class GameView {
         if (state.phase === 'peek' && !player.ready && mine) {
             actions.appendChild(el('button', { class: 'primary peek', 'data-key': `peek-${player.id}`, onclick: () => this.dispatch({ type: 'peek', playerId: player.id }) }, icon('eye'), 'Regarder mes 2 cartes'));
         }
-        if (effect?.type === 'ACE' && effectMine && !immune) {
+        if (effect?.type === 'ACE' && effectMine && !isProtected(state, player.id, 'ACE')) {
             actions.appendChild(el('button', {
                 class: 'primary give',
                 'data-key': `give-${player.id}`,

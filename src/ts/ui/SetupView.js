@@ -361,9 +361,13 @@ export function gameOptions(initial, onChange) {
     const penaltySelect = select('dutch-penalty', CHOICES.dutchPenalty, initial.dutchPenalty, n => n === 0 ? t('Aucune') : t(n === 10 ? '+{n} points (classique)' : '+{n} points', { n }));
     const effectInputs = new Map(ALL_EFFECTS.map(effect => [effect, el('input', { type: 'checkbox', id: `effect-${effect.toLowerCase()}`, checked: initial.effects.includes(effect), onchange: onChange })]));
     const peek = el('input', { type: 'checkbox', id: 'peek-variant', checked: initial.peekVariant, onchange: onChange });
+    const queenAny = el('input', { type: 'checkbox', id: 'queen-any', checked: initial.queenAny, onchange: onChange });
+    const protectJack = el('input', { type: 'checkbox', id: 'protect-jack', checked: initial.protectFromJack, onchange: onChange });
+    const protectAce = el('input', { type: 'checkbox', id: 'protect-ace', checked: initial.protectFromAce, onchange: onChange });
+    const check = (input, text) => el('label', { class: 'checkbox' }, input, el('span', {}, text));
     const field = (label, control) => el('label', { class: 'option-field' }, el('span', {}, label), control);
     return {
-        element: el('fieldset', { class: 'game-options' }, el('legend', {}, t('Règles de la partie')), el('div', { class: 'option-grid' }, field(t('Cartes par joueur'), cardsSelect), field(t('Paquets'), deckSelect), field(t('Fin de partie à'), targetSelect), field(t('Pénalité si « Dutch » raté'), penaltySelect)), el('fieldset', { class: 'effects' }, el('legend', {}, t('Cartes spéciales')), ...ALL_EFFECTS.map(effect => el('label', { class: 'checkbox' }, effectInputs.get(effect), el('span', {}, el('strong', {}, t(EFFECT_LABELS[effect].name)), t(' : {effect}', { effect: t(EFFECT_LABELS[effect].effect) }))))), el('label', { class: 'checkbox' }, peek, t(' Variante : chacun regarde ses 2 dernières cartes au début de la ronde'))),
+        element: el('fieldset', { class: 'game-options' }, el('legend', {}, t('Règles de la partie')), el('div', { class: 'option-grid' }, field(t('Cartes par joueur'), cardsSelect), field(t('Paquets'), deckSelect), field(t('Fin de partie à'), targetSelect), field(t('Pénalité si « Dutch » raté'), penaltySelect)), el('fieldset', { class: 'effects' }, el('legend', {}, t('Cartes spéciales')), ...ALL_EFFECTS.map(effect => el('label', { class: 'checkbox' }, effectInputs.get(effect), el('span', {}, el('strong', {}, t(EFFECT_LABELS[effect].name)), t(' : {effect}', { effect: t(EFFECT_LABELS[effect].effect) })))), check(queenAny, t('La Dame peut regarder n\'importe quelle carte, pas seulement les siennes'))), el('fieldset', { class: 'effects' }, el('legend', {}, t('Après « Dutch », le joueur est protégé')), check(protectJack, t('du Valet : on ne peut pas échanger ses cartes')), check(protectAce, t('de l\'As : on ne peut pas lui donner de carte'))), el('label', { class: 'checkbox' }, peek, t(' Variante : chacun regarde ses 2 dernières cartes au début de la ronde'))),
         read: () => cleanSettings({
             deckCount: parseInt(deckSelect.value, 10),
             cardsPerPlayer: parseInt(cardsSelect.value, 10),
@@ -371,6 +375,9 @@ export function gameOptions(initial, onChange) {
             dutchPenalty: parseInt(penaltySelect.value, 10),
             peekVariant: peek.checked,
             effects: ALL_EFFECTS.filter(effect => effectInputs.get(effect).checked),
+            protectFromJack: protectJack.checked,
+            protectFromAce: protectAce.checked,
+            queenAny: queenAny.checked,
         }),
     };
 }

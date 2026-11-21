@@ -955,7 +955,7 @@ export class Table3DView {
             let level = 0;
             if (peeker !== null && inHand && place.player === peeker)
                 level = 1;
-            else if (myEffect === 'QUEEN' && inHand && place.player === effect.playerId)
+            else if (myEffect === 'QUEEN' && inHand && (place.player === effect.playerId || s.settings.queenAny))
                 level = 1;
             else if (myEffect === 'JACK' && inHand && (place.player === effect.playerId || s.dutchCallerId !== place.player))
                 level = this.jackPick === sprite.view.id ? 2 : 1;
@@ -1355,7 +1355,7 @@ export class Table3DView {
         if (effect) {
             if (!this.mine(effect.playerId))
                 return sprite.shake();
-            if (effect.type === 'QUEEN' && place.zone === 'hand' && place.player === effect.playerId)
+            if (effect.type === 'QUEEN' && place.zone === 'hand' && (place.player === effect.playerId || s.settings.queenAny))
                 return this.dispatch({ type: 'queenPeek', playerId: effect.playerId, cardId: sprite.view.id });
             if (effect.type === 'JACK' && place.zone === 'hand') {
                 if (!this.jackPick || this.jackPick === sprite.view.id) {

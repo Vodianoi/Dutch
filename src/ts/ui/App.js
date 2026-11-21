@@ -206,6 +206,7 @@ export class App {
             players: game.players.map(p => p.name), playerColors: game.players.map(p => p.color),
             deckCount: game.deckCount, cardsPerPlayer: game.cardsPerPlayer, targetScore: game.targetScore,
             dutchPenalty: game.dutchPenalty, peekVariant: game.peekVariant, effects: game.effectsEnabled,
+            protectFromJack: game.protectFromJack, protectFromAce: game.protectFromAce, queenAny: game.queenAny,
         };
         this.runSolo(game, options);
     }

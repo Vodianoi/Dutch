@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
 import { joinNames, t } from '../i18n.js';
-import { effectCard, logText, noticeText } from '../View.js';
+import { effectCard, isProtected, logText, noticeText } from '../View.js';
 import { CW, drawTable, EMOJI, makeArt, SANS, SERIF } from './art.js';
 import { CH } from './size.js';
 import { TableChrome } from './chrome.js';
@@ -612,12 +612,12 @@ export class TableView {
             const peeking = !effect && s.phase === 'peek' && own && !s.players[place.player].ready && this.peeker(s) === place.player;
             if (peeking)
                 glow = 1;
-            else if (myEffect === 'QUEEN' && inHand && place.player === effect.playerId)
+            else if (myEffect === 'QUEEN' && inHand && (place.player === effect.playerId || s.settings.queenAny))
                 glow = 1;
-            else if (myEffect === 'JACK' && inHand && (place.player === effect.playerId || s.dutchCallerId !== place.player)) {
+            else if (myEffect === 'JACK' && inHand && (place.player === effect.playerId || !isProtected(s, place.player, 'JACK'))) {
                 glow = this.jackPick === sprite.view.id ? 2 : 1;
             }
-            else if (myEffect === 'ACE' && inHand && s.dutchCallerId !== place.player)
+            else if (myEffect === 'ACE' && inHand && !isProtected(s, place.player, 'ACE'))
                 glow = 1;
             else if (myTurn && !effect && s.phase === 'draw' && place.zone === 'discard' && place.top)
                 glow = 1;
@@ -678,7 +678,7 @@ export class TableView {
             if (!this.mine(owner.id))
                 text = t('{name} utilise {card}…', { name: owner.name, card: effectCard(effect) });
             else if (effect.type === 'QUEEN')
-                text = who(owner.id) + t('Dame : touchez une de vos cartes pour la regarder');
+                text = who(owner.id) + (s.settings.queenAny ? t('Dame : touchez une carte pour la regarder') : t('Dame : touchez une de vos cartes pour la regarder'));
             else if (effect.type === 'JACK')
                 text = this.jackPick ? t('Valet : touchez la 2ᵉ carte à échanger') : who(owner.id) + t('Valet : touchez deux cartes à échanger');
             else
@@ -1247,7 +1247,7 @@ export class TableView {
         if (effect) {
             if (!this.mine(effect.playerId))
                 return this.nope(sprite);
-            if (effect.type === 'QUEEN' && place.zone === 'hand' && place.player === effect.playerId) {
+            if (effect.type === 'QUEEN' && place.zone === 'hand' && (place.player === effect.playerId || s.settings.queenAny)) {
                 return this.dispatch({ type: 'queenPeek', playerId: effect.playerId, cardId: id });
             }
             if (effect.type === 'JACK' && place.zone === 'hand') {
