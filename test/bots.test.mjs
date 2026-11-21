@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Dutch from '../src/ts/Dutch.js';
-import {Bots, PEEK_MIN_MS, PEEK_SPREAD_MS} from '../src/ts/Bots.js';
+import {Bots, PEEK_MIN_MS, PEEK_SPREAD_MS, END_TURN_MS, END_ROUND_MS} from '../src/ts/Bots.js';
 import {SoloSession} from '../src/ts/SoloSession.js';
 
 const fast = {speed: 0, setTimer: (fn) => setImmediate(fn), clearTimer: (h) => clearImmediate(h)};
@@ -111,4 +111,51 @@ test('the bots look again at the start of the next round', async () => {
     });
     bots.stop();
     assert.equal(rounds, 2, 'the second round could start: every bot looked again');
+});
+
+test('after playing, a bot leaves time to throw a card, more when his turn ends the round', () => {
+    const game = new Dutch({players: ['Vous', 'B1', 'B2'], peekVariant: false, effects: []});
+    const timers = [];
+    const bots = new Bots(game, [1, 2], {
+        setTimer: (fn, ms) => timers.push({fn, ms}) - 1,
+        clearTimer: () => {},
+    });
+    const lastWait = () => timers[timers.length - 1].ms;
+    game.startRound();
+    // The human plays and says Dutch: B1 draws after a short time
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    game.endTurn(0, true);
+    bots.schedule();
+    assert.ok(lastWait() < END_TURN_MS, `draws after ${lastWait()} ms`);
+    game.drawFromPile(1);
+    game.discardDrawn(1);
+    bots.schedule();
+    assert.ok(lastWait() >= END_TURN_MS && lastWait() < END_ROUND_MS, `ends his turn after ${lastWait()} ms: time to throw`);
+    game.endTurn(1);
+    game.drawFromPile(2);
+    game.discardDrawn(2);
+    bots.schedule();
+    assert.ok(lastWait() >= END_ROUND_MS, `ends the round after ${lastWait()} ms`);
+    bots.stop();
+});
+
+test('the speed of the bots can change during a game', () => {
+    const game = new Dutch({players: ['Vous', 'B1'], peekVariant: false, effects: []});
+    const timers = [];
+    const solo = new SoloSession(game, undefined, {
+        setTimer: (fn, ms) => timers.push({fn, ms}) - 1,
+        clearTimer: () => {},
+    });
+    game.startRound();
+    solo.dispatch({type: 'drawFromPile', playerId: 0});
+    solo.dispatch({type: 'discardDrawn', playerId: 0});
+    solo.dispatch({type: 'endTurn', playerId: 0, dutch: false});
+    const normal = timers[timers.length - 1].ms;
+    solo.setBotSpeed(1.5);
+    const slow = timers[timers.length - 1].ms;
+    assert.ok(slow >= 1100 * 1.5, `slow: ${slow} ms (normal ${normal} ms)`);
+    solo.setBotSpeed(.65);
+    assert.ok(timers[timers.length - 1].ms <= 1800 * .65, 'fast');
+    solo.close();
 });

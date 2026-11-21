@@ -157,17 +157,42 @@ test('Ace effect gives a card of the draw pile to a player', () => {
     assert.equal(game.players[2].hand[4].value, '7');
 });
 
-test('effects are resolved in the order the cards were played', () => {
+test('only a card drawn and thrown at once has its effect, or the second card thrown in a row from a hand', () => {
     const game = newGame();
     game.deck.drawPile.push(c('ACE', 'HEARTS'));
     game.players[1].hand[0] = c('ACE', 'SPADES');
+    game.players[1].hand[1] = c('ACE', 'CLUBS');
+    game.players[2].hand[0] = c('ACE', 'DIAMONDS');
     game.drawFromPile(0);
     game.discardDrawn(0);
+    assert.equal(game.activeEffect.playerId, 0, 'drawn from the deck and thrown: effect');
     game.skipEffect(0);
+    // Hugo throws an As of his hand: no effect
     game.throwCard(1, game.players[1].hand[0].id);
+    assert.ok(!game.activeEffect);
+    // ...then a second one, in a row: the effect of this last one plays
+    game.throwCard(1, game.players[1].hand[1].id);
     assert.equal(game.activeEffect.playerId, 1);
+    assert.equal(game.effects.length, 1);
     game.skipEffect(1);
-    assert.equal(game.effects.length, 0);
+    // Axel throws on Hugo's card: it's not his row, no effect
+    game.throwCard(2, game.players[2].hand[0].id);
+    assert.ok(!game.activeEffect);
+    // The row is kept in a saved game
+    assert.deepEqual(Dutch.restore(game.snapshot()).snapshot().handThrow, {playerId: 2, cardId: game.deck.topDiscard.id});
+});
+
+test('a card swapped out of the hand has no effect, nor a card thrown on a row of somebody else', () => {
+    const game = newGame();
+    game.players[0].hand[0] = c('QUEEN', 'HEARTS');
+    game.players[0].hand[1] = c('QUEEN', 'SPADES');
+    game.deck.drawPile.push(c('5'));
+    game.drawFromPile(0);
+    game.swapDrawn(0, game.players[0].hand[0].id);
+    assert.ok(!game.activeEffect, 'swapped out: no effect');
+    // Throwing on one's own swapped card is not a row of throws either
+    game.throwCard(0, game.players[0].hand[1].id);
+    assert.ok(!game.activeEffect);
 });
 
 test('Dutch: last turn for the others, immunity, then scoring', () => {
@@ -177,8 +202,7 @@ test('Dutch: last turn for the others, immunity, then scoring', () => {
     game.players[2].hand = [c('2'), c('3')];                         // 5
     game.deck.drawPile.push(c('KING', 'DIAMONDS'));
     game.drawFromPile(0);
-    game.swapDrawn(0, game.players[0].hand[1].id); // ace -> discard: effect
-    game.skipEffect(0);
+    game.swapDrawn(0, game.players[0].hand[1].id); // ace -> discard: no effect, it was in the hand
     game.endTurn(0, true);
     assert.equal(game.dutchCallerId, 0);
     assert.ok(game.isFinalRound);
@@ -294,7 +318,7 @@ test('random full games always terminate with consistent card count', () => {
             const effect = game.activeEffect;
             if (effect) {
                 const me = game.players[effect.playerId];
-                const others = game.players.filter(p => !game.isImmune(p.id) && p.cards.length);
+                const others = game.players.filter(p => !game.isProtected(p.id, 'JACK') && !game.isProtected(p.id, 'ACE') && p.cards.length);
                 if (effect.type === 'QUEEN' && me.cards.length) game.queenPeek(me.id, me.cards[0].id);
                 else if (effect.type === 'ACE' && others.length) game.aceGive(me.id, others[Math.floor(rng() * others.length)].id);
                 else if (effect.type === 'JACK' && others.length >= 2) game.jackSwap(me.id, others[0].cards[0].id, others[1].cards[0].id);
@@ -389,10 +413,13 @@ test('peek variant: a card can be thrown while the players are still looking at 
     assert.equal(game.players[2].cards.length, 5);
     assert.equal(game.players[2].locked, true);
     assert.equal(game.phase, 'peek');
-    // A special card thrown during the peek gives its effect, to resolve before going on
+    // Two special cards thrown in a row during the peek: the last one gives its effect, to resolve before going on
     game.deck.discardPile.push(c('QUEEN', 'HEARTS'));
     game.players[0].hand[0] = c('QUEEN', 'SPADES');
+    game.players[0].hand[1] = c('QUEEN', 'CLUBS');
     game.throwCard(0, game.players[0].hand[0].id);
+    assert.ok(!game.activeEffect);
+    game.throwCard(0, game.players[0].hand[1].id);
     assert.equal(game.activeEffect.type, 'QUEEN');
     game.queenPeek(0, game.players[0].cards[0].id);
     game.peek(0);
@@ -430,4 +457,65 @@ test('nobody arrives if the deck would be too small or the table full', () => {
     const full = new Dutch({players: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'], peekVariant: false, deckCount: 2});
     full.phase = 'roundOver';
     assert.throws(() => full.addPlayer('K'), /complète/);
+});
+
+test('rules: the protection after Dutch can be off for the Valet, for the As, or both', () => {
+    for (const [protectFromJack, protectFromAce] of [[true, true], [false, true], [true, false], [false, false]]) {
+        const game = newGame({protectFromJack, protectFromAce});
+        game.drawFromPile(0);
+        game.discardDrawn(0);
+        game.effects.length = 0;
+        game.endTurn(0, true);
+        assert.equal(game.isProtected(0, 'JACK'), protectFromJack);
+        assert.equal(game.isProtected(0, 'ACE'), protectFromAce);
+        // Hugo has a Valet then an As to play
+        game.deck.drawPile.push(c('ACE', 'CLUBS'), c('JACK', 'CLUBS'));
+        game.drawFromPile(1);
+        game.discardDrawn(1);
+        const swap = () => game.jackSwap(1, game.players[0].hand[0].id, game.players[1].hand[0].id);
+        if (protectFromJack) {
+            assert.throws(swap, RuleError);
+            game.skipEffect(1);
+        } else {
+            swap();
+        }
+        game.throwCard(1, game.players[1].hand.find(card => card).id); // anything: just to keep playing
+        if (game.activeEffect) game.skipEffect(1);
+        game.endTurn(1);
+        game.drawFromPile(2);
+        const before = game.players[0].cards.length;
+        game.discardDrawn(2);
+        if (game.activeEffect?.type === 'ACE') {
+            const give = () => game.aceGive(2, 0);
+            if (protectFromAce) assert.throws(give, RuleError);
+            else {
+                give();
+                assert.equal(game.players[0].cards.length, before + 1);
+            }
+        }
+        const copy = Dutch.restore(game.snapshot());
+        assert.equal(copy.protectFromJack, protectFromJack);
+        assert.equal(copy.protectFromAce, protectFromAce);
+    }
+});
+
+test('rules: the Dame can look at any card on the table', () => {
+    const own = newGame();
+    own.deck.drawPile.push(c('QUEEN', 'CLUBS'));
+    own.drawFromPile(0);
+    own.discardDrawn(0);
+    assert.throws(() => own.queenPeek(0, own.players[1].hand[0].id), RuleError);
+
+    const game = newGame({queenAny: true});
+    const events = [];
+    game.on(e => events.push(e));
+    game.deck.drawPile.push(c('QUEEN', 'CLUBS'));
+    game.drawFromPile(0);
+    game.discardDrawn(0);
+    const target = game.players[2].hand[1];
+    game.queenPeek(0, target.id);
+    assert.deepEqual(events.find(e => e.type === 'reveal'), {type: 'reveal', cardId: target.id, playerId: 0, public: false},
+        'only the player of the Dame sees it');
+    assert.match(game.log.at(-1).message, /Eddy \(Dame\) regarde une carte d'Axel/);
+    assert.equal(Dutch.restore(game.snapshot()).queenAny, true);
 });

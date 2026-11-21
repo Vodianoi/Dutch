@@ -17,6 +17,13 @@ export interface BotOptions {
 /** A bot looks at his cards between these times after the deal (ms) */
 export const PEEK_MIN_MS = 1100;
 export const PEEK_SPREAD_MS = 1100;
+/** A move (draw, choose a card, use an effect) */
+export const MOVE_MS = 1100;
+export const MOVE_SPREAD_MS = 700;
+/** After playing, before ending the turn: time to throw a card on the discard */
+export const END_TURN_MS = 2200;
+/** The last turn of the round: once it ends, nobody can throw any more */
+export const END_ROUND_MS = 3600;
 
 export class Bots {
     /** Cards each bot has seen (by card id) */
@@ -25,7 +32,7 @@ export class Bots {
     private readonly throwTimers = new Map<number, unknown>();
     private readonly peekTimers = new Map<number, unknown>();
     private stopped = false;
-    private readonly speed: number;
+    private speed: number;
     private readonly setTimer: (fn: () => void, ms: number) => unknown;
     private readonly clearTimer: (handle: unknown) => void;
     private readonly unsubscribe: () => void;
@@ -40,6 +47,12 @@ export class Bots {
                 this.known.get(event.playerId)!.add(event.cardId);
             }
         });
+    }
+
+    /** Faster or slower from the next move (the menu can change it during a game) */
+    public setSpeed(speed: number) {
+        this.speed = speed;
+        this.schedule();
     }
 
     public stop() {
@@ -61,7 +74,7 @@ export class Bots {
         this.turnTimer = null;
         const who = this.whoActs();
         if (who !== null) {
-            const wait = 850 + Math.random() * 650;
+            const wait = this.waitBefore(who);
             this.turnTimer = this.setTimer(() => {
                 this.turnTimer = null;
                 this.act(who);
@@ -69,6 +82,20 @@ export class Bots {
         }
         this.planPeeks();
         this.planThrows();
+    }
+
+    /**
+     *  Time before the next move of a bot (ms). After a card goes on the discard, the players
+     *  need time to see it and throw a matching card: the bot waits longer before ending his turn,
+     *  and even longer when it ends the round (nobody can throw any more after that).
+     */
+    private waitBefore(id: number): number {
+        const g = this.game;
+        if (!g.activeEffect && g.phase === 'played') {
+            const endsRound = g.dutchCallerId !== null && g.finalTurnsLeft <= 1 && g.currentPlayerIndex === id;
+            return endsRound ? END_ROUND_MS + Math.random() * 600 : END_TURN_MS + Math.random() * 700;
+        }
+        return MOVE_MS + Math.random() * MOVE_SPREAD_MS;
     }
 
     /**
@@ -153,16 +180,18 @@ export class Bots {
     private useEffect(id: number, type: EffectType) {
         const g = this.game;
         const {known, unknown} = this.mine(id);
-        const others = g.players.filter(p => p.id !== id && !g.isImmune(p.id) && p.cards.length > 0);
+        const others = (from: 'JACK' | 'ACE') => g.players.filter(p => p.id !== id && !g.isProtected(p.id, from) && p.cards.length > 0);
         if (type === 'QUEEN' && unknown.length) return void g.queenPeek(id, pick(unknown).id);
-        if (type === 'JACK' && known[0] && known[0].points >= 7 && others.length) {
+        const swapWith = others('JACK');
+        if (type === 'JACK' && known[0] && known[0].points >= 7 && swapWith.length) {
             const give = known[0];
             this.known.get(id)!.delete(give.id);
-            return g.jackSwap(id, give.id, pick(pick(others).cards).id);
+            return g.jackSwap(id, give.id, pick(pick(swapWith).cards).id);
         }
-        if (type === 'ACE' && others.length) {
+        const giveTo = others('ACE');
+        if (type === 'ACE' && giveTo.length) {
             // The player with the fewest cards gets one more
-            const target = others.slice().sort((a, b) => a.cards.length - b.cards.length)[0];
+            const target = giveTo.slice().sort((a, b) => a.cards.length - b.cards.length)[0];
             return g.aceGive(id, target.id);
         }
         g.skipEffect(id);
@@ -188,7 +217,7 @@ export class Bots {
                         if (!(e instanceof RuleError)) throw e;
                     }
                 }
-            }, (700 + Math.random() * 1100) * this.speed));
+            }, (900 + Math.random() * 1300) * this.speed));
         }
     }
 }

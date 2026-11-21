@@ -70,6 +70,9 @@ export class SoloSession {
             this.events.emit({ type: 'notice', notice: notice('error', e.msg) });
         }
     }
+    setBotSpeed(factor) {
+        this.bots.setSpeed(factor);
+    }
     setShowAll(on) {
         this.showAll = on;
         this.refresh();

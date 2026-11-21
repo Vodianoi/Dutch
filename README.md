@@ -14,6 +14,8 @@ Le jeu se joue dans le navigateur : https://vodianoi.github.io/Dutch/
 
 Version de test (branche `dev`, nouveautés pas encore publiées) : https://vodianoi.github.io/Dutch/dev/. Ses parties et ses réglages sont séparés de ceux du vrai site ; tous les joueurs d'une partie doivent utiliser la même version.
 
+Aperçu du nouveau look (branche `style/new-look`, avec des thèmes au choix) : https://vodianoi.github.io/Dutch/new-look/. Comme la version de test, ses parties et ses réglages sont séparés de ceux du vrai site.
+
 Table en 3D (prototype, style vieux casino) : seulement sur la version de test et en développement (localhost), jamais sur le vrai site. Dans le menu d'une partie, « Table en 3D » ; ou https://vodianoi.github.io/Dutch/dev/?table=3d. Chaque appareil choisit sa table, même dans une partie en ligne. Code dans `src/ts/table3d/` (Three.js, chargé seulement par les appareils qui l'utilisent).
 
 * **Contre l'ordinateur** : vous jouez contre 1 à 9 adversaires de l'ordinateur. Ils ne voient pas vos cartes et ne retiennent que celles qu'on leur a montrées. La partie est enregistrée à chaque coup : l'accueil propose de la reprendre.
@@ -55,12 +57,14 @@ python3 -m http.server 8000   # puis ouvrir http://localhost:8000
 
 ### Publication
 
-Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`.
+Le site est publié par GitHub Actions (`.github/workflows/pages.yml`) à chaque push sur `main` ou `dev` : `main` à la racine, `dev` sous `/dev/`. L'aperçu de la branche `style/new-look` est publié sous `/new-look/` par le `pages.yml` de `dev` (seules `main` et `dev` ont le droit de publier) : pour le mettre à jour, lancer le workflow « Pages » à la main depuis `dev`, ou pousser sur `dev`. Un push sur `main` le retire tant que `main` n'a pas cette étape.
 
 Chaque push et chaque pull request est vérifié par GitHub Actions (`.github/workflows/ci.yml`) : compilation TypeScript sans erreur, tests (`npm test`) et fichiers `.js` versionnés à jour par rapport aux `.ts` (sinon : `npm run build` puis commit des `.js`).
 
 * Les nouveautés sont fusionnées dans `dev` et testées sur https://vodianoi.github.io/Dutch/dev/.
 * Quand elles sont prêtes, `dev` est fusionnée dans `main` pour les publier.
+
+Le jeu a plusieurs thèmes, au choix de chaque appareil (sous l'accueil, ou dans le menu d'une partie) : Delft (faïence bleue et blanche), Saloon 1880, Art déco 1925, Las Vegas 1960 et Moderne. Un thème habille tout : menus, cartes, table, et propose ses propres dos de cartes et tapis. Ses couleurs, ses polices et sa façon de dessiner les cartes et la table sont dans `src/ts/table/themes.ts` ; les mêmes couleurs sont reprises comme variables dans `src/css/styles.css` (région « Themes », un bloc `[data-theme="…"]` par thème) pour les menus. Pour ajouter un thème : une entrée dans `THEMES`, un bloc de variables dans la feuille de style, sa police dans `index.html` (le test `test/themes.test.mjs` vérifie que rien ne manque). La table en 3D garde son propre style.
 
 La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et animée avec [GSAP](https://gsap.com), chargés depuis un CDN (versions fixées dans `index.html`) ; les paquets npm ne servent qu'aux types. Code de la table : `src/ts/table/`. Ajouter `?classic` à l'URL affiche l'ancien écran de jeu (HTML), et `?debug` ajoute au menu une case « Voir toutes les cartes » (sans le jeu en ligne côté joueur).
 
@@ -68,8 +72,8 @@ La table de jeu est dessinée avec [PixiJS](https://pixijs.com) (WebGL) et anim�
 
 * Le joueur dont c'est le tour touche la pioche ou la pile de rejet, puis la carte de sa main à remplacer (ou la pile de rejet pour jeter la carte piochée). On peut aussi faire glisser la carte piochée sur une de ses cartes ou sur la pile de rejet.
 * À tout moment, même pendant que les joueurs regardent leurs premières cartes, un joueur peut jeter une de ses cartes si elle a la même valeur que la carte visible du rejet : en la faisant glisser sur la pile de rejet, ou en la touchant puis en appuyant sur « Jeter sur la défausse ». En cas d'erreur : carte de pénalité, et plus de jet possible jusqu'à la fin du tour.
-* Le bouton « Menu » donne les règles de la partie, les réglages de l'appareil (sons, vibrations, animations rapides, dos des cartes) et permet de quitter la partie.
-* Valet, Dame et As déclenchent leur effet pour le joueur qui s'en débarrasse (dans l'ordre où les cartes ont été jouées) ; l'effet peut être ignoré.
+* Le bouton « Menu » donne les règles de la partie, les réglages de l'appareil (sons, vibrations, animations rapides, thème, dos des cartes, tapis) et permet de quitter la partie.
+* Valet, Dame et As déclenchent leur effet seulement quand on les pioche et qu'on les jette aussitôt. Une carte qui vient de la main (échangée, ou jetée sur une carte identique) n'a pas d'effet, sauf quand le même joueur en jette deux à la suite : la dernière agit. L'effet peut être ignoré.
 * Le tour se termine avec « Finir mon tour » ou « Dutch ! » (à confirmer d'une deuxième pression), seulement après avoir joué et résolu les effets.
 * Le joueur qui a dit « Dutch » est protégé : ses cartes ne peuvent pas être échangées par un Valet et il ne peut pas recevoir de carte d'un As.
 * Les joueurs sont assis autour de la table : soi-même en bas (le premier joueur sur un écran partagé), les autres dans le sens des aiguilles d'une montre, dans l'ordre du jeu. Les places ne bougent pas pendant la partie. Sur téléphone tenu droit, les autres joueurs sont sur une ou deux rangées au-dessus du milieu de la table.

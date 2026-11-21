@@ -39,6 +39,8 @@ export interface Session {
     on(listener: (event: SessionEvent) => void): () => void;
     /** Chat between the players, when the session has one */
     readonly chat?: Chat;
+    /** Games against the computer: how fast the bots play (multiplies their waiting times) */
+    setBotSpeed?(factor: number): void;
 }
 
 /**

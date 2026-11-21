@@ -4,6 +4,9 @@ import { normalizeCode } from '../net/Transport.js';
 import { ALL_EFFECTS, assignColors, checkSettings, CHOICES, cleanSettings, colorName, DEFAULTS_VERSION, describeSettings, EFFECT_LABELS, PLAYER_COLORS, upgradeDefaults, } from '../Settings.js';
 import { lang, LANGS, setLang, t } from '../i18n.js';
 import { clear, el } from './dom.js';
+import { renderHero } from './hero.js';
+import { themeSwitch } from './themePicker.js';
+import { BOT_PACES, loadPrefs, savePrefs } from '../table/prefs.js';
 const DEFAULT_NAMES = ['Eddy', 'Hugo', 'Axel', 'Léa', ...[5, 6, 7, 8, 9, 10].map(n => t('Joueur {n}', { n }))];
 const STORAGE_KEY = scoped('setup');
 /** Names of the computer players */
@@ -60,6 +63,8 @@ export function renderSetup(root, handlers, initial = {}) {
         const tabs = el('div', { class: 'tabs', role: 'group', 'aria-label': t('Mode de jeu') }, tab('solo', t('Contre l\'ordinateur')), tab('online', t('En ligne')), HOT_SEAT ? tab('local', t('Sur cet écran')) : null);
         root.appendChild(el('section', { class: 'setup panel' }, tabs, setup.mode === 'online' ? online() : setup.mode === 'solo' ? solo() : local()));
         root.appendChild(languageSwitch());
+        // The cards of the header are drawn again in the theme chosen
+        root.appendChild(themeSwitch(renderHero));
     };
     const switchMode = (mode) => {
         setup.mode = mode;
@@ -139,6 +144,11 @@ export function renderSetup(root, handlers, initial = {}) {
                 saveSetup(setup);
                 error.hidden = true;
             } }, ...Array.from({ length: 9 }, (_, i) => el('option', { value: String(i + 1), selected: i + 1 === setup.botCount }, t(i ? '{n} adversaires' : '{n} adversaire', { n: i + 1 }))));
+        const pace = el('select', { id: 'bot-pace', onchange: () => {
+                const prefs = loadPrefs();
+                prefs.bots = pace.value;
+                savePrefs(prefs);
+            } }, ...Object.keys(BOT_PACES).map(key => el('option', { value: key, selected: key === loadPrefs().bots }, t(BOT_PACES[key].name))));
         const options = gameOptions(setup.settings, () => {
             setup.settings = options.read();
             saveSetup(setup);
@@ -162,7 +172,7 @@ export function renderSetup(root, handlers, initial = {}) {
             });
         };
         const resume = initial.soloResume;
-        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, t('Votre partie est en cours')), el('p', { class: 'hint' }, t('Manche {round} contre {players}.', { round: resume.round, players: resume.players.slice(1).join(', ') })), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, t('Reprendre')), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, t('Contre '), bots), folded(options), el('p', { class: 'hint' }, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? t('Nouvelle partie') : t('Jouer')));
+        return el('div', { class: 'setup-solo' }, resume ? el('section', { class: 'resume', 'aria-labelledby': 'solo-resume-title' }, el('h3', { id: 'solo-resume-title' }, t('Votre partie est en cours')), el('p', { class: 'hint' }, t('Manche {round} contre {players}.', { round: resume.round, players: resume.players.slice(1).join(', ') })), el('div', { class: 'resume-actions' }, el('button', { class: 'primary', id: 'resume-solo', onclick: () => handlers.onResumeSolo?.() }, t('Reprendre')), el('button', { class: 'secondary', id: 'forget-solo', onclick: () => handlers.onForgetSolo?.() }, t('Abandonner')))) : null, el('div', { class: 'stack' }, el('label', { for: 'solo-name' }, t('Votre nom')), el('div', { class: 'name-row' }, color, nameInput), nameError), el('label', { class: 'inline-field' }, t('Contre '), bots), el('label', { class: 'inline-field' }, t('Vitesse des ordinateurs '), pace), folded(options), el('p', { class: 'hint' }, t('Entraînez-vous contre l\'ordinateur : il ne voit pas vos cartes, il retient seulement les siennes.')), error, el('button', { id: 'start-solo', class: 'primary', onclick: start }, resume ? t('Nouvelle partie') : t('Jouer')));
     };
     // endregion
     // region Local
@@ -355,9 +365,13 @@ export function gameOptions(initial, onChange) {
     const penaltySelect = select('dutch-penalty', CHOICES.dutchPenalty, initial.dutchPenalty, n => n === 0 ? t('Aucune') : t(n === 10 ? '+{n} points (classique)' : '+{n} points', { n }));
     const effectInputs = new Map(ALL_EFFECTS.map(effect => [effect, el('input', { type: 'checkbox', id: `effect-${effect.toLowerCase()}`, checked: initial.effects.includes(effect), onchange: onChange })]));
     const peek = el('input', { type: 'checkbox', id: 'peek-variant', checked: initial.peekVariant, onchange: onChange });
+    const queenAny = el('input', { type: 'checkbox', id: 'queen-any', checked: initial.queenAny, onchange: onChange });
+    const protectJack = el('input', { type: 'checkbox', id: 'protect-jack', checked: initial.protectFromJack, onchange: onChange });
+    const protectAce = el('input', { type: 'checkbox', id: 'protect-ace', checked: initial.protectFromAce, onchange: onChange });
+    const check = (input, text) => el('label', { class: 'checkbox' }, input, el('span', {}, text));
     const field = (label, control) => el('label', { class: 'option-field' }, el('span', {}, label), control);
     return {
-        element: el('fieldset', { class: 'game-options' }, el('legend', {}, t('Règles de la partie')), el('div', { class: 'option-grid' }, field(t('Cartes par joueur'), cardsSelect), field(t('Paquets'), deckSelect), field(t('Fin de partie à'), targetSelect), field(t('Pénalité si « Dutch » raté'), penaltySelect)), el('fieldset', { class: 'effects' }, el('legend', {}, t('Cartes spéciales')), ...ALL_EFFECTS.map(effect => el('label', { class: 'checkbox' }, effectInputs.get(effect), el('span', {}, el('strong', {}, t(EFFECT_LABELS[effect].name)), t(' : {effect}', { effect: t(EFFECT_LABELS[effect].effect) }))))), el('label', { class: 'checkbox' }, peek, t(' Variante : chacun regarde ses 2 dernières cartes au début de la ronde'))),
+        element: el('fieldset', { class: 'game-options' }, el('legend', {}, t('Règles de la partie')), el('div', { class: 'option-grid' }, field(t('Cartes par joueur'), cardsSelect), field(t('Paquets'), deckSelect), field(t('Fin de partie à'), targetSelect), field(t('Pénalité si « Dutch » raté'), penaltySelect)), el('fieldset', { class: 'effects' }, el('legend', {}, t('Cartes spéciales')), ...ALL_EFFECTS.map(effect => el('label', { class: 'checkbox' }, effectInputs.get(effect), el('span', {}, el('strong', {}, t(EFFECT_LABELS[effect].name)), t(' : {effect}', { effect: t(EFFECT_LABELS[effect].effect) })))), check(queenAny, t('La Dame peut regarder n\'importe quelle carte, pas seulement les siennes'))), el('fieldset', { class: 'effects' }, el('legend', {}, t('Après « Dutch », le joueur est protégé')), check(protectJack, t('du Valet : on ne peut pas échanger ses cartes')), check(protectAce, t('de l\'As : on ne peut pas lui donner de carte'))), el('label', { class: 'checkbox' }, peek, t(' Variante : chacun regarde ses 2 dernières cartes au début de la ronde'))),
         read: () => cleanSettings({
             deckCount: parseInt(deckSelect.value, 10),
             cardsPerPlayer: parseInt(cardsSelect.value, 10),
@@ -365,6 +379,9 @@ export function gameOptions(initial, onChange) {
             dutchPenalty: parseInt(penaltySelect.value, 10),
             peekVariant: peek.checked,
             effects: ALL_EFFECTS.filter(effect => effectInputs.get(effect).checked),
+            protectFromJack: protectJack.checked,
+            protectFromAce: protectAce.checked,
+            queenAny: queenAny.checked,
         }),
     };
 }

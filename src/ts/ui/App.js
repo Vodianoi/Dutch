@@ -1,11 +1,12 @@
 import { findPublicGames } from '../net/PublicGames.js';
-import { IS_DEV, scoped, TABLE_3D } from '../env.js';
+import { IS_DEV, scoped, TABLE_3D, TEST_VERSION } from '../env.js';
 import { render, t } from '../i18n.js';
 import Dutch, { RuleError } from '../Dutch.js';
 import { LocalSession } from '../Session.js';
 import { SoloSession } from '../SoloSession.js';
 import { TableView } from '../table/TableView.js';
-import { loadPrefs, savePrefs } from '../table/prefs.js';
+import { BOT_PACES, loadPrefs, savePrefs } from '../table/prefs.js';
+import { applyTheme } from '../table/themes.js';
 import { BroadcastTransport } from '../net/BroadcastTransport.js';
 import { Client } from '../net/Client.js';
 import { Host } from '../net/Host.js';
@@ -17,6 +18,7 @@ import { ChatBox } from './ChatBox.js';
 import { renderLobby } from './LobbyView.js';
 import { loadSetup, renderSetup } from './SetupView.js';
 import { clear, el } from './dom.js';
+import { renderHero } from './hero.js';
 const HOST_KEY = scoped('host');
 /** Solo game in progress, saved after every change */
 const SOLO_KEY = scoped('solo');
@@ -46,8 +48,11 @@ export class App {
         if (IS_DEV) {
             // The test version must never be taken for the real one
             document.title = t('Dutch (version de test)');
-            document.querySelector('.site-header')?.appendChild(el('span', { class: 'dev-badge', title: t('Branche dev : les parties sont séparées de celles du vrai site') }, t('Version de test')));
+            (document.querySelector('.brand') ?? document.querySelector('.site-header'))?.appendChild(el('span', { class: 'dev-badge', title: t('Les parties sont séparées de celles du vrai site') }, TEST_VERSION === 'new-look' ? t('Aperçu du nouveau look') : t('Version de test')));
         }
+        // The look chosen on this device, before anything is drawn with it
+        applyTheme(loadPrefs().theme);
+        renderHero();
         const params = new URLSearchParams(location.search);
         this.debug = params.has('debug');
         this.classic = params.has('classic');
@@ -206,11 +211,12 @@ export class App {
             players: game.players.map(p => p.name), playerColors: game.players.map(p => p.color),
             deckCount: game.deckCount, cardsPerPlayer: game.cardsPerPlayer, targetScore: game.targetScore,
             dutchPenalty: game.dutchPenalty, peekVariant: game.peekVariant, effects: game.effectsEnabled,
+            protectFromJack: game.protectFromJack, protectFromAce: game.protectFromAce, queenAny: game.queenAny,
         };
         this.runSolo(game, options);
     }
     runSolo(game, options) {
-        const session = new SoloSession(game, snapshot => this.saveSolo(snapshot));
+        const session = new SoloSession(game, snapshot => this.saveSolo(snapshot), { speed: BOT_PACES[loadPrefs().bots].factor });
         this.session = session;
         this.showGame(session, () => this.playSolo(options), () => this.home());
         window.dutch = game;

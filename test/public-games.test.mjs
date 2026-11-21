@@ -231,14 +231,15 @@ test('a player cleans the rules a host sends (a stranger could send anything)', 
         connection.send({
             t: 'lobby', you: 1, lobby: {
                 code: room.code, started: false, players: [{name: 'Bad', color: '#000', connected: true}, {name: 'Me', color: '#fff', connected: true}],
-                settings: {targetScore: '<img src=x onerror=alert(1)>', deckCount: 99, effects: ['NOPE', 'ACE'], peekVariant: 'yes'},
+                settings: {targetScore: '<img src=x onerror=alert(1)>', deckCount: 99, effects: ['NOPE', 'ACE'], peekVariant: 'yes', queenAny: '<b>'},
             },
         });
     }));
     const client = await Client.join(transport, room.code, 'Me', `token-me-${Math.random()}`);
     try {
         await until(() => client.lobby);
-        assert.deepEqual(client.lobby.settings, {deckCount: 1, cardsPerPlayer: 4, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE']});
+        assert.deepEqual(client.lobby.settings, {deckCount: 1, cardsPerPlayer: 4, targetScore: 50, dutchPenalty: 10, peekVariant: true, effects: ['ACE'],
+            protectFromJack: true, protectFromAce: true, queenAny: false});
     } finally {
         client.leave();
         room.close();

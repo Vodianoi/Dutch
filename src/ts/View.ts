@@ -153,6 +153,11 @@ export interface ViewOptions {
  *  to everybody; online, only the player who drew it sees it.
  *  Hands are always face down: nobody knows his own cards, reveals are sent separately.
  */
+/** Is the player who said "Dutch" out of reach of this special card, in this game? */
+export function isProtected(view: GameView, playerId: number, from: 'JACK' | 'ACE'): boolean {
+    return view.dutchCallerId === playerId && (from === 'JACK' ? view.settings.protectFromJack : view.settings.protectFromAce);
+}
+
 export function buildView(game: Dutch, viewerId: number | null, options: ViewOptions = {}): GameView {
     const show = (card: Card) => options.showAll ? faceUp(card) : faceDown(card);
     const drawnVisible = viewerId === null || viewerId === game.currentPlayerIndex || options.showAll;
@@ -171,6 +176,9 @@ export function buildView(game: Dutch, viewerId: number | null, options: ViewOpt
             dutchPenalty: game.dutchPenalty,
             peekVariant: game.peekVariant,
             effects: game.effectsEnabled.slice(),
+            protectFromJack: game.protectFromJack,
+            protectFromAce: game.protectFromAce,
+            queenAny: game.queenAny,
         },
         currentPlayerIndex: game.currentPlayerIndex,
         dutchCallerId: game.dutchCallerId,

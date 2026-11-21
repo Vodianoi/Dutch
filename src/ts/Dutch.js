@@ -54,6 +54,8 @@ class Dutch {
          *  Turns left to play after "Dutch" was called
          */
         this.finalTurnsLeft = 0;
+        /** The top of the discard was thrown from this player's hand: if he throws another one on it, its effect plays */
+        this.handThrow = null;
         this.log = [];
         this.lastMove = null;
         this.moveSeq = 0;
@@ -71,6 +73,9 @@ class Dutch {
         this.dutchPenalty = options.dutchPenalty ?? 10;
         this.peekVariant = options.peekVariant ?? false;
         this.effectsEnabled = ALL_EFFECTS.filter(e => (options.effects ?? ALL_EFFECTS).includes(e));
+        this.protectFromJack = options.protectFromJack ?? true;
+        this.protectFromAce = options.protectFromAce ?? true;
+        this.queenAny = options.queenAny ?? false;
         const problem = settingsProblem(this.players.length, { deckCount: this.deckCount, cardsPerPlayer: this.cardsPerPlayer });
         if (problem)
             throw new RuleError(problem);
@@ -94,6 +99,9 @@ class Dutch {
             dutchPenalty: this.dutchPenalty,
             peekVariant: this.peekVariant,
             effectsEnabled: this.effectsEnabled.slice(),
+            protectFromJack: this.protectFromJack,
+            protectFromAce: this.protectFromAce,
+            queenAny: this.queenAny,
             drawPile: this.deck.drawPile.map(cardData),
             discardPile: this.deck.discardPile.map(cardData),
             phase: this.phase,
@@ -104,6 +112,7 @@ class Dutch {
             effects: this.effects.map(e => ({ type: e.type, playerId: e.playerId, card: cardData(e.card) })),
             dutchCallerId: this.dutchCallerId,
             finalTurnsLeft: this.finalTurnsLeft,
+            handThrow: this.handThrow,
             log: this.log.map(entry => ({ ...entry })),
             lastMove: move ? { ...move, playerIds: move.playerIds.slice(), cardIds: move.cardIds.slice(), card: move.card ? cardData(move.card) : undefined } : null,
             moveSeq: this.moveSeq,
@@ -129,6 +138,9 @@ class Dutch {
             dutchPenalty: data.dutchPenalty,
             peekVariant: data.peekVariant,
             effects: data.effectsEnabled ?? ALL_EFFECTS,
+            protectFromJack: data.protectFromJack ?? true,
+            protectFromAce: data.protectFromAce ?? true,
+            queenAny: data.queenAny ?? false,
             playerColors: data.players.map(p => p.color),
             rng,
         });
@@ -150,6 +162,7 @@ class Dutch {
         game.effects = data.effects.map(e => ({ type: e.type, playerId: e.playerId, card: toCard(e.card) }));
         game.dutchCallerId = data.dutchCallerId;
         game.finalTurnsLeft = data.finalTurnsLeft;
+        game.handThrow = data.handThrow ?? null;
         game.log = data.log.map(entry => ({ ...entry }));
         const move = data.lastMove;
         game.lastMove = move ? { ...move, card: move.card ? toCard(move.card) : undefined } : null;
@@ -185,10 +198,11 @@ class Dutch {
         return player;
     }
     /**
-     *  The player who said "Dutch" is immune: his cards can't be exchanged and he can't receive cards
+     *  The player who said "Dutch" is protected, as the rules of the game say:
+     *  from the Valet (his cards can't be exchanged), from the As (he can't receive a card)
      */
-    isImmune(playerId) {
-        return this.dutchCallerId === playerId;
+    isProtected(playerId, from) {
+        return this.dutchCallerId === playerId && (from === 'JACK' ? this.protectFromJack : this.protectFromAce);
     }
     /**
      *  Find which player holds a card
@@ -274,6 +288,7 @@ class Dutch {
         this.effects = [];
         this.dutchCallerId = null;
         this.finalTurnsLeft = 0;
+        this.handThrow = null;
         this.lastResult = null;
         this.lastMove = null;
         this.currentPlayerIndex = this.firstPlayerIndex;
@@ -451,7 +466,8 @@ class Dutch {
         this.phase = 'played';
         this.addLog('{name} échange une carte et jette {card}.', { name: player.name, card: old.ref }, 'info');
         this.move('swap', player.id, [newCard.id, old.id], [], old);
-        this.discardCard(player, old);
+        // A card that was in the hand: no effect
+        this.discardCard(player, old, false);
         // The player now knows the card he just placed
         this.reveal(player, newCard);
         this.changed();
@@ -471,12 +487,13 @@ class Dutch {
         this.phase = 'played';
         this.addLog('{name} jette {card}.', { name: this.currentPlayer.name, card: card.ref }, 'info');
         this.move('discardDrawn', playerId, [card.id], [], card);
-        this.discardCard(this.currentPlayer, card);
+        this.discardCard(this.currentPlayer, card, true);
         this.changed();
     }
     /**
      *  Any player (not only the current one) throws a card of the same value as the visible discard.
-     *  - Right value: the card goes to the discard pile (and its effect is triggered)
+     *  - Right value: the card goes to the discard pile. A card from the hand has no effect, except when the
+     *    same player throws a second card in a row: the effect of that last card plays
      *  - Wrong value: the card stays, the player gets a penalty card and can't throw again this turn
      * @returns true if the card matched
      */
@@ -500,11 +517,14 @@ class Dutch {
             player.removeCard(cardId);
             this.addLog('{name} jette {card} sur {top} !', { name: player.name, card: card.ref, top: top.ref }, 'good');
             this.move('throw', player.id, [card.id], [], card);
-            this.discardCard(player, card);
+            const inRow = this.handThrow?.playerId === player.id && this.handThrow.cardId === top.id;
+            this.discardCard(player, card, inRow);
+            this.handThrow = { playerId: player.id, cardId: card.id };
             this.changed();
             return true;
         }
         player.locked = true;
+        this.handThrow = null;
         // A wrong card is shown to everybody before going back in the hand
         this.reveal(player, card, true);
         const penalty = this.deck.draw();
@@ -555,10 +575,13 @@ class Dutch {
     // endregion
     // region Special cards
     /**
-     *  Put a card on the discard pile and queue its effect if it is a special card
+     *  Put a card on the discard pile and queue its effect if it is a special card and may play it:
+     *  only a card drawn from the deck and thrown at once, or the second card a player throws in a row from his hand
      */
-    discardCard(player, card) {
+    discardCard(player, card, withEffect) {
         this.deck.discard(card);
+        if (!withEffect)
+            return;
         let type = null;
         switch (card.value) {
             case 'JACK':
@@ -597,7 +620,7 @@ class Dutch {
         if (!ownerA || !ownerB)
             throw new RuleError('Carte introuvable.');
         for (const owner of [ownerA, ownerB]) {
-            if (this.isImmune(owner.id) && owner.id !== playerId) {
+            if (this.isProtected(owner.id, 'JACK') && owner.id !== playerId) {
                 throw new RuleError('{name} a dit Dutch : ses cartes sont protégées.', { name: owner.name });
             }
         }
@@ -616,17 +639,22 @@ class Dutch {
         this.changed();
     }
     /**
-     *  Dame: look at one of your cards without penalty
+     *  Dame: look at one of your cards without penalty (any card on the table if the rules say so)
      * @returns the card
      */
     queenPeek(playerId, cardId) {
         this.assertEffect(playerId, 'QUEEN');
         const player = this.getPlayer(playerId);
-        const card = player.getCard(cardId);
-        if (!card)
-            throw new RuleError('Choisissez une de vos cartes.');
+        const owner = this.ownerOf(cardId);
+        const card = owner?.getCard(cardId);
+        if (!owner || !card || (owner !== player && !this.queenAny)) {
+            throw new RuleError(this.queenAny ? 'Choisissez une carte sur la table.' : 'Choisissez une de vos cartes.');
+        }
         this.reveal(player, card);
-        this.addLog('{name} (Dame) regarde une de ses cartes.', { name: player.name }, 'effect');
+        if (owner === player)
+            this.addLog('{name} (Dame) regarde une de ses cartes.', { name: player.name }, 'effect');
+        else
+            this.addLog('{name} (Dame) regarde une carte {deA}.', { name: player.name, a: owner.name, deA: de(owner.name) }, 'effect');
         this.move('queenPeek', playerId, [card.id]);
         this.effects.shift();
         this.changed();
@@ -638,7 +666,7 @@ class Dutch {
     aceGive(playerId, targetId) {
         this.assertEffect(playerId, 'ACE');
         const target = this.getPlayer(targetId);
-        if (this.isImmune(target.id))
+        if (this.isProtected(target.id, 'ACE'))
             throw new RuleError('{name} a dit Dutch : il est protégé.', { name: target.name });
         const card = this.deck.draw();
         this.move('aceGive', playerId, card ? [card.id] : [], [target.id]);

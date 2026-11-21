@@ -5,8 +5,10 @@ import {howToPlay} from '../howToPlay.js';
 import {t} from '../i18n.js';
 import {describeSettings} from '../Settings.js';
 import {ChatBox} from '../ui/ChatBox.js';
-import {BACK_COLORS, BackColor, TABLE_THEMES, TableTheme} from './cardArt.js';
-import {Prefs, savePrefs} from './prefs.js';
+import {backs as cardBacks, BackColor, tables, TableTheme} from './cardArt.js';
+import {BOT_PACES, BotPace, Prefs, savePrefs} from './prefs.js';
+import {ThemeId, THEMES} from './themes.js';
+import {chooseTheme, themeChoices} from '../ui/themePicker.js';
 import {setMuted, unlockAudio} from './sound.js';
 
 /**
@@ -31,6 +33,8 @@ export interface ChromeOptions {
     onFeltChange?(): void;
     /** The player chose the other table (flat / 3D) */
     onTableChange?(mode: '2d' | '3d'): void;
+    /** The player chose another theme: the menus already wear it, the table has to be drawn again */
+    onThemeChange?(): void;
 }
 
 export class TableChrome {
@@ -265,12 +269,12 @@ export class TableChrome {
         // How to play, for the rules of this game
         const howTo = s ? howToPlay(s.settings).map(section =>
             `<h3>${escape(section.title)}</h3><ul>${section.lines.map(line => `<li>${escape(line)}</li>`).join('')}</ul>`).join('') : '';
-        const backs = this.o.onBackChange ? `<p class="choice-title" aria-hidden="true">${t('Dos des cartes')}</p><div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${(Object.keys(BACK_COLORS) as BackColor[]).map(key =>
-            `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch back-${key}" aria-hidden="true"></span>${t(BACK_COLORS[key].name)}</label>`).join('')}</div>` : '';
-        const felts = this.o.onFeltChange ? `<p class="choice-title" aria-hidden="true">${t('Tapis')}</p><div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${(Object.keys(TABLE_THEMES) as TableTheme[]).map(key => {
-            const c = TABLE_THEMES[key];
+        const themes = `<p class="choice-title" aria-hidden="true">${t('Thème')}</p>${themeChoices(prefs.theme)}`;
+        const backs = this.o.onBackChange ? `<p class="choice-title" aria-hidden="true">${t('Dos des cartes')}</p><div class="backs" role="radiogroup" aria-label="${t('Dos des cartes')}">${Object.entries(cardBacks()).map(([key, c]) =>
+            `<label class="back-choice"><input type="radio" name="back" value="${key}" ${prefs.back === key ? 'checked' : ''}><span class="back-swatch" style="background: radial-gradient(circle, var(--card-mark) 0 7px, transparent 7.5px), linear-gradient(135deg, ${c.light}, ${c.dark})" aria-hidden="true"></span>${t(c.name)}</label>`).join('')}</div>` : '';
+        const felts = this.o.onFeltChange ? `<p class="choice-title" aria-hidden="true">${t('Tapis')}</p><div class="felts" role="radiogroup" aria-label="${t('Tapis')}">${Object.entries(tables()).map(([key, c]) => {
             const swatch = `background: radial-gradient(ellipse at 50% 40%, ${c.felt[0]}, ${c.felt[1]} 60%, ${c.felt[2]}); border-color: ${c.rail[1]}`;
-            return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch${c.wood ? ' felt-wood' : ''}" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
+            return `<label class="felt-choice"><input type="radio" name="felt" value="${key}" ${prefs.felt === key ? 'checked' : ''}><span class="felt-swatch" style="${swatch}" aria-hidden="true"></span>${t(c.name)}</label>`;
         }).join('')}</div>` : '';
         dialog.innerHTML = `
             <section class="panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menu-title">
@@ -282,7 +286,10 @@ export class TableChrome {
                     <label class="switch"><input type="checkbox" name="sound" ${prefs.sound ? 'checked' : ''}> ${t('Sons')}</label>
                     <label class="switch"><input type="checkbox" name="vibration" ${prefs.vibration ? 'checked' : ''}> ${t('Vibrations')}</label>
                     <label class="switch"><input type="checkbox" name="fast" ${prefs.speed === 'fast' ? 'checked' : ''}> ${t('Animations rapides')}</label>
+                    ${this.o.session.setBotSpeed ? `<label class="inline-field">${t('Vitesse des ordinateurs')} <select name="bots">${(Object.keys(BOT_PACES) as BotPace[]).map(key =>
+                        `<option value="${key}" ${prefs.bots === key ? 'selected' : ''}>${t(BOT_PACES[key].name)}</option>`).join('')}</select></label>` : ''}
                     ${this.o.onTableChange ? `<label class="switch"><input type="checkbox" name="table3d" ${prefs.table === '3d' ? 'checked' : ''}> ${t('Table en 3D (prototype)')}</label>` : ''}
+                    ${themes}
                     ${backs}
                     ${felts}
                     ${this.o.debug && this.o.session.canShowAll ? `<label class="switch"><input type="checkbox" name="showAll"> ${t('Voir toutes les cartes (debug)')}</label>` : ''}
@@ -307,7 +314,17 @@ export class TableChrome {
             if (input.name === 'sound') prefs.sound = input.checked;
             if (input.name === 'vibration') prefs.vibration = input.checked;
             if (input.name === 'fast') prefs.speed = input.checked ? 'fast' : 'normal';
+            if (input.name === 'bots' && input.value in BOT_PACES) {
+                prefs.bots = input.value as BotPace;
+                this.o.session.setBotSpeed?.(BOT_PACES[prefs.bots].factor);
+            }
             if (input.name === 'showAll') this.o.session.setShowAll(input.checked);
+            if (input.name === 'theme' && input.value in THEMES) {
+                chooseTheme(prefs, input.value as ThemeId);
+                close();
+                this.o.onThemeChange?.();
+                return;
+            }
             if (input.name === 'felt') {
                 prefs.felt = input.value as TableTheme;
                 this.o.onFeltChange?.();
