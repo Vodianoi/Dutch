@@ -125,6 +125,8 @@ export interface DutchSnapshot {
     effects: { type: EffectType; playerId: number; card: CardData }[];
     dutchCallerId: number | null;
     finalTurnsLeft: number;
+    /** The card on top of the discard, when it was thrown from a hand (for two throws in a row) */
+    handThrow?: { playerId: number; cardId: string } | null;
     log: LogEntry[];
     lastMove: (Omit<Move, 'card'> & { card?: CardData }) | null;
     moveSeq: number;
@@ -214,6 +216,8 @@ class Dutch {
      *  Turns left to play after "Dutch" was called
      */
     public finalTurnsLeft: number = 0;
+    /** The top of the discard was thrown from this player's hand: if he throws another one on it, its effect plays */
+    private handThrow: { playerId: number; cardId: string } | null = null;
 
     public log: LogEntry[] = [];
     public lastMove: Move | null = null;
@@ -289,6 +293,7 @@ class Dutch {
             effects: this.effects.map(e => ({type: e.type, playerId: e.playerId, card: cardData(e.card)})),
             dutchCallerId: this.dutchCallerId,
             finalTurnsLeft: this.finalTurnsLeft,
+            handThrow: this.handThrow,
             log: this.log.map(entry => ({...entry})),
             lastMove: move ? {...move, playerIds: move.playerIds.slice(), cardIds: move.cardIds.slice(), card: move.card ? cardData(move.card) : undefined} : null,
             moveSeq: this.moveSeq,
@@ -338,6 +343,7 @@ class Dutch {
         game.effects = data.effects.map(e => ({type: e.type, playerId: e.playerId, card: toCard(e.card)}));
         game.dutchCallerId = data.dutchCallerId;
         game.finalTurnsLeft = data.finalTurnsLeft;
+        game.handThrow = data.handThrow ?? null;
         game.log = data.log.map(entry => ({...entry}));
         const move = data.lastMove;
         game.lastMove = move ? {...move, card: move.card ? toCard(move.card) : undefined} : null;
@@ -475,6 +481,7 @@ class Dutch {
         this.effects = [];
         this.dutchCallerId = null;
         this.finalTurnsLeft = 0;
+        this.handThrow = null;
         this.lastResult = null;
         this.lastMove = null;
         this.currentPlayerIndex = this.firstPlayerIndex;
@@ -650,7 +657,8 @@ class Dutch {
         this.phase = 'played';
         this.addLog('{name} échange une carte et jette {card}.', {name: player.name, card: old.ref}, 'info');
         this.move('swap', player.id, [newCard.id, old.id], [], old);
-        this.discardCard(player, old);
+        // A card that was in the hand: no effect
+        this.discardCard(player, old, false);
         // The player now knows the card he just placed
         this.reveal(player, newCard);
         this.changed();
@@ -670,13 +678,14 @@ class Dutch {
         this.phase = 'played';
         this.addLog('{name} jette {card}.', {name: this.currentPlayer.name, card: card.ref}, 'info');
         this.move('discardDrawn', playerId, [card.id], [], card);
-        this.discardCard(this.currentPlayer, card);
+        this.discardCard(this.currentPlayer, card, true);
         this.changed();
     }
 
     /**
      *  Any player (not only the current one) throws a card of the same value as the visible discard.
-     *  - Right value: the card goes to the discard pile (and its effect is triggered)
+     *  - Right value: the card goes to the discard pile. A card from the hand has no effect, except when the
+     *    same player throws a second card in a row: the effect of that last card plays
      *  - Wrong value: the card stays, the player gets a penalty card and can't throw again this turn
      * @returns true if the card matched
      */
@@ -697,12 +706,15 @@ class Dutch {
             player.removeCard(cardId);
             this.addLog('{name} jette {card} sur {top} !', {name: player.name, card: card.ref, top: top.ref}, 'good');
             this.move('throw', player.id, [card.id], [], card);
-            this.discardCard(player, card);
+            const inRow = this.handThrow?.playerId === player.id && this.handThrow.cardId === top.id;
+            this.discardCard(player, card, inRow);
+            this.handThrow = {playerId: player.id, cardId: card.id};
             this.changed();
             return true;
         }
 
         player.locked = true;
+        this.handThrow = null;
         // A wrong card is shown to everybody before going back in the hand
         this.reveal(player, card, true);
         const penalty = this.deck.draw();
@@ -755,10 +767,12 @@ class Dutch {
 
     // region Special cards
     /**
-     *  Put a card on the discard pile and queue its effect if it is a special card
+     *  Put a card on the discard pile and queue its effect if it is a special card and may play it:
+     *  only a card drawn from the deck and thrown at once, or the second card a player throws in a row from his hand
      */
-    private discardCard(player: Player, card: Card) {
+    private discardCard(player: Player, card: Card, withEffect: boolean) {
         this.deck.discard(card);
+        if (!withEffect) return;
         let type: EffectType | null = null;
         switch (card.value) {
             case 'JACK': type = 'JACK'; break;

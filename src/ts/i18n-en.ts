@@ -383,8 +383,8 @@ export const EN: Record<string, string> = {
         'At any time, even outside your turn: if one of your cards has the same value as the face-up discard, drag it onto the pile. One card less!',
     'En cas d\'erreur : une carte de pénalité, et plus de jet jusqu\'à la fin du tour.':
         'If you are wrong: a penalty card, and no more throwing until the end of the turn.',
-    'Elles agissent quand on les jette sur la défausse, pas quand on les prend. On peut passer l\'effet.':
-        'They act when they are thrown on the discard pile, not when they are taken. The effect can be skipped.',
+    'Elles agissent seulement quand on les pioche et qu\'on les jette aussitôt. Une carte qui vient de votre main (échangée, ou jetée sur une carte identique) n\'a pas d\'effet, sauf si vous en jetez deux à la suite : la dernière agit. On peut passer l\'effet.':
+        'They only act when you draw them and throw them at once. A card from your hand (swapped out, or thrown on a matching card) has no effect, unless you throw two in a row: the last one acts. You can skip the effect.',
     'Valet : échangez deux cartes sur la table, les vôtres ou celles des autres, sans les regarder.':
         'Jack: swap two cards on the table, yours or other players\', without looking at them.',
     'Dame : regardez une de vos cartes.': 'Queen: look at one of your cards.',
