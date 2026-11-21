@@ -426,7 +426,7 @@ export const THEMES: Record<ThemeId, Theme> = {
 };
 
 export const THEME_IDS = Object.keys(THEMES) as ThemeId[];
-export const DEFAULT_THEME: ThemeId = 'delft';
+export const DEFAULT_THEME: ThemeId = 'saloon';
 
 let current: ThemeId = DEFAULT_THEME;
 

@@ -293,7 +293,7 @@ export const THEMES = {
     },
 };
 export const THEME_IDS = Object.keys(THEMES);
-export const DEFAULT_THEME = 'delft';
+export const DEFAULT_THEME = 'saloon';
 let current = DEFAULT_THEME;
 export function themeId() {
     return current;
