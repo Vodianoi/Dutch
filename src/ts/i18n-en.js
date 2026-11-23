@@ -301,7 +301,6 @@ export const EN = {
     'regardez vos 2 cartes du bas et retenez-les !': 'look at your 2 bottom cards and remember them!',
     'regardez vos 2 cartes les plus proches et retenez-les': 'look at your 2 nearest cards and remember them',
     'Les autres regardent leurs cartes…': 'The others are looking at their cards…',
-    ' · une carte identique ? Glissez-la sur la défausse': ' · a matching card? Drag it onto the discard pile',
     'Fin de la manche : on retourne les cartes': 'End of the round: cards are turned over',
     '{name} utilise {card}…': '{name} uses the {card}…',
     'Dame : touchez une de vos cartes pour la regarder': 'Queen: tap one of your cards to look at it',
