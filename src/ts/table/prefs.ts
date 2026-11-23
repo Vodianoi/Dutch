@@ -1,4 +1,4 @@
-import {scoped} from '../env.js';
+import {scoped, TEST_VERSION} from '../env.js';
 import {BackColor, TableTheme} from './cardArt.js';
 import {DEFAULT_THEME, first, ThemeId, THEMES} from './themes.js';
 
@@ -32,7 +32,9 @@ export const BOT_PACES: Record<BotPace, { name: string; factor: number }> = {
 const KEY = scoped('prefs');
 const DEFAULTS: Prefs = {
     sound: true, vibration: true, speed: 'normal', theme: DEFAULT_THEME,
-    back: first(THEMES[DEFAULT_THEME].backs), felt: first(THEMES[DEFAULT_THEME].tables), table: '2d', bots: 'normal',
+    back: first(THEMES[DEFAULT_THEME].backs), felt: first(THEMES[DEFAULT_THEME].tables),
+    // The preview of the 3D table (/3d/) opens on it
+    table: TEST_VERSION === '3d' ? '3d' : '2d', bots: 'normal',
 };
 
 export function loadPrefs(): Prefs {
@@ -48,7 +50,7 @@ export function loadPrefs(): Prefs {
             theme,
             back: saved.back in backs ? saved.back : first(backs),
             felt: saved.felt in tables ? saved.felt : first(tables),
-            table: saved.table === '3d' ? '3d' : '2d',
+            table: saved.table === '3d' || saved.table === '2d' ? saved.table : DEFAULTS.table,
             bots: saved.bots in BOT_PACES ? saved.bots : DEFAULTS.bots,
         };
     } catch {
