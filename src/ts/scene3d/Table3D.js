@@ -673,12 +673,11 @@ export class Table3D {
         const cur = s.players[s.currentPlayerIndex];
         const myTurn = this.mine(cur.id);
         const who = (id) => s.viewerId === null ? t('{name} : ', { name: s.players[id].name }) : t('À vous : ');
-        const canThrow = s.viewerId !== null && s.players[s.viewerId].canThrow;
         if (s.phase === 'peek' && !effect) {
             const peeker = this.peeker(s);
             if (peeker !== null)
                 return who(peeker) + t('regardez vos 2 cartes du bas et retenez-les !');
-            return t('Les autres regardent leurs cartes…') + (canThrow ? t(' · une carte identique ? Glissez-la sur la défausse') : '');
+            return t('Les autres regardent leurs cartes…');
         }
         if (s.phase === 'roundOver' || s.phase === 'gameOver')
             return t('Fin de la manche : on retourne les cartes');
@@ -707,8 +706,6 @@ export class Table3D {
         }
         else {
             text = t('Tour de {name}', { name: cur.name });
-            if (canThrow)
-                text += t(' · une carte identique ? Glissez-la sur la défausse');
         }
         if (s.isFinalRound)
             text = t('Dernier tour · {text}', { text });
