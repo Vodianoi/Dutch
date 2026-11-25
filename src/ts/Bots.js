@@ -5,6 +5,8 @@ export const PEEK_SPREAD_MS = 1100;
 /** A move (draw, choose a card, use an effect) */
 export const MOVE_MS = 1100;
 export const MOVE_SPREAD_MS = 700;
+/** The first move of a round: the players have just seen their cards and need time to throw a matching one */
+export const FIRST_MOVE_MS = 3600;
 /** After playing, before ending the turn: time to throw a card on the discard */
 export const END_TURN_MS = 2200;
 /** The last turn of the round: once it ends, nobody can throw any more */
@@ -72,6 +74,9 @@ export class Bots {
      */
     waitBefore(id) {
         const g = this.game;
+        if (!g.activeEffect && g.phase === 'draw' && (!g.lastMove || g.lastMove.type === 'peek')) {
+            return FIRST_MOVE_MS + Math.random() * MOVE_SPREAD_MS;
+        }
         if (!g.activeEffect && g.phase === 'played') {
             const endsRound = g.dutchCallerId !== null && g.finalTurnsLeft <= 1 && g.currentPlayerIndex === id;
             return endsRound ? END_ROUND_MS + Math.random() * 600 : END_TURN_MS + Math.random() * 700;
