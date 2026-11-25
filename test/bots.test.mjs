@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Dutch from '../src/ts/Dutch.js';
-import {Bots, PEEK_MIN_MS, PEEK_SPREAD_MS, END_TURN_MS, END_ROUND_MS} from '../src/ts/Bots.js';
+import {Bots, PEEK_MIN_MS, PEEK_SPREAD_MS, END_TURN_MS, END_ROUND_MS, FIRST_MOVE_MS} from '../src/ts/Bots.js';
 import {SoloSession} from '../src/ts/SoloSession.js';
 
 const fast = {speed: 0, setTimer: (fn) => setImmediate(fn), clearTimer: (h) => clearImmediate(h)};
@@ -127,6 +127,7 @@ test('after playing, a bot leaves time to throw a card, more when his turn ends 
     game.discardDrawn(0);
     game.endTurn(0, true);
     bots.schedule();
+    assert.ok(lastWait() < FIRST_MOVE_MS, `draws after ${lastWait()} ms, not as slow as the start of a round`);
     assert.ok(lastWait() < END_TURN_MS, `draws after ${lastWait()} ms`);
     game.drawFromPile(1);
     game.discardDrawn(1);
@@ -158,4 +159,17 @@ test('the speed of the bots can change during a game', () => {
     solo.setBotSpeed(.65);
     assert.ok(timers[timers.length - 1].ms <= 1800 * .65, 'fast');
     solo.close();
+});
+
+test('the first move of a round leaves time to throw a card just seen', () => {
+    const game = new Dutch({players: ['Vous', 'B1'], peekVariant: true, effects: []});
+    const timers = [];
+    const bots = new Bots(game, [1], {setTimer: (fn, ms) => timers.push({fn, ms}) - 1, clearTimer: () => {}});
+    game.startRound();
+    game.peek(0);
+    game.peek(1);
+    game.currentPlayerIndex = 1;
+    bots.schedule();
+    assert.ok(timers[timers.length - 1].ms >= FIRST_MOVE_MS, `first move after ${timers[timers.length - 1].ms} ms`);
+    bots.stop();
 });
