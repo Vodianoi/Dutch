@@ -203,7 +203,8 @@ export class Bots {
         for (const id of this.ids) {
             if (this.throwTimers.has(id) || !top || !g.canThrow(id))
                 continue;
-            const match = this.mine(id).known.find(c => c.matches(top));
+            // A red king is worth 0: the bot keeps it, and doesn't offer it to the next player on the discard
+            const match = this.mine(id).known.find(c => c.matches(top) && c.points > 0);
             if (!match)
                 continue;
             this.throwTimers.set(id, this.setTimer(() => {

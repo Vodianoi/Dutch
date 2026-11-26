@@ -173,3 +173,23 @@ test('the first move of a round leaves time to throw a card just seen', () => {
     assert.ok(timers[timers.length - 1].ms >= FIRST_MOVE_MS, `first move after ${timers[timers.length - 1].ms} ms`);
     bots.stop();
 });
+
+test('a bot keeps its red king when a king is on the discard', () => {
+    const game = new Dutch({players: ['Vous', 'B1'], peekVariant: true, effects: []});
+    const timers = [];
+    const bots = new Bots(game, [1], {setTimer: (fn, ms) => timers.push({fn, ms}) - 1, clearTimer: () => {}});
+    game.startRound();
+    // Put a red king at the bottom of B1's hand and a black king on the discard (cards taken from the draw pile)
+    const pile = game.deck.drawPile;
+    const red = pile.splice(pile.findIndex(c => c.value === 'KING' && c.isRed), 1)[0];
+    const black = pile.splice(pile.findIndex(c => c.value === 'KING' && !c.isRed), 1)[0];
+    assert.ok(red?.isRed && black && !black.isRed, 'kings found in the draw pile');
+    game.players[1].hand[game.players[1].hand.length - 1] = red;
+    game.deck.discardPile.push(black);
+    game.peek(1);
+    const before = timers.length;
+    bots.schedule();
+    timers.slice(before).forEach(t => t.fn());
+    assert.ok(game.players[1].hasCard(red.id), 'the red king stays in the hand');
+    bots.stop();
+});
