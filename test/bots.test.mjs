@@ -169,8 +169,11 @@ test('the first move of a round leaves time to throw a card just seen', () => {
     game.peek(0);
     game.peek(1);
     game.currentPlayerIndex = 1;
+    const before = timers.length;
     bots.schedule();
-    assert.ok(timers[timers.length - 1].ms >= FIRST_MOVE_MS, `first move after ${timers[timers.length - 1].ms} ms`);
+    // The turn timer is planned first; a throw timer can follow if a card of B1 matches the discard
+    const move = timers[before];
+    assert.ok(move.ms >= FIRST_MOVE_MS, `first move after ${move.ms} ms`);
     bots.stop();
 });
 
